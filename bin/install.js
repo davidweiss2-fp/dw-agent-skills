@@ -1,0 +1,284 @@
+#!/usr/bin/env node
+'use strict';
+
+const child_process = require('node:child_process');
+const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs');
+
+const REPO = 'davidweiss2-fp/dw-agent-skills';
+const PLUGIN_NAME = 'dw-agent-skills';
+
+const PROVIDERS = [
+	{id: 'claude', label: 'Claude Code', mech: 'claude plugin install', detect: 'command:claude'},
+	{id: 'cursor', label: 'Cursor', mech: 'npx skills add (cursor)', detect: 'command:cursor||macapp:Cursor', profile: 'cursor'},
+];
+
+function parseArgs(argv) {
+	const opts = {
+		dryRun: false,
+		force: false,
+		uninstall: false,
+		listOnly: false,
+		help: false,
+		nonInteractive: false,
+		only: [],
+	};
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		switch (a) {
+			case '--dry-run': opts.dryRun = true; break;
+			case '--force': opts.force = true; break;
+			case '--uninstall':
+			case '-u': opts.uninstall = true; break;
+			case '--list': opts.listOnly = true; break;
+			case '-h':
+			case '--help': opts.help = true; break;
+			case '--non-interactive': opts.nonInteractive = true; break;
+			case '--only': {
+				const v = argv[++i];
+				if (!v) die('error: --only requires an argument');
+				opts.only.push(v);
+				break;
+			}
+			default:
+				if (a.startsWith('--')) die(`unknown flag: ${a}`);
+		}
+	}
+	const known = new Set(PROVIDERS.map((p) => p.id));
+	for (const id of opts.only) {
+		if (!known.has(id)) die(`unknown --only id: ${id}. Valid: ${[...known].join(', ')}`);
+	}
+	return opts;
+}
+
+function die(msg) {
+	process.stderr.write(`${msg}\n`);
+	process.exit(1);
+}
+
+function hasCmd(cmd) {
+	try {
+		if (process.platform === 'win32') {
+			return child_process.spawnSync('where', [cmd], {stdio: 'ignore'}).status === 0;
+		}
+		return child_process.spawnSync('sh', ['-c', `command -v '${cmd.replace(/'/g, `'\\''`)}'`], {stdio: 'ignore'}).status === 0;
+	} catch {
+		return false;
+	}
+}
+
+function macAppPresent(name) {
+	if (process.platform !== 'darwin') return false;
+	const r = child_process.spawnSync('mdfind', [`kMDItemDisplayName == '${name}'`], {encoding: 'utf8'});
+	return (r.stdout || '').trim().length > 0;
+}
+
+function detectMatch(spec) {
+	return spec.split('||').some((part) => {
+		const [kind, val] = part.split(':');
+		if (kind === 'command') return hasCmd(val);
+		if (kind === 'macapp') return macAppPresent(val);
+		return false;
+	});
+}
+
+function spawnXplat(cmd, args, opts) {
+	if (process.platform === 'win32') {
+		const quote = (s) => `"${String(s).replace(/"/g, '\\"')}"`;
+		return child_process.spawnSync(`${cmd} ${args.map(quote).join(' ')}`, [], {shell: true, ...(opts || {})});
+	}
+	return child_process.spawnSync(cmd, args, opts || {});
+}
+
+function runSpawn(cmd, args, dry) {
+	if (dry) {
+		process.stdout.write(`  would run: ${cmd} ${args.join(' ')}\n`);
+		return {status: 0};
+	}
+	process.stdout.write(`  $ ${cmd} ${args.join(' ')}\n`);
+	return spawnXplat(cmd, args, {stdio: 'inherit'});
+}
+
+function captureSpawn(cmd, args) {
+	try {
+		return spawnXplat(cmd, args, {encoding: 'utf8'});
+	} catch {
+		return {status: 1, stdout: '', stderr: ''};
+	}
+}
+
+function detectRepoRoot() {
+	let dir = __dirname;
+	for (let i = 0; i < 6; i++) {
+		if (fs.existsSync(path.join(dir, 'skills', 'dw-pr-ready-skill', 'SKILL.md'))) return dir;
+		const parent = path.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return path.join(__dirname, '..');
+}
+
+function syncPluginMirror(repoRoot, dry) {
+	const src = path.join(repoRoot, 'skills', 'dw-pr-ready-skill');
+	const dest = path.join(repoRoot, 'plugins', PLUGIN_NAME, 'skills', 'dw-pr-ready-skill');
+	if (!fs.existsSync(src)) return;
+	const copyDir = (from, to) => {
+		if (dry) {
+			process.stdout.write(`  would sync ${from} -> ${to}\n`);
+			return;
+		}
+		fs.mkdirSync(to, {recursive: true});
+		for (const entry of fs.readdirSync(from, {withFileTypes: true})) {
+			const s = path.join(from, entry.name);
+			const d = path.join(to, entry.name);
+			if (entry.isDirectory()) copyDir(s, d);
+			else fs.copyFileSync(s, d);
+		}
+	};
+	copyDir(src, dest);
+}
+
+function installClaude(ctx) {
+	const {opts, results, say, note} = ctx;
+	results.detected++;
+	say('→ Claude Code detected');
+
+	if (!opts.force) {
+		const r = captureSpawn('claude', ['plugin', 'list']);
+		if (r.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(r.stdout || '')) {
+			note('  plugin already installed (use --force to reinstall)');
+			results.skipped.push(['claude', 'plugin already installed']);
+			return;
+		}
+	}
+
+	const r1 = runSpawn('claude', ['plugin', 'marketplace', 'add', REPO], opts.dryRun);
+	const r2 = runSpawn('claude', ['plugin', 'install', `${PLUGIN_NAME}@${PLUGIN_NAME}`], opts.dryRun);
+	if ((r1.status || 0) === 0 && (r2.status || 0) === 0) results.installed.push('claude');
+	else results.failed.push(['claude', 'claude plugin install failed']);
+}
+
+function installCursor(ctx) {
+	const {opts, results, say} = ctx;
+	const prov = PROVIDERS.find((p) => p.id === 'cursor');
+	results.detected++;
+	say('→ Cursor detected');
+	const args = ['-y', 'skills', 'add', REPO, '-a', prov.profile, '--yes', '--all'];
+	const r = runSpawn('npx', args, opts.dryRun);
+	if ((r.status || 0) === 0) results.installed.push('cursor');
+	else results.failed.push(['cursor', 'npx skills add failed']);
+}
+
+function uninstall(ctx) {
+	const {opts, say, ok, note} = ctx;
+	say('→ uninstalling dw-agent-skills');
+
+	if (hasCmd('claude')) {
+		const probe = captureSpawn('claude', ['plugin', 'list']);
+		if (probe.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(probe.stdout || '')) {
+			runSpawn('claude', ['plugin', 'uninstall', `${PLUGIN_NAME}@${PLUGIN_NAME}`], opts.dryRun);
+			ok('  removed claude plugin');
+		} else {
+			note('  claude plugin not installed — skipping');
+		}
+	}
+
+	note('  skills installed via `npx skills add` — remove with `npx skills remove` or your IDE skill manager');
+	ok('done');
+}
+
+function printList() {
+	process.stdout.write('dw-agent-skills provider matrix\n\n');
+	for (const p of PROVIDERS) {
+		process.stdout.write(`  ${p.id.padEnd(10)} ${p.label.padEnd(16)} ${p.mech}\n`);
+	}
+	process.stdout.write('\nSkills:\n  dw-pr-ready-skill — keep a PR ready for review\n');
+}
+
+function printHelp() {
+	process.stdout.write(`dw-agent-skills installer
+
+USAGE
+  npx -y github:${REPO} -- [flags]
+  node bin/install.js [flags]
+
+FLAGS
+  --only <agent>     cursor | claude (repeatable)
+  --dry-run          Print commands only
+  --force            Reinstall even if present
+  --uninstall, -u    Remove Claude plugin
+  --list             Show providers and skills
+  --non-interactive  No prompts
+  -h, --help         This help
+
+EXAMPLES
+  npx -y github:${REPO} -- --only cursor
+  npx -y github:${REPO} -- --only claude
+  npx -y github:${REPO} -- --only cursor --only claude
+`);
+}
+
+async function main() {
+	const opts = parseArgs(process.argv.slice(2));
+	if (opts.help) {
+		printHelp();
+		return 0;
+	}
+	if (opts.listOnly) {
+		printList();
+		return 0;
+	}
+
+	const repoRoot = detectRepoRoot();
+	const ctx = {
+		opts,
+		repoRoot,
+		say: (s) => process.stdout.write(`${s}\n`),
+		note: (s) => process.stdout.write(`  ${s}\n`),
+		ok: (s) => process.stdout.write(`${s}\n`),
+		results: {installed: [], skipped: [], failed: [], detected: 0},
+	};
+
+	if (opts.uninstall) {
+		uninstall(ctx);
+		return 0;
+	}
+
+	ctx.say('dw-agent-skills installer');
+	ctx.note(REPO);
+	if (opts.dryRun) ctx.note('(dry run)');
+	process.stdout.write('\n');
+
+	syncPluginMirror(repoRoot, opts.dryRun);
+
+	const want = (id) => opts.only.length === 0 || opts.only.includes(id);
+	const explicit = (id) => opts.only.includes(id);
+
+	for (const prov of PROVIDERS) {
+		if (!want(prov.id)) continue;
+		if (!explicit(prov.id) && !detectMatch(prov.detect)) continue;
+		if (prov.id === 'claude') installClaude(ctx);
+		if (prov.id === 'cursor') installCursor(ctx);
+	}
+
+	process.stdout.write('\n');
+	ctx.say('done');
+	if (ctx.results.installed.length) {
+		ctx.ok('installed:');
+		for (const a of ctx.results.installed) process.stdout.write(`  • ${a}\n`);
+	}
+	if (ctx.results.skipped.length) {
+		for (const [a, why] of ctx.results.skipped) process.stdout.write(`  skipped ${a}: ${why}\n`);
+	}
+	if (ctx.results.failed.length) {
+		for (const [a, why] of ctx.results.failed) process.stderr.write(`  failed ${a}: ${why}\n`);
+		process.exit(1);
+	}
+	return 0;
+}
+
+main().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

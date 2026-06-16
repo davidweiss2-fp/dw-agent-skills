@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dw-agent-skills",
+  "description": "David Weiss agent skills for Claude Code and Cursor.",
+  "owner": {
+    "name": "David Weiss",
+    "url": "https://github.com/davidweiss2-fp"
+  },
+  "plugins": [
+    {
+      "name": "dw-agent-skills",
+      "description": "Keep PRs ready for review with dw-pr-ready-skill.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

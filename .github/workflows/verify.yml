@@ -1,0 +1,35 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check
+        run: |
+          node --check bin/install.js
+          node --check skills/dw-pr-ready-skill/scripts/utils.js
+          node --check skills/dw-pr-ready-skill/scripts/pr-ready-lib.js
+          node --check skills/dw-pr-ready-skill/scripts/dw-pr-ready-watch.js
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Packaging smoke
+        run: |
+          node bin/install.js --list
+          node bin/install.js --dry-run --only cursor
+          node bin/install.js --dry-run --only claude
+          test -f skills/dw-pr-ready-skill/SKILL.md
+          test -f plugins/dw-agent-skills/skills/dw-pr-ready-skill/SKILL.md

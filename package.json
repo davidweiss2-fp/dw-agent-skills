@@ -1,0 +1,36 @@
+{
+  "name": "dw-agent-skills",
+  "version": "0.1.0",
+  "description": "David Weiss agent skills — installable for Cursor and Claude Code.",
+  "license": "UNLICENSED",
+  "author": "David Weiss",
+  "homepage": "https://github.com/davidweiss2-fp/dw-agent-skills",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidweiss2-fp/dw-agent-skills.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidweiss2-fp/dw-agent-skills/issues"
+  },
+  "bin": {
+    "dw-agent-skills": "./bin/install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "verify": "node --check bin/install.js && node --check skills/dw-pr-ready-skill/scripts/dw-pr-ready-watch.js && node --check skills/dw-pr-ready-skill/scripts/pr-ready-lib.js && node --check skills/dw-pr-ready-skill/scripts/utils.js && npm test"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "plugins/",
+    ".claude-plugin/",
+    "install.sh",
+    "install.ps1",
+    "README.md",
+    "INSTALL.md",
+    "LICENSE"
+  ]
+}
