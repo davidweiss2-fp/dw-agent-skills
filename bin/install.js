@@ -119,10 +119,28 @@ function detectRepoRoot() {
 	return path.join(__dirname, '..');
 }
 
+function listSkillNames(repoRoot) {
+	const skillsRoot = path.join(repoRoot, 'skills');
+	if (!fs.existsSync(skillsRoot)) return [];
+	return fs
+		.readdirSync(skillsRoot, {withFileTypes: true})
+		.filter((e) => e.isDirectory())
+		.map((e) => e.name)
+		.sort();
+}
+
+function skillSummary(repoRoot, name) {
+	try {
+		const text = fs.readFileSync(path.join(repoRoot, 'skills', name, 'SKILL.md'), 'utf8');
+		const h1 = text.split('\n').find((l) => l.startsWith('# '));
+		if (h1) return h1.slice(2).trim();
+	} catch (_e) {
+		/* no summary */
+	}
+	return '';
+}
+
 function syncPluginMirror(repoRoot, dry) {
-	const src = path.join(repoRoot, 'skills', 'dw-pr-ready-skill');
-	const dest = path.join(repoRoot, 'plugins', PLUGIN_NAME, 'skills', 'dw-pr-ready-skill');
-	if (!fs.existsSync(src)) return;
 	const copyDir = (from, to) => {
 		if (dry) {
 			process.stdout.write(`  would sync ${from} -> ${to}\n`);
@@ -136,7 +154,12 @@ function syncPluginMirror(repoRoot, dry) {
 			else fs.copyFileSync(s, d);
 		}
 	};
-	copyDir(src, dest);
+	for (const name of listSkillNames(repoRoot)) {
+		const src = path.join(repoRoot, 'skills', name);
+		if (!fs.existsSync(src)) continue;
+		const dest = path.join(repoRoot, 'plugins', PLUGIN_NAME, 'skills', name);
+		copyDir(src, dest);
+	}
 }
 
 function installClaude(ctx) {
@@ -189,11 +212,21 @@ function uninstall(ctx) {
 }
 
 function printList() {
+	const repoRoot = detectRepoRoot();
 	process.stdout.write('dw-agent-skills provider matrix\n\n');
 	for (const p of PROVIDERS) {
 		process.stdout.write(`  ${p.id.padEnd(10)} ${p.label.padEnd(16)} ${p.mech}\n`);
 	}
-	process.stdout.write('\nSkills:\n  dw-pr-ready-skill — keep a PR ready for review\n');
+	process.stdout.write('\nSkills:\n');
+	const names = listSkillNames(repoRoot);
+	if (!names.length) {
+		process.stdout.write('  (none)\n');
+		return;
+	}
+	for (const name of names) {
+		const summary = skillSummary(repoRoot, name);
+		process.stdout.write(`  ${name}${summary ? ` — ${summary}` : ''}\n`);
+	}
 }
 
 function printHelp() {
