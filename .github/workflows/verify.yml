@@ -37,6 +37,15 @@ jobs:
       - name: git-guardrails self-test
         run: node skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js --self-test
 
+      - name: Install commands smoke (documented `--` forms, dry-run)
+        # Mirrors the three documented `npx -y github:owner/repo -- --only ...`
+        # commands. The leading `--` is the npm/npx separator that gets forwarded
+        # to the bin; install.js must tolerate it. Dry-run, no real install.
+        run: |
+          node bin/install.js -- --dry-run --only cursor
+          node bin/install.js -- --dry-run --only claude
+          node bin/install.js -- --dry-run --only cursor --only claude
+
       - name: Packaging smoke
         run: |
           node bin/install.js --list
