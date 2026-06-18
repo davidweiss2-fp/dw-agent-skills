@@ -40,4 +40,12 @@ describe('installer dry-run', () => {
 		assert.equal(r.status, 0);
 		assert.match(r.stdout, /plugin install/);
 	});
+
+	it('tolerates the npx `--` separator forwarded to the bin', () => {
+		// `npx -y github:owner/repo -- --only cursor` can forward `--` to the
+		// script; parseArgs must ignore it rather than die("unknown flag: --").
+		const r = runInstall(['--', '--dry-run', '--only', 'cursor']);
+		assert.equal(r.status, 0);
+		assert.match(r.stdout, /skills add/);
+	});
 });

@@ -35,6 +35,8 @@ function parseArgs(argv) {
 			case '-h':
 			case '--help': opts.help = true; break;
 			case '--non-interactive': opts.nonInteractive = true; break;
+			// `npx <pkg> -- <args>` can forward the `--` separator to the bin; ignore it.
+			case '--': break;
 			case '--only': {
 				const v = argv[++i];
 				if (!v) die('error: --only requires an argument');
