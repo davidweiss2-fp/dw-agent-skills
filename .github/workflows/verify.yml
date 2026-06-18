@@ -28,9 +28,14 @@ jobs:
           node --check skills/dw-knowledge-skill/scripts/km-recall.js
           node --check skills/dw-knowledge-skill/scripts/km-index.js
           node --check skills/dw-knowledge-skill/scripts/km-review.js
+          node --check skills/dw-handoff-skill/scripts/dw-handoff-path.js
+          node --check skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js
 
       - name: Unit tests
         run: npm test
+
+      - name: git-guardrails self-test
+        run: node skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js --self-test
 
       - name: Packaging smoke
         run: |
@@ -41,3 +46,8 @@ jobs:
           test -f plugins/dw-agent-skills/skills/dw-pr-ready-skill/SKILL.md
           test -f skills/dw-knowledge-skill/SKILL.md
           test -f plugins/dw-agent-skills/skills/dw-knowledge-skill/SKILL.md
+          for s in dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill; do
+            test -f "skills/$s/SKILL.md"
+            test -f "plugins/dw-agent-skills/skills/$s/SKILL.md"
+            diff -r "skills/$s" "plugins/dw-agent-skills/skills/$s"
+          done

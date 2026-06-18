@@ -30,6 +30,10 @@ See [INSTALL.md](INSTALL.md) for details.
 | `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; updates branch when safe; exits with next action |
 | `dw-product-decision-skill` | "ask product about this" / `/dw-product-decision [slack\|jira\|both]` | Reframes a dev question into a product-level decision and drafts a Slack DM + JIRA comment (drafts only, never posts) |
 | `dw-knowledge-skill` | "how do we run X here" / "remember this" / `/dw-recall` / `/dw-remember` | Live cross-project agent memory — recall before non-trivial work, capture verified+generalizable knowledge, self-update and prune; stores the method never secrets, confirms before writing |
+| `dw-skill-authoring-skill` | "help me write a skill" / "review this skill" / "why won't my skill trigger" | Principles, a checklist, and a failure-mode table for authoring reliable, well-triggered Agent Skills (naming, description, progressive disclosure, scripts-vs-prose). Invoked by name |
+| `dw-handoff-skill` | "write a handoff" / "hand this off" / `/dw-handoff [focus]` | Compresses the session into a self-contained, secret-scrubbed handoff doc (state, next steps, suggested next skills) in the temp dir; redaction delegated to `km-scrub` |
+| `dw-grilling-skill` | "grill me on this" / "stress-test this plan" / `/dw-grill [topic]` | Interview engine — resolves a plan's open decisions one question at a time, each led by a recommended default, ending in a resolved-design summary |
+| `dw-git-guardrails-skill` | "block dangerous git" / `/dw-git-guardrails [project\|global\|verify]` | Installs a PreToolUse hook that blocks irreversible git commands (force-push, `reset --hard`, `clean -f`, `branch -D`, `checkout`/`restore .`) before they run; parses only, never executes |
 
 ## Usage — dw-pr-ready-skill
 
