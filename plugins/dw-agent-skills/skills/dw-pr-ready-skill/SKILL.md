@@ -46,6 +46,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Do **not** update branch. Wait for reviewer. |
 | `waiting-draft` | Resolve comments only. Do **not** update branch. Mark ready when user wants. |
+| `waiting-checks` | CI still running. Loop mode keeps polling automatically; in `--once` mode, re-run when checks finish. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
 

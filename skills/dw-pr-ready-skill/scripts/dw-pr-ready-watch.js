@@ -177,10 +177,29 @@ function fetchReviews(owner, repo, prNumber) {
 }
 
 function fetchChecks(owner, repo, prNumber) {
-	return parseGhJson(
-		['pr', 'checks', String(prNumber), '--repo', `${owner}/${repo}`, '--json', 'name,bucket,state,workflow,link'],
-		`fetch checks for PR ${prNumber}`,
-	);
+	// `gh pr checks` intentionally exits non-zero by status: 1 = a check
+	// failed, 8 = checks pending. It still prints the JSON array to stdout in
+	// those cases, so we must NOT route this through parseGhJson (which throws
+	// on any non-zero exit). verifyGhAuth() already ran in pollOnce, so genuine
+	// auth/connection failures are surfaced before we ever get here.
+	const result = ghJsonCapture([
+		'pr', 'checks', String(prNumber),
+		'--repo', `${owner}/${repo}`,
+		'--json', 'name,bucket,state,workflow,link',
+	]);
+	if (result.error) {
+		throw new Error(`fetch checks for PR ${prNumber}: ${result.error.message}`);
+	}
+	const stdout = (result.stdout || '').trim();
+	if (stdout) {
+		try {
+			const parsed = JSON.parse(stdout);
+			if (Array.isArray(parsed)) return parsed;
+		} catch {
+			// Non-JSON notice (e.g. "no checks reported") — fall through to [].
+		}
+	}
+	return [];
 }
 
 function fetchMergeQueueEnabled(owner, repo, baseRefName) {
@@ -189,7 +208,7 @@ function fetchMergeQueueEnabled(owner, repo, baseRefName) {
     rulesets(first:20){
       nodes{
         conditions{refName{include exclude}}
-        rules{ type }
+        rules(first:50){ nodes { type } }
       }
     }
   }
@@ -263,6 +282,8 @@ function recommendedNextCommands(owner, repo, prNumber, reason) {
 			];
 		case 'auth-api-failed':
 			return ['gh auth status', 'gh auth refresh -h github.com'];
+		case 'waiting-checks':
+			return [`gh pr checks ${prNumber} ${repoFlag.join(' ')}`];
 		case 'pr-ready':
 			return [
 				`gh pr checks ${prNumber} ${repoFlag.join(' ')}`,
@@ -340,6 +361,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 
 	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews);
 	const failures = lib.collectFailures(checks, summary.headRefOid);
+	const pendingCount = lib.collectPending(checks);
 	const newComments = lib.unseenComments(summary.number, actionableComments, state);
 	const newFailures = lib.unseenFailures(summary.number, failures, state);
 	const gate = lib.canUpdateBranch(summary, {mergeQueueEnabled});
@@ -432,12 +454,32 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 	}
 
 	if (
+		pendingCount > 0
+		&& actionableComments.length === 0
+		&& failures.length === 0
+		&& !summary.isDraft
+	) {
+		// Loop mode keeps polling quietly while checks run; --once surfaces a
+		// calm "still waiting" interrupt (exit 0), never a premature pr-ready.
+		if (!options.once) return null;
+		return {
+			summary, owner, repo,
+			reason: 'waiting-checks',
+			comments: [],
+			failures: [],
+			gateReason: gate.reason,
+			readyHeadline: `PR #${summary.number} — ${pendingCount} check(s) still running`,
+		};
+	}
+
+	if (
 		state.prNumbersWithPriorIssues.includes(prKey)
 		&& !state.notifiedReadyPrNumbers.includes(prKey)
 		&& actionableComments.length === 0
 		&& failures.length === 0
 		&& summary.mergeable !== 'CONFLICTING'
 		&& !summary.isDraft
+		&& pendingCount === 0
 	) {
 		state.notifiedReadyPrNumbers.push(prKey);
 		return {
@@ -458,6 +500,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 		&& !summary.isDraft
 		&& summary.reviewDecision !== 'REVIEW_REQUIRED'
 		&& summary.reviewDecision !== 'CHANGES_REQUESTED'
+		&& pendingCount === 0
 	) {
 		return {
 			summary, owner, repo,
@@ -542,7 +585,7 @@ async function main() {
 					...attention,
 				});
 				printInterrupt(attention, localBranch, artifactPath);
-				process.exit(attention.reason === 'pr-ready' || attention.reason === 'waiting-review' || attention.reason === 'waiting-draft' ? 0 : 2);
+				process.exit(['pr-ready', 'waiting-review', 'waiting-draft', 'waiting-checks'].includes(attention.reason) ? 0 : 2);
 			}
 
 			console.log(`[dw-pr-ready] quiet at ${new Date().toISOString()}`);

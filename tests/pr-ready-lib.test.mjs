@@ -6,6 +6,8 @@ import {
 	shouldUpdateBranch,
 	parseMergeQueueFromRulesets,
 	collectActionableComments,
+	collectFailures,
+	collectPending,
 	isNoiseComment,
 	emptyState,
 } from '../skills/dw-pr-ready-skill/scripts/pr-ready-lib.js';
@@ -103,6 +105,14 @@ describe('parseMergeQueueFromRulesets', () => {
 		}];
 		assert.equal(parseMergeQueueFromRulesets(rulesets, 'master'), false);
 	});
+
+	it('detects MERGE_QUEUE in the real GraphQL connection shape (rules.nodes)', () => {
+		const rulesets = [{
+			conditions: {refName: {include: ['refs/heads/master'], exclude: []}},
+			rules: {nodes: [{type: 'PULL_REQUEST'}, {type: 'MERGE_QUEUE'}]},
+		}];
+		assert.equal(parseMergeQueueFromRulesets(rulesets, 'master'), true);
+	});
 });
 
 describe('comment filtering', () => {
@@ -124,5 +134,27 @@ describe('comment filtering', () => {
 		);
 		assert.equal(comments.length, 1);
 		assert.equal(comments[0].kind, 'review-thread');
+	});
+});
+
+describe('check buckets', () => {
+	const head = 'deadbeef';
+
+	it('collectFailures flags failing checks but NOT pending ones', () => {
+		const checks = [
+			{name: 'unit', bucket: 'fail', state: 'FAILURE', workflow: 'ci', link: 'http://f'},
+			{name: 'lint', bucket: 'pending', state: 'IN_PROGRESS', workflow: 'ci', link: 'http://p'},
+			{name: 'build', bucket: 'pass', state: 'SUCCESS', workflow: 'ci', link: 'http://s'},
+		];
+		const failures = collectFailures(checks, head);
+		assert.equal(failures.length, 1);
+		assert.equal(failures[0].name, 'unit');
+	});
+
+	it('collectPending counts only still-running checks', () => {
+		assert.equal(collectPending([{bucket: 'pending'}]), 1);
+		assert.equal(collectPending([{state: 'IN_PROGRESS'}, {state: 'QUEUED'}]), 2);
+		assert.equal(collectPending([{bucket: 'pass'}, {bucket: 'fail'}]), 0);
+		assert.equal(collectPending([]), 0);
 	});
 });

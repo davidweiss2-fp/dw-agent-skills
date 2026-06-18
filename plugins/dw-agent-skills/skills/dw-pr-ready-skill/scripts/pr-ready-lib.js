@@ -102,6 +102,21 @@ function collectFailures(checks, headRefOid) {
 		}));
 }
 
+/**
+ * Count checks that are still running / not yet conclusive.
+ * `gh pr checks` buckets these as `pending`; states vary by provider.
+ */
+function collectPending(checks) {
+	return checks.filter((check) => {
+		const bucket = (check.bucket || '').toLowerCase();
+		const state = (check.state || '').toUpperCase();
+		return bucket === 'pending'
+			|| state === 'PENDING' || state === 'QUEUED'
+			|| state === 'IN_PROGRESS' || state === 'WAITING'
+			|| state === 'REQUESTED' || state === 'EXPECTED';
+	}).length;
+}
+
 function isUserDirective(comment) {
 	return USER_DIRECTIVE_LOGINS.has(comment.authorLogin);
 }
@@ -210,7 +225,10 @@ function parseMergeQueueFromRulesets(rulesets, baseRefName) {
 			|| includes.some((pattern) => refMatchesPattern(baseRefName, pattern));
 		const excluded = excludes.some((pattern) => refMatchesPattern(baseRefName, pattern));
 		if (!matchesRef || excluded) continue;
-		for (const rule of ruleset.rules ?? []) {
+		// `rules` comes back as a GraphQL connection ({nodes:[...]}); tolerate a
+		// plain array too so the function is easy to unit-test.
+		const rules = ruleset.rules?.nodes ?? ruleset.rules ?? [];
+		for (const rule of rules) {
 			if (rule.type === 'MERGE_QUEUE') return true;
 		}
 	}
@@ -233,6 +251,7 @@ module.exports = {
 	isNoiseComment,
 	collectActionableComments,
 	collectFailures,
+	collectPending,
 	isUserDirective,
 	hasMergeConflict,
 	isBenignUpdateBranchError,

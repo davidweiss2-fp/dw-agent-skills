@@ -33,7 +33,10 @@ describe('installer dry-run', () => {
 	});
 
 	it('--dry-run --only claude prints plugin install', () => {
-		const r = runInstall(['--dry-run', '--only', 'claude']);
+		// --force exercises the install path deterministically; without it the
+		// dry-run short-circuits to "already installed" on machines where the
+		// plugin is present (passes in CI, fails locally — a brittle test).
+		const r = runInstall(['--dry-run', '--only', 'claude', '--force']);
 		assert.equal(r.status, 0);
 		assert.match(r.stdout, /plugin install/);
 	});
