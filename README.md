@@ -72,6 +72,30 @@ secrets**, and never writes without your confirmation. Memories live globally in
 optional `UserPromptSubmit` hook can auto-recall on each prompt — see
 `skills/dw-knowledge-skill/references/recall-hook.md`.
 
+## CI — run it locally with `act`
+
+This repo has **no GitHub-hosted runners** (by design, and won't have any), so CI is run
+locally with [`act`](https://github.com/nektos/act), which executes
+[`.github/workflows/verify.yml`](.github/workflows/verify.yml) inside Docker exactly as
+GitHub Actions would (syntax check → unit tests → packaging smoke).
+
+```bash
+# one-time (needs Docker running)
+brew install act
+
+# run the `verify` job
+act push -j verify -e .github/act-event.json
+```
+
+Why the flags:
+
+- The workflow only triggers on push/PR to `main`, so [`.github/act-event.json`](.github/act-event.json)
+  pins the event ref to `main` — otherwise `act` skips the job on a feature branch.
+- [`.actrc`](.actrc) pins the runner image (`catthehacker/ubuntu:act-latest`) so the first
+  run doesn't prompt for an image size.
+- On Apple Silicon, if a step hits an architecture issue, append
+  `--container-architecture linux/amd64`.
+
 ## License
 
 Copyright (c) 2026 David Weiss. All Rights Reserved. See [LICENSE](LICENSE).

@@ -1,0 +1,3 @@
+# Default flags for `act` (https://github.com/nektos/act), auto-loaded from repo root.
+# Pin the runner image so the first run doesn't prompt for an image size.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
