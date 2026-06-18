@@ -29,6 +29,7 @@ See [INSTALL.md](INSTALL.md) for details.
 |-------|---------|------|
 | `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; updates branch when safe; exits with next action |
 | `dw-product-decision-skill` | "ask product about this" / `/dw-product-decision [slack\|jira\|both]` | Reframes a dev question into a product-level decision and drafts a Slack DM + JIRA comment (drafts only, never posts) |
+| `dw-knowledge-skill` | "how do we run X here" / "remember this" / `/dw-recall` / `/dw-remember` | Live cross-project agent memory — recall before non-trivial work, capture verified+generalizable knowledge, self-update and prune; stores the method never secrets, confirms before writing |
 
 ## Usage — dw-pr-ready-skill
 
@@ -52,6 +53,24 @@ It reframes the question to product altitude (Context / Scenario / Question / Su
 derives the JIRA ticket from the branch, optionally attaches app screenshots (staging or local) for
 UI questions, and outputs copy-ready Slack-DM and JIRA-comment drafts with click-to-open links. It
 never posts — you paste.
+
+## Usage — dw-knowledge-skill
+
+A live, file-based agent memory that travels across sessions and projects. Recall before
+non-trivial work; capture what worked.
+
+```
+/dw-recall [query]      # surface saved knowledge that may apply (advisory, read-only)
+/dw-remember [what]     # capture a verified, generalizable fact or procedure
+```
+
+It recalls (`node scripts/km-recall.js <query>`), ranks hits by relevance × recency ×
+confidence, and treats them as advisory — verify before relying. Capture runs a gate →
+genericize → scrub → dedup → confirm → write+index flow, storing the **method, never
+secrets**, and never writes without your confirmation. Memories live globally in
+`~/.claude/knowledge/` or project-locally in `~/.claude/projects/<slug>/memory/`. An
+optional `UserPromptSubmit` hook can auto-recall on each prompt — see
+`skills/dw-knowledge-skill/references/recall-hook.md`.
 
 ## License
 

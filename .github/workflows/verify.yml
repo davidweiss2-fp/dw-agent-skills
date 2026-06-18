@@ -22,6 +22,12 @@ jobs:
           node --check skills/dw-pr-ready-skill/scripts/utils.js
           node --check skills/dw-pr-ready-skill/scripts/pr-ready-lib.js
           node --check skills/dw-pr-ready-skill/scripts/dw-pr-ready-watch.js
+          node --check skills/dw-knowledge-skill/scripts/km-paths.js
+          node --check skills/dw-knowledge-skill/scripts/km-frontmatter.js
+          node --check skills/dw-knowledge-skill/scripts/km-scrub.js
+          node --check skills/dw-knowledge-skill/scripts/km-recall.js
+          node --check skills/dw-knowledge-skill/scripts/km-index.js
+          node --check skills/dw-knowledge-skill/scripts/km-review.js
 
       - name: Unit tests
         run: npm test
@@ -33,3 +39,5 @@ jobs:
           node bin/install.js --dry-run --only claude
           test -f skills/dw-pr-ready-skill/SKILL.md
           test -f plugins/dw-agent-skills/skills/dw-pr-ready-skill/SKILL.md
+          test -f skills/dw-knowledge-skill/SKILL.md
+          test -f plugins/dw-agent-skills/skills/dw-knowledge-skill/SKILL.md
