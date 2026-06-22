@@ -30,6 +30,7 @@
     "install.ps1",
     "README.md",
     "INSTALL.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }

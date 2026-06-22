@@ -105,3 +105,6 @@ Why the flags:
 ## License
 
 Copyright (c) 2026 David Weiss. All Rights Reserved. See [LICENSE](LICENSE).
+
+Some skills are derived from MIT-licensed projects; their upstream notices are
+reproduced in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
