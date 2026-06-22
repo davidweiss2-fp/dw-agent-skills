@@ -78,12 +78,13 @@ secrets**, and never writes without your confirmation. Memories live globally in
 optional `UserPromptSubmit` hook can auto-recall on each prompt — see
 `skills/dw-knowledge-skill/references/recall-hook.md`.
 
-## CI — run it locally with `act`
+## CI
 
-This repo has **no GitHub-hosted runners** (by design, and won't have any), so CI is run
-locally with [`act`](https://github.com/nektos/act), which executes
-[`.github/workflows/verify.yml`](.github/workflows/verify.yml) inside Docker exactly as
-GitHub Actions would (syntax check → unit tests → packaging smoke).
+[`.github/workflows/verify.yml`](.github/workflows/verify.yml) runs on every push and pull
+request to `main` (syntax check → unit tests → guardrails self-test → packaging smoke). You
+can also run the same job locally with [`act`](https://github.com/nektos/act), which executes
+the workflow inside Docker exactly as GitHub Actions would — useful for checking a change
+before pushing.
 
 ```bash
 # one-time (needs Docker running)
