@@ -9,7 +9,6 @@ description: >-
   "write a handoff", "hand this off", "summarize where we are for the next
   session", "compact this for a fresh agent", or invokes /dw-handoff [focus for
   the next session].
-disable-model-invocation: true
 ---
 
 # Session Handoff
