@@ -5,14 +5,14 @@ David Weiss agent skills — installable for **Cursor** and **Claude Code**.
 ## Install
 
 ```bash
-# Cursor
-npx -y github:davidweiss2-fp/dw-agent-skills -- --only cursor
+# Everywhere — Claude Code (plugin) + every other agent (Cursor, Codex, Windsurf, …) via the skills CLI
+npx -y github:davidweiss2-fp/dw-agent-skills
 
-# Claude Code
+# Just the non-Claude agents
+npx -y github:davidweiss2-fp/dw-agent-skills -- --only agents
+
+# Just Claude Code
 npx -y github:davidweiss2-fp/dw-agent-skills -- --only claude
-
-# Both
-npx -y github:davidweiss2-fp/dw-agent-skills -- --only cursor --only claude
 ```
 
 Or one-liner:

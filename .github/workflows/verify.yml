@@ -38,18 +38,20 @@ jobs:
         run: node skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js --self-test
 
       - name: Install commands smoke (documented `--` forms, dry-run)
-        # Mirrors the three documented `npx -y github:owner/repo -- --only ...`
-        # commands. The leading `--` is the npm/npx separator that gets forwarded
-        # to the bin; install.js must tolerate it. Dry-run, no real install.
+        # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
+        # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator
+        # forwarded to the bin; install.js must tolerate it. Dry-run, no real install.
         run: |
-          node bin/install.js -- --dry-run --only cursor
+          node bin/install.js -- --dry-run
+          node bin/install.js -- --dry-run --only agents
           node bin/install.js -- --dry-run --only claude
-          node bin/install.js -- --dry-run --only cursor --only claude
+          node bin/install.js -- --dry-run --only agents --only claude
+          node bin/install.js -- --dry-run --only cursor
 
       - name: Packaging smoke
         run: |
           node bin/install.js --list
-          node bin/install.js --dry-run --only cursor
+          node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
           for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill dw-product-decision-skill; do
             test -f "skills/$s/SKILL.md"

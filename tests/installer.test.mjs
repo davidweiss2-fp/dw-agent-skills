@@ -21,15 +21,22 @@ describe('installer dry-run', () => {
 		const r = runInstall(['--list']);
 		assert.equal(r.status, 0);
 		assert.match(r.stdout, /dw-pr-ready-skill/);
-		assert.match(r.stdout, /cursor/);
+		assert.match(r.stdout, /agents/);
 		assert.match(r.stdout, /claude/);
 	});
 
-	it('--dry-run --only cursor prints skills add', () => {
+	it('--dry-run --only agents installs to all agents and drops claude-code', () => {
+		const r = runInstall(['--dry-run', '--only', 'agents']);
+		assert.equal(r.status, 0);
+		assert.match(r.stdout, /skills add .* --all/);
+		assert.match(r.stdout, /skills remove -a claude-code/);
+	});
+
+	it('accepts `cursor` as an alias for `agents`', () => {
 		const r = runInstall(['--dry-run', '--only', 'cursor']);
 		assert.equal(r.status, 0);
+		assert.match(r.stdout, /other agents/);
 		assert.match(r.stdout, /skills add/);
-		assert.match(r.stdout, /cursor/);
 	});
 
 	it('--dry-run --only claude prints plugin install', () => {

@@ -19,16 +19,17 @@ curl -fsSL https://raw.githubusercontent.com/davidweiss2-fp/dw-agent-skills/main
 irm https://raw.githubusercontent.com/davidweiss2-fp/dw-agent-skills/main/install.ps1 | iex
 ```
 
-## Per-agent
+## Targets
 
-| Agent | Command |
+| Target | Command |
 |-------|---------|
-| **Cursor** | `npx -y github:davidweiss2-fp/dw-agent-skills -- --only cursor` |
+| **Everywhere** | `npx -y github:davidweiss2-fp/dw-agent-skills` |
+| **Other agents** (Cursor, Codex, Windsurf, …) | `npx -y github:davidweiss2-fp/dw-agent-skills -- --only agents` |
 | **Claude Code** | `npx -y github:davidweiss2-fp/dw-agent-skills -- --only claude` |
 
 Under the hood:
 
-- **Cursor** — `npx -y skills add davidweiss2-fp/dw-agent-skills -a cursor --yes --all`
+- **Other agents** — `npx -y skills add davidweiss2-fp/dw-agent-skills --all`, then the claude-code copy is removed (Claude uses the plugin below)
 - **Claude Code** — `claude plugin marketplace add davidweiss2-fp/dw-agent-skills` then `claude plugin install dw-agent-skills@dw-agent-skills`
 
 ## Flags
@@ -37,7 +38,7 @@ Under the hood:
 |------|------|
 | `--dry-run` | Print commands, write nothing |
 | `--force` | Reinstall even if present |
-| `--only <id>` | `cursor` or `claude` |
+| `--only <id>` | `claude` or `agents` (`cursor` accepted as an alias for `agents`) |
 | `--list` | Show providers and skills |
 | `--uninstall` | Remove Claude plugin |
 
@@ -45,7 +46,7 @@ Under the hood:
 
 ```bash
 node bin/install.js --list
-node bin/install.js --dry-run --only cursor
+node bin/install.js --dry-run --only agents
 ```
 
 After install, invoke `dw-pr-ready-skill` with a full PR URL.

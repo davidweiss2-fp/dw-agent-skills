@@ -11,7 +11,7 @@ const PLUGIN_NAME = 'dw-agent-skills';
 
 const PROVIDERS = [
 	{id: 'claude', label: 'Claude Code', mech: 'claude plugin install', detect: 'command:claude'},
-	{id: 'cursor', label: 'Cursor', mech: 'npx skills add (cursor)', detect: 'command:cursor||macapp:Cursor', profile: 'cursor'},
+	{id: 'agents', label: 'Other agents', mech: "npx skills add -a '*' (minus claude-code)", detect: 'command:npx'},
 ];
 
 function parseArgs(argv) {
@@ -47,6 +47,8 @@ function parseArgs(argv) {
 				if (a.startsWith('--')) die(`unknown flag: ${a}`);
 		}
 	}
+	// `cursor` is an alias for the skills-CLI `agents` path.
+	opts.only = opts.only.map((id) => (id === 'cursor' ? 'agents' : id));
 	const known = new Set(PROVIDERS.map((p) => p.id));
 	for (const id of opts.only) {
 		if (!known.has(id)) die(`unknown --only id: ${id}. Valid: ${[...known].join(', ')}`);
@@ -163,15 +165,23 @@ function installClaude(ctx) {
 	else results.failed.push(['claude', 'claude plugin install failed']);
 }
 
-function installCursor(ctx) {
-	const {opts, results, say} = ctx;
-	const prov = PROVIDERS.find((p) => p.id === 'cursor');
+function installAgents(ctx) {
+	const {opts, results, say, note, repoRoot} = ctx;
 	results.detected++;
-	say('→ Cursor detected');
-	const args = ['-y', 'skills', 'add', REPO, '-a', prov.profile, '--yes', '--all'];
-	const r = runSpawn('npx', args, opts.dryRun, {cwd: os.homedir()});
-	if ((r.status || 0) === 0) results.installed.push('cursor');
-	else results.failed.push(['cursor', 'npx skills add failed']);
+	say('→ installing to other agents via the skills CLI');
+	// Install every skill to every agent the skills CLI supports.
+	const r = runSpawn('npx', ['-y', 'skills', 'add', REPO, '--all'], opts.dryRun, {cwd: os.homedir()});
+	if ((r.status || 0) !== 0) {
+		results.failed.push(['agents', 'npx skills add failed']);
+		return;
+	}
+	// Drop the skills CLI's claude-code copy.
+	const skillNames = listSkillNames(repoRoot);
+	if (skillNames.length) {
+		const rm = runSpawn('npx', ['-y', 'skills', 'remove', '-a', 'claude-code', '-s', ...skillNames, '-y'], opts.dryRun, {cwd: os.homedir()});
+		if ((rm.status || 0) !== 0) note('  note: could not remove the claude-code copy — install Claude via `--only claude`');
+	}
+	results.installed.push('agents');
 }
 
 function uninstall(ctx) {
@@ -218,7 +228,7 @@ USAGE
   node bin/install.js [flags]
 
 FLAGS
-  --only <agent>     cursor | claude (repeatable)
+  --only <id>        claude | agents (repeatable)
   --dry-run          Print commands only
   --force            Reinstall even if present
   --uninstall, -u    Remove Claude plugin
@@ -227,9 +237,9 @@ FLAGS
   -h, --help         This help
 
 EXAMPLES
-  npx -y github:${REPO} -- --only cursor
+  npx -y github:${REPO}
+  npx -y github:${REPO} -- --only agents
   npx -y github:${REPO} -- --only claude
-  npx -y github:${REPO} -- --only cursor --only claude
 `);
 }
 
@@ -271,7 +281,7 @@ async function main() {
 		if (!want(prov.id)) continue;
 		if (!explicit(prov.id) && !detectMatch(prov.detect)) continue;
 		if (prov.id === 'claude') installClaude(ctx);
-		if (prov.id === 'cursor') installCursor(ctx);
+		if (prov.id === 'agents') installAgents(ctx);
 	}
 
 	process.stdout.write('\n');
