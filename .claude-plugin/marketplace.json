@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "dw-agent-skills",
-      "description": "Keep PRs ready for review with dw-pr-ready-skill.",
+      "description": "Workflow skills for Claude Code and Cursor — an adaptive flow conductor plus grilling, deslop, knowledge memory, PR babysitting, handoff, git guardrails, product-decision drafting, and skill authoring.",
       "source": "./",
       "category": "productivity"
     }

@@ -1,6 +1,6 @@
 {
   "name": "dw-agent-skills",
-  "description": "David Weiss agent skills for Claude Code — PR babysitting and workflows.",
+  "description": "Workflow skills for Claude Code and Cursor — an adaptive flow conductor plus grilling, deslop, knowledge memory, PR babysitting, handoff, git guardrails, product-decision drafting, and skill authoring.",
   "author": {
     "name": "David Weiss",
     "url": "https://github.com/davidweiss2-fp"
