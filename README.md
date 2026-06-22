@@ -27,6 +27,7 @@ See [INSTALL.md](INSTALL.md) for details.
 
 | Skill | Trigger | What |
 |-------|---------|------|
+| `dw-flow-skill` | `/dw-flow [task]` / "run the flow" / "take RD-1234 to a PR" | Adaptive conductor — drives a substantial task from understanding to a merge-ready PR (ground, grill, plan, implement, deslop, review, ship), delegating to the other `dw-*` skills and surveying in-scope skills; pauses only at 4 gates (intent / grill / plan / post-PR); caveman by default |
 | `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; updates branch when safe; exits with next action |
 | `dw-product-decision-skill` | "ask product about this" / `/dw-product-decision [slack\|jira\|both]` | Reframes a dev question into a product-level decision and drafts a Slack DM + JIRA comment (drafts only, never posts) |
 | `dw-knowledge-skill` | "how do we run X here" / "remember this" / `/dw-recall` / `/dw-remember` | Live cross-project agent memory — recall before non-trivial work, capture verified+generalizable knowledge, self-update and prune; stores the method never secrets, confirms before writing |

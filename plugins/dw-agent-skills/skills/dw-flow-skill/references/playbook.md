@@ -1,0 +1,76 @@
+# Per-phase playbook
+
+The spine in `SKILL.md` is the map; this is how each phase runs and when it is done. Phases are
+the default — reorder or skip per the task. Only the four gates (🚪) stop the flow.
+
+## 1. Ground
+
+Recall `dw-knowledge` first — preferences, prior decisions, already-gathered context — before any
+fresh searching or asking. Derive the ticket from the branch (`{ticket}-{context}`) and gather its
+context; if resuming, read `{repo}/.claude/worktrees/{ticket}/context` first. Then recommend an
+approach rather than presenting a blank slate.
+
+For **bug tasks**: search the APM (Coralogix) for the real error / stack trace before forming any
+hypothesis. If no trace is found there, ask the dev for the specific trace. Never reason from a
+guessed location.
+
+Surface any clear, non-trivial product/UX call here via `dw-product-decision` (drafts only).
+
+*Done when:* knowledge recalled, ticket context in hand, an approach recommended (and, for bugs, a
+trace-backed cause located or explicitly requested from the dev).
+
+## 2. 🚪 Grill
+
+Run `dw-grilling` over the open decisions — one question at a time, each led by a recommended
+default. *Done when:* the resolved-design summary has no material open decision.
+
+## 3. 🚪 Plan
+
+Present the resolved-design summary as the plan and get approval before any code. Confirm the
+root cause here for bug tasks. Suggest a knowledge capture of any durable decision. Write the
+approved plan to the worktree context dir. *Done when:* the dev approves.
+
+## 4. Implement
+
+Build to the approved plan — minimal diff, no churn. Auto-fix behavior-preserving lint/test
+failures. If a clear product/UX call appears mid-build, surface it via `dw-product-decision` and
+keep going where you can. *Done when:* the plan is implemented and behavior-preserving checks pass.
+
+## 5. Deslop
+
+Run `dw-deslop` on the branch diff. *Done when:* the diff is clean of slop and still behaves.
+
+## 6. Review
+
+Run `/code-review` (or `fp-cdp-review` in that scope). Re-check the regressions that bite late:
+permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface any product/UX
+call that review exposes via `dw-product-decision`. *Done when:* findings are triaged and the
+blocking ones fixed.
+
+## 7. Verify *(offered)*
+
+Offer to run the app / the `verify` skill when the change is runnable and worth it; skip otherwise
+and say so. *Done when:* the dev declines, or behavior is confirmed against a real run.
+
+## 8. Ship
+
+If the change is large, propose a layer-split (keep PRs ~300 LOC, split beyond ~500) before
+opening anything. Commit (professional message), push the `{ticket}-{context}` branch, open a
+**draft** PR with a concise body. *Done when:* the draft PR is open.
+
+## 9. 🚪 Post-PR
+
+Present the draft PR for the dev to read, then ask whether to hand off to `dw-pr-ready`. *Done
+when:* the dev decides.
+
+## 10. Capture *(offered)*
+
+Offer a `dw-knowledge` capture of anything generalizable that was costly or recurring — the
+method, never secrets. Also offer at plan approval and whenever a durable gotcha surfaces. *Done
+when:* the dev confirms a capture or declines.
+
+## Skill discovery, every step
+
+At each phase, survey the in-scope skills and use the ones that are a genuinely good call —
+narrate what you use, flag a notable skip in one line, never roll-call the survey, never hardcode
+a list. The skill you invoke is itself the evidence the survey happened.

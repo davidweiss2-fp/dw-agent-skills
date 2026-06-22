@@ -55,7 +55,7 @@ jobs:
           test -f plugins/dw-agent-skills/skills/dw-pr-ready-skill/SKILL.md
           test -f skills/dw-knowledge-skill/SKILL.md
           test -f plugins/dw-agent-skills/skills/dw-knowledge-skill/SKILL.md
-          for s in dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill; do
+          for s in dw-flow-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill; do
             test -f "skills/$s/SKILL.md"
             test -f "plugins/dw-agent-skills/skills/$s/SKILL.md"
             diff -r "skills/$s" "plugins/dw-agent-skills/skills/$s"
