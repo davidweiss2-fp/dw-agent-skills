@@ -39,8 +39,8 @@ No mode keyword ⇒ mode = both.
 1. Parse args: mode (default both) + `--staging`/`--local`/`--no-image`; rest = topic.
 2. Get the question: if usable session context exists (this conversation, recent `git diff`,
    branch), auto-mine to draft; else ask the user in one line.
-3. Derive the JIRA key: `git rev-parse --abbrev-ref HEAD | grep -oE '[A-Z]+-[0-9]+'`. Link =
-   `https://autoleadstar.atlassian.net/browse/RD-XXXX`. Ask only if none.
+3. Derive the issue key: `git rev-parse --abbrev-ref HEAD | grep -oE '[A-Z]+-[0-9]+'`. Link =
+   `https://{jira_host}/browse/<KEY>` (set `{jira_host}` to your Jira host). Ask only if none.
 4. Resolve the product owner (fallback chain below); if unresolved, frame without a name.
 5. Decide screenshots: UI/UX if topic mentions a screen/page/view/button/layout/visibility OR diff
    touches `*.component.html|ts|scss`. If UI/UX and not `--no-image`, offer + ask which view(s).
@@ -88,16 +88,20 @@ Same message, two renders — both terse, natural, **no labels/headers**:
 
 ## Owner resolution (stop at first hit; else no name)
 
-1. **JIRA fields** — `mcp__92899ecb-9d9d-42b8-9cac-7d23f94cd07c__getJiraIssue`
-   (`cloudId:"autoleadstar.atlassian.net"`, `issueIdOrKey:"RD-XXXX"`, `fields:["reporter","assignee","summary"]`).
-   For JQL use `…__searchJiraIssuesUsingJql` (`cloudId` + `jql`). Take the display name / email.
-   (If the host cloudId fails, resolve via `…__getAccessibleAtlassianResources`.)
-2. **Slack** — `mcp__8af82a93-955b-4192-b79a-edaccd1fa9b6__slack_search_users` (`query`=name/email);
-   confirm via `…__slack_read_user_profile` (`user_id`). DM open link:
+MCP tool names are `mcp__<server>__<tool>` and the `<server>` segment is environment-specific —
+match each tool below by its role and `<tool>` suffix in your available tools, and skip a source
+whose server isn't connected.
+
+1. **Issue tracker (e.g. Jira)** — `getJiraIssue` (`cloudId` = your Jira host,
+   `issueIdOrKey` = the key, `fields:["reporter","assignee","summary"]`). For a query use
+   `searchJiraIssuesUsingJql` (`cloudId` + `jql`). Take the display name / email. (If the host
+   cloudId fails, resolve it via `getAccessibleAtlassianResources`.)
+2. **Chat (e.g. Slack)** — `slack_search_users` (`query` = name/email); confirm via
+   `slack_read_user_profile` (`user_id`). DM open link:
    `https://slack.com/app_redirect?channel=<USER_ID>`.
-3. **Bob/HiBob** — `mcp__hibob__hibob___hibob_get_employee_fields` (discover field paths) then
-   `mcp__hibob__hibob___hibob_people_search` (filter by email, or empty filters + match the name
-   yourself). Then re-run the Slack search with the confirmed email.
+3. **HR directory (e.g. HiBob)** — `hibob_get_employee_fields` (discover field paths) then
+   `hibob_people_search` (filter by email, or empty filters + match the name yourself). Then
+   re-run the chat search with the confirmed email.
 4. **Unresolved** — do not invent a person. Frame the question with no name and tell the user:
    "Couldn't auto-resolve the product owner — pick the recipient when you paste."
 
@@ -105,24 +109,22 @@ Same message, two renders — both terse, natural, **no labels/headers**:
 
 Offer first, then ask which view(s)/route(s). Pick a source:
 
-- **Staging preferred** — if a `staging<N>` env exists for this branch, the view is at
-  `https://dashboard-stage<N>.fullpath.com/<route>`.
-- **Else local** — `npm start` (→ `ng serve … --port 4100`), view at `http://localhost:4100/<route>`.
-  `--local` forces this; `--staging` forces staging.
+- **Staging preferred** — if a staging env exists for this branch, view it at
+  `https://{staging_host}/<route>`.
+- **Else local** — start the app's dev server (e.g. `npm start`), view at
+  `http://localhost:<port>/<route>`. `--local` forces this; `--staging` forces staging.
 
-Capture:
+Capture — match each tool by role + `<tool>` suffix in your available tools:
 
-- **Local launched server → Claude Preview** (preferred for local): `mcp__Claude_Preview__preview_start`
-  (reads `.claude/launch.json`, returns `serverId`) → `mcp__Claude_Preview__preview_screenshot`
-  (`serverId`).
-- **Remote staging URL → Claude in Chrome**: `mcp__Claude_in_Chrome__navigate` (`url`) →
-  `mcp__Claude_in_Chrome__computer` (`action:"screenshot"`, `tabId`, `save_to_disk:true` → returns
-  the saved path). There is **no** `mcp__Claude_in_Chrome__screenshot` tool — capture goes through
-  `computer`.
+- **Local launched server → a preview tool** (preferred for local): `preview_start`
+  (returns a `serverId`) → `preview_screenshot` (`serverId`).
+- **Remote staging URL → a browser tool**: `navigate` (`url`) → its screenshot action (e.g.
+  `computer` with `action:"screenshot"`, `save_to_disk:true`), which returns the saved path.
 
-Save / reference PNGs at `/tmp/dw-product-decision/<RD-XXXX or "adhoc">/<route-slug>.png`. Show each
-image inline to the user and **list the file paths in the output.** Images can't be embedded into
-pasted text — the user attaches them when pasting.
+Save / reference PNGs under the OS temp dir, e.g.
+`/tmp/dw-product-decision/<key or "adhoc">/<route-slug>.png`. Show each image inline to the user
+and **list the file paths in the output.** Images can't be embedded into pasted text — the user
+attaches them when pasting.
 
 ## Worked example
 
@@ -133,7 +135,7 @@ Owner resolved to the CDP PM. Slack DM draft:
 > hidden for accounts without the Offers permission, or show it to everyone (blocked on open)?
 > Right now it shows for everyone, but those accounts can't actually use it — and before this it
 > was only visible to permitted users. I'd keep it hidden — cleaner, and avoids a dead menu item.
-> On staging: https://dashboard-stage667.fullpath.com  wdyt?
+> On staging: https://staging.example.com  wdyt?
 
 Leads with the ask, then just enough context, a clear recommendation, and a preview link — terse,
 no labels, no PR numbers, no branch or code names.
@@ -149,7 +151,8 @@ no labels, no PR numbers, no branch or code names.
   keep it terse and simple in the asker's own voice, give just enough context, and make the
   recommendation obvious. Cover only what's relevant; omit empty points.
 - **Default mode is `both`** when no mode keyword is given.
-- **Derive the JIRA key from the branch**; only ask the user if the branch has none.
+- **Derive the issue key from the branch**; only ask the user if the branch has none.
 - **Screenshots only for UI/UX questions**, after offering; staging beats local; skip on `--no-image`.
 - **Images are attached by the user**, not embedded — always list the file paths.
-- JIRA cloudId `autoleadstar.atlassian.net`; ticket base `https://autoleadstar.atlassian.net/browse/`.
+- **No hardcoded environment** — set `{jira_host}`/`{staging_host}` from context, and resolve each
+  MCP tool from your available tools by its role + `<tool>` suffix; server prefixes vary per setup.
