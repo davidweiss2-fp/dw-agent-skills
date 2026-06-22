@@ -25,7 +25,6 @@
   "files": [
     "bin/",
     "skills/",
-    "plugins/",
     ".claude-plugin/",
     "install.sh",
     "install.ps1",

@@ -143,28 +143,6 @@ function skillSummary(repoRoot, name) {
 	return '';
 }
 
-function syncPluginMirror(repoRoot, dry) {
-	const copyDir = (from, to) => {
-		if (dry) {
-			process.stdout.write(`  would sync ${from} -> ${to}\n`);
-			return;
-		}
-		fs.mkdirSync(to, {recursive: true});
-		for (const entry of fs.readdirSync(from, {withFileTypes: true})) {
-			const s = path.join(from, entry.name);
-			const d = path.join(to, entry.name);
-			if (entry.isDirectory()) copyDir(s, d);
-			else fs.copyFileSync(s, d);
-		}
-	};
-	for (const name of listSkillNames(repoRoot)) {
-		const src = path.join(repoRoot, 'skills', name);
-		if (!fs.existsSync(src)) continue;
-		const dest = path.join(repoRoot, 'plugins', PLUGIN_NAME, 'skills', name);
-		copyDir(src, dest);
-	}
-}
-
 function installClaude(ctx) {
 	const {opts, results, say, note} = ctx;
 	results.detected++;
@@ -285,8 +263,6 @@ async function main() {
 	ctx.note(REPO);
 	if (opts.dryRun) ctx.note('(dry run)');
 	process.stdout.write('\n');
-
-	syncPluginMirror(repoRoot, opts.dryRun);
 
 	const want = (id) => opts.only.length === 0 || opts.only.includes(id);
 	const explicit = (id) => opts.only.includes(id);
