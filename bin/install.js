@@ -93,13 +93,14 @@ function spawnXplat(cmd, args, opts) {
 	return child_process.spawnSync(cmd, args, opts || {});
 }
 
-function runSpawn(cmd, args, dry) {
+function runSpawn(cmd, args, dry, spawnOpts) {
+	const where = spawnOpts && spawnOpts.cwd ? ` (cwd: ${spawnOpts.cwd})` : '';
 	if (dry) {
-		process.stdout.write(`  would run: ${cmd} ${args.join(' ')}\n`);
+		process.stdout.write(`  would run: ${cmd} ${args.join(' ')}${where}\n`);
 		return {status: 0};
 	}
-	process.stdout.write(`  $ ${cmd} ${args.join(' ')}\n`);
-	return spawnXplat(cmd, args, {stdio: 'inherit'});
+	process.stdout.write(`  $ ${cmd} ${args.join(' ')}${where}\n`);
+	return spawnXplat(cmd, args, {stdio: 'inherit', ...(spawnOpts || {})});
 }
 
 function captureSpawn(cmd, args) {
@@ -190,7 +191,7 @@ function installCursor(ctx) {
 	results.detected++;
 	say('→ Cursor detected');
 	const args = ['-y', 'skills', 'add', REPO, '-a', prov.profile, '--yes', '--all'];
-	const r = runSpawn('npx', args, opts.dryRun);
+	const r = runSpawn('npx', args, opts.dryRun, {cwd: os.homedir()});
 	if ((r.status || 0) === 0) results.installed.push('cursor');
 	else results.failed.push(['cursor', 'npx skills add failed']);
 }
