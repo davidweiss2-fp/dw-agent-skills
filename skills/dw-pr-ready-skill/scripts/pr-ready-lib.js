@@ -16,7 +16,11 @@ const CLEAN_SCAN_BOT_LOGINS = new Set([
 	'ox-security[bot]',
 ]);
 
-const USER_DIRECTIVE_LOGINS = new Set(['davidweiss2-fp']);
+function resolveDirectiveLogins(env, fallbacks = []) {
+	const raw = String((env && env.DW_PR_DIRECTIVE_LOGINS) || '').trim();
+	const source = raw ? raw.split(/[,\s]+/) : fallbacks;
+	return new Set(source.map((s) => String(s || '').trim().toLowerCase()).filter(Boolean));
+}
 
 function bodyPreview(body, max = 240) {
 	const compact = String(body || '').replace(/\s+/g, ' ').trim();
@@ -117,8 +121,9 @@ function collectPending(checks) {
 	}).length;
 }
 
-function isUserDirective(comment) {
-	return USER_DIRECTIVE_LOGINS.has(comment.authorLogin);
+function isUserDirective(comment, directiveLogins) {
+	if (!directiveLogins || directiveLogins.size === 0) return false;
+	return directiveLogins.has(String(comment.authorLogin || '').toLowerCase());
 }
 
 function hasMergeConflict(summary) {
@@ -160,10 +165,10 @@ function shouldUpdateBranch(summary, state, gate) {
 	return false;
 }
 
-function unseenComments(prNumber, comments, state) {
+function unseenComments(prNumber, comments, state, directiveLogins) {
 	const seen = new Set(state.seenCommentIds[String(prNumber)] ?? []);
 	return comments.filter((comment) => {
-		if (isUserDirective(comment) && comment.kind === 'review-thread') {
+		if (isUserDirective(comment, directiveLogins) && comment.kind === 'review-thread') {
 			return !comment.isResolved;
 		}
 		return !seen.has(comment.id);
@@ -175,11 +180,11 @@ function unseenFailures(prNumber, failures, state) {
 	return failures.filter((failure) => !seen.has(failure.key));
 }
 
-function rememberComments(prNumber, comments, state) {
+function rememberComments(prNumber, comments, state, directiveLogins) {
 	const key = String(prNumber);
 	const existing = new Set(state.seenCommentIds[key] ?? []);
 	for (const comment of comments) {
-		if (isUserDirective(comment) && comment.kind === 'review-thread') continue;
+		if (isUserDirective(comment, directiveLogins) && comment.kind === 'review-thread') continue;
 		existing.add(comment.id);
 	}
 	state.seenCommentIds[key] = [...existing];
@@ -246,7 +251,7 @@ function refMatchesPattern(refName, pattern) {
 
 module.exports = {
 	NOISE_BOT_LOGINS,
-	USER_DIRECTIVE_LOGINS,
+	resolveDirectiveLogins,
 	bodyPreview,
 	isNoiseComment,
 	collectActionableComments,

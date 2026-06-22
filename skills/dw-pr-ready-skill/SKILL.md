@@ -34,6 +34,9 @@ node scripts/dw-pr-ready-watch.js "<full-pr-url>" --once --no-update
 
 Requirements: GitHub CLI installed and authenticated (`gh auth status`).
 
+Directive author: comments from the gh-authenticated user are treated as agent directives.
+Override with `DW_PR_DIRECTIVE_LOGINS` (comma-separated logins) to widen or change the set.
+
 ## When watcher exits
 
 Read stdout and the `artifact` JSON path. Act on `reason`:
@@ -66,7 +69,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 
 ## Hard rules
 
-- PR review comments from `davidweiss2-fp` = agent directives. Implement, push, reply `[DEV-AI]`, resolve thread.
+- PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, reply `[DEV-AI]`, resolve thread.
 - Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
 - Never edit existing PR comments — create new replies.
 - Never merge the PR unless user explicitly asks.

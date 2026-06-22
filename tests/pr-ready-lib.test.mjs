@@ -10,6 +10,7 @@ import {
 	collectPending,
 	isNoiseComment,
 	emptyState,
+	resolveDirectiveLogins,
 } from '../skills/dw-pr-ready-skill/scripts/pr-ready-lib.js';
 
 describe('parsePrUrl', () => {
@@ -112,6 +113,21 @@ describe('parseMergeQueueFromRulesets', () => {
 			rules: {nodes: [{type: 'PULL_REQUEST'}, {type: 'MERGE_QUEUE'}]},
 		}];
 		assert.equal(parseMergeQueueFromRulesets(rulesets, 'master'), true);
+	});
+});
+
+describe('resolveDirectiveLogins', () => {
+	it('parses DW_PR_DIRECTIVE_LOGINS (comma/space separated, lowercased)', () => {
+		const s = resolveDirectiveLogins({DW_PR_DIRECTIVE_LOGINS: 'Alice, bob  charlie'}, ['fallback']);
+		assert.deepEqual([...s].sort(), ['alice', 'bob', 'charlie']);
+	});
+
+	it('falls back to the provided logins when the env is unset', () => {
+		assert.deepEqual([...resolveDirectiveLogins({}, ['Me'])], ['me']);
+	});
+
+	it('is empty when neither env nor fallback is present', () => {
+		assert.equal(resolveDirectiveLogins({}, []).size, 0);
 	});
 });
 

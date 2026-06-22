@@ -87,6 +87,12 @@ function verifyGhAuth() {
 	}
 }
 
+function fetchAuthedLogin() {
+	const result = ghJsonCapture(['api', 'user', '--jq', '.login']);
+	if (result.status !== 0) return '';
+	return String(result.stdout || '').trim();
+}
+
 function fetchPrSummary(owner, repo, number) {
 	return parseGhJson(
 		[
@@ -353,7 +359,7 @@ function printInterrupt(result, localBranch, artifactPath) {
 	console.log(`artifact: ${artifactPath}`);
 }
 
-function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
+function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, directiveLogins) {
 	const threads = fetchReviewThreads(owner, repo, summary.number);
 	const issueComments = fetchIssueComments(owner, repo, summary.number);
 	const reviews = fetchReviews(owner, repo, summary.number);
@@ -362,7 +368,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews);
 	const failures = lib.collectFailures(checks, summary.headRefOid);
 	const pendingCount = lib.collectPending(checks);
-	const newComments = lib.unseenComments(summary.number, actionableComments, state);
+	const newComments = lib.unseenComments(summary.number, actionableComments, state, directiveLogins);
 	const newFailures = lib.unseenFailures(summary.number, failures, state);
 	const gate = lib.canUpdateBranch(summary, {mergeQueueEnabled});
 
@@ -409,10 +415,10 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 	}
 
 	if (newComments.length > 0) {
-		const userDirectives = newComments.filter(lib.isUserDirective);
+		const userDirectives = newComments.filter((c) => lib.isUserDirective(c, directiveLogins));
 		const reason = userDirectives.length > 0 ? 'user-directive' : 'new-comment';
 		const comments = userDirectives.length > 0 ? userDirectives : newComments;
-		lib.rememberComments(summary.number, newComments, state);
+		lib.rememberComments(summary.number, newComments, state, directiveLogins);
 		markPriorIssue(state, summary.number);
 		return {summary, owner, repo, reason, comments, failures: [], gateReason: gate.reason};
 	}
@@ -423,7 +429,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 		return {summary, owner, repo, reason: 'ci-failure', comments: [], failures: newFailures, gateReason: gate.reason};
 	}
 
-	lib.rememberComments(summary.number, actionableComments, state);
+	lib.rememberComments(summary.number, actionableComments, state, directiveLogins);
 	lib.rememberFailures(summary.number, failures, state);
 
 	const prKey = String(summary.number);
@@ -515,7 +521,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled) {
 	return null;
 }
 
-function pollOnce(prUrl, state, options) {
+function pollOnce(prUrl, state, options, directiveLogins) {
 	verifyGhAuth();
 	const {owner, repo, number} = utils.parsePrUrl(prUrl);
 	const summary = fetchPrSummary(owner, repo, number);
@@ -528,7 +534,7 @@ function pollOnce(prUrl, state, options) {
 	}
 
 	const mergeQueueEnabled = fetchMergeQueueEnabled(owner, repo, summary.baseRefName);
-	return inspectPr(owner, repo, summary, state, options, mergeQueueEnabled);
+	return inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, directiveLogins);
 }
 
 function sleep(ms) {
@@ -555,17 +561,19 @@ async function main() {
 
 	const state = loadState(options.statePath, options.resetState);
 	const localBranch = utils.getCurrentBranchName();
+	const directiveLogins = lib.resolveDirectiveLogins(process.env, [fetchAuthedLogin()]);
 
 	console.log(`[dw-pr-ready] pr=${options.prUrl}`);
 	console.log(`[dw-pr-ready] localBranch=${localBranch}`);
 	console.log(`[dw-pr-ready] state=${options.statePath}`);
+	console.log(`[dw-pr-ready] directiveLogins=${[...directiveLogins].join(',') || '(none)'}`);
 	console.log(
 		`[dw-pr-ready] mode=${options.once ? 'once' : 'loop'} update=${options.noUpdate ? 'disabled' : 'enabled'} pollMs=${options.pollMs}`,
 	);
 
 	for (;;) {
 		try {
-			const attention = pollOnce(options.prUrl, state, options);
+			const attention = pollOnce(options.prUrl, state, options, directiveLogins);
 			saveState(options.statePath, state);
 
 			if (attention) {
