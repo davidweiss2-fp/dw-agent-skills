@@ -5,7 +5,6 @@ description: >-
   review state, draft state, merge queue, and safe branch updates. Use when the
   user provides a full PR URL and asks to babysit, keep green, keep ready for
   review, or maintain a PR until mergeable.
-disable-model-invocation: true
 ---
 
 # Keep PR Ready for Review
