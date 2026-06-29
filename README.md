@@ -36,6 +36,7 @@ See [INSTALL.md](INSTALL.md) for details.
 | `dw-grilling-skill` | "grill me on this" / "stress-test this plan" / `/dw-grill [topic]` | Interview engine — resolves a plan's open decisions one question at a time, each led by a recommended default, ending in a resolved-design summary |
 | `dw-git-guardrails-skill` | "block dangerous git" / `/dw-git-guardrails [project\|global\|verify]` | Installs a PreToolUse hook that blocks irreversible git commands (force-push, `reset --hard`, `clean -f`, `branch -D`, `checkout`/`restore .`) before they run; parses only, never executes |
 | `dw-deslop-skill` | "deslop this" / "remove the AI slop" / `/dw-deslop [path\|--staged]` | Strips AI slop (code + prose) from the branch diff — over-commenting, defensive boilerplate, `any`-casts, dead code, needless abstraction, puffery, emoji bullets — behavior-preserving, keeping legitimate code/comments at trust boundaries |
+| `dw-runbook-skill` | "run the ci/test runbook" / "cache this workflow" / "promote this to a runbook" / `/dw-runbook` | Memoizes a recurring shell workflow into one cached, queued, self-cleaning command; first run captures the method to `dw-knowledge`, then promotes it to a script; `worktree`/`shared-dir` isolation with a file-based single-flight lock so parallel agents never collide |
 
 ## Usage — dw-pr-ready-skill
 
