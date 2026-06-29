@@ -33,6 +33,11 @@ plus an AWM-style step body and a `## Verify` section. Its `metadata.type` is on
 It is **not** a place for secrets, one-off trivia, or anything you can't generalize.
 See `references/schema.md` for the full schema and a placeholder-only example.
 
+**Recurring shell how-tos → promote to a runbook.** When a `how-to` is a multi-step *shell*
+workflow run over and over (CI, tests, typecheck, a verify dance), the next time it recurs hand it
+to **`dw-runbook`**: it generalizes the method into one cached, queued, self-cleaning command and
+links back to this memory. The method stays here; the runbook is its executable form.
+
 ## Storage: global vs project (decision rule)
 
 - **GLOBAL** (default) — `~/.claude/knowledge/` (`INDEX.md` + one `*.md` per memory).

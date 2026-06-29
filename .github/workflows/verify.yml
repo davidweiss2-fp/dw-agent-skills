@@ -30,12 +30,28 @@ jobs:
           node --check skills/dw-knowledge-skill/scripts/km-review.js
           node --check skills/dw-handoff-skill/scripts/dw-handoff-path.js
           node --check skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js
+          node --check skills/dw-runbook-skill/scripts/runbook-paths.js
+          node --check skills/dw-runbook-skill/scripts/lock.js
+          node --check skills/dw-runbook-skill/scripts/run.js
+          node --check skills/dw-runbook-skill/scripts/run-self-test.js
+          node --check skills/dw-runbook-skill/scripts/dw-runbook-hint.js
 
       - name: Unit tests
         run: npm test
 
       - name: git-guardrails self-test
         run: node skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js --self-test
+
+      - name: runbook lock self-test (mutex, coalesce, stale-takeover)
+        run: node skills/dw-runbook-skill/scripts/lock.js --self-test
+
+      - name: runbook runner self-test (modes, pristine guarantee, cache)
+        # The self-test builds its own temp repo and sets a local git identity on it,
+        # so no global git config is needed here.
+        run: node skills/dw-runbook-skill/scripts/run.js --self-test
+
+      - name: runbook hint-hook self-test
+        run: node skills/dw-runbook-skill/scripts/dw-runbook-hint.js --self-test
 
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
@@ -53,6 +69,6 @@ jobs:
           node bin/install.js --list
           node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
-          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill dw-product-decision-skill; do
+          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill dw-product-decision-skill dw-runbook-skill; do
             test -f "skills/$s/SKILL.md"
           done
