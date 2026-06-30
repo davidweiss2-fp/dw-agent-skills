@@ -57,9 +57,12 @@ Recall `dw-knowledge` before assuming the state — a method or a runbook may al
 ```
 
 `command.sh` runs with `cwd=$RUNBOOK_WORKDIR` and env `RUNBOOK_REPO`, `RUNBOOK_REF`,
-`RUNBOOK_RESOURCE`, `RUNBOOK_ISOLATION`, `RUNBOOK_LOG`. It owns the actual tool call — including a
-`docker exec <container> …` when the check runs inside a container. Full manifest reference and the
-shared-setup model: `references/layout.md`.
+`RUNBOOK_RESOURCE`, `RUNBOOK_ISOLATION`, `RUNBOOK_LOG`, and `RUNBOOK_ARGS` (optional positional args
+from the CLI, space-joined). It owns the actual tool call — including a `docker exec <container> …`
+when the check runs inside a container. A command may read `RUNBOOK_ARGS` to override its default
+scope — e.g. `run.js lint app/Foo.php` checks one file; the args are folded into the cache
+signature, so a parametrized run never collides with (or is served the cache of) the default-scope
+run. Full manifest reference and the shared-setup model: `references/layout.md`.
 
 ## Safety: isolation + the queue (why runs never collide)
 
@@ -73,11 +76,17 @@ Each command declares an **isolation mode**:
   file-based lock and the run is bracketed by a **pristine guarantee**: it snapshots `HEAD` +
   working tree before, and after cleanup asserts they're unchanged — drift is reported as an
   `error`, never silently left behind.
+- **Mutating ("fixer") commands** (e.g. a formatter) keep that pristine guarantee with **no special
+  flag**: the command does its work in the main checkout, captures the resulting diff to a **patch
+  artifact**, then restores the checkout to its exact prior bytes — so by the time the runner
+  checks, the tree is unchanged and `pristine` holds naturally. The fix is delivered as the patch
+  (the ship/amend step applies it). Where it ran, and the capture/restore, stay invisible to the
+  caller — it just runs `run.js <fixer>` and reads the result.
 
 The lock is a **single-flight coordinator**, not just a mutex: identical in-flight runs (same
 signature) **coalesce** onto one execution and share its result; a recently-cached result is
 reused outright. So N agents asking for the same check pay for **one** run. Mutex keys on the
-resource; coalesce keys on the run signature `(command, ref, file-versions)`. Atomicity is
+resource; coalesce keys on the run signature `(command, ref, file-versions, args)`. Atomicity is
 `mkdir`-based (cross-platform; macOS has no `flock(1)`); crashed holders are reclaimed by
 PID-liveness + a staleness backstop. Design + proof: `references/lock-design.md`.
 

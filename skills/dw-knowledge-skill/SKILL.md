@@ -9,7 +9,7 @@ description: >-
   recurring — offer to save it. UPDATE an incomplete or outdated memory when you
   find one. Trigger phrasings: "remember this", "save this", "do we have notes on",
   "update what you know about". Stores the METHOD, never secrets; every candidate
-  is genericized and scrubbed; nothing is written without your confirmation.
+  is genericized and scrubbed, then written automatically when the save-gate passes.
 ---
 
 # Knowledge Memory
@@ -38,6 +38,12 @@ workflow run over and over (CI, tests, typecheck, a verify dance), the next time
 to **`dw-runbook`**: it generalizes the method into one cached, queued, self-cleaning command and
 links back to this memory. The method stays here; the runbook is its executable form.
 
+**Capture the workflow how-tos first.** The highest-value memories are how to *operate the repo* —
+how to commit / push / open a PR, how to run lint/typecheck/test, the verify-then-ship flow. These
+recur every task and are exactly what stops an agent re-deriving them or asking the dev. Whenever
+you work one out, capture it (promote the shell parts to `dw-runbook`), then recall it before the
+next git/checks/ship step instead of asking.
+
 ## Storage: global vs project (decision rule)
 
 - **GLOBAL** (default) — `~/.claude/knowledge/` (`INDEX.md` + one `*.md` per memory).
@@ -61,7 +67,8 @@ If any fails, don't save. Failed attempts are still worth a `gotcha` at `confide
 
 ## How to SAVE
 
-Auto-suggest a capture when the gate passes; **always confirm before writing**.
+When the save-gate passes, **capture directly — no confirmation needed**. The gate + scrub are the
+safeguards, not a prompt-for-yes.
 
 1. **Gate** — confirm verified-success AND (recurrence OR high cost) AND generalizable.
 2. **Genericize** — replace concrete values with `{parameter}` slots (e.g. `{site}`,
@@ -71,7 +78,8 @@ Auto-suggest a capture when the gate passes; **always confirm before writing**.
 4. **Dedup / supersede** — read the target store first. ADD (new), UPDATE (enrich existing),
    or NOOP (already covered). On contradiction, mark the old file `status: superseded` and
    write the corrected one. An **unverified** candidate NEVER overwrites a **verified** one.
-5. **Confirm** — show the genericized + scrubbed candidate and the chosen store; wait for yes.
+5. **Record** — note the chosen store and that the gate + scrub passed; no user confirmation is
+   required (auto-capture).
 6. **Write + index** — write the `*.md` file, then `node scripts/km-index.js --scope <scope>`
    to regenerate the index (idempotent). Pass `--now <YYYY-MM-DD>` from context for stable dates.
 
@@ -134,7 +142,8 @@ for the two branches and a ready-to-paste, ADDITIVE settings snippet.
   keys, tokens, cookies, connection strings, or org identifiers (account/tenant IDs,
   internal hostnames, customer names, emails, RFC1918 IPs). `km-scrub.js` is the
   deterministic backstop; exit `2` means refuse.
-- **Always confirm before writing** — auto-suggest, never auto-save.
+- **Auto-capture when the gate passes** — no confirmation required; the write-gate (verified ·
+  recurrence/cost · generalizable) and `km-scrub` are the safeguards against bad writes.
 - **Advisory, not authority** — recalled knowledge is a hint; verify on use.
 - **Empty means empty** — no match → say so; never fabricate a memory.
 

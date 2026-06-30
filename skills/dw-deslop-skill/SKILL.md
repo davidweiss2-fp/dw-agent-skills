@@ -143,6 +143,8 @@ PR/commit, not the source.
 - **Comments: what/how, never why.**
 - **Flag, don't guess** — leave genuinely ambiguous calls and name them in the summary.
 - **Terse output** — no filler; the skill must not emit slop.
+- **Re-check after** — deslop edits the diff, so run `fmt` + the repo's `preflight` runbook
+  (`dw-runbook`) before shipping; a stray edit shouldn't reach the PR unchecked.
 
 ---
 

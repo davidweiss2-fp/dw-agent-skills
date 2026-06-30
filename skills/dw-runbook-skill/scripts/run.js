@@ -93,7 +93,7 @@ function resolveRef(repo, ref) {
 	return {label: ref, sha: rp.stdout.trim(), dirty: ''};
 }
 
-function computeSig(manifest, refInfo, version) {
+function computeSig(manifest, refInfo, version, args) {
 	return sha1(
 		JSON.stringify({
 			name: manifest.name,
@@ -103,6 +103,9 @@ function computeSig(manifest, refInfo, version) {
 			refSha: refInfo.sha,
 			dirty: refInfo.dirty,
 			version,
+			// Args are part of the signature so a parametrized run (e.g. `lint app/Foo.php`)
+			// never coalesces onto, or is served the cache of, a differently-parametrized run.
+			args: Array.isArray(args) ? args : [],
 		}),
 	).slice(0, 16);
 }
@@ -184,8 +187,9 @@ function runCommand(root, name, opts = {}) {
 
 	const scripts = resolveScripts(root, manifest);
 	const version = fileVersion([manifestPath, scripts.command, ...scripts.setups, ...scripts.cleanups]);
+	const args = Array.isArray(opts.args) ? opts.args : [];
 	const refInfo = resolveRef(repo, manifest.ref);
-	const sig = computeSig(manifest, refInfo, version);
+	const sig = computeSig(manifest, refInfo, version, args);
 	const resource = manifest.resource || `repo:${repo}`;
 	const resultPath = join(paths.resultsDir(root), `${sig}.json`);
 
@@ -248,6 +252,10 @@ function runCommand(root, name, opts = {}) {
 			RUNBOOK_RESOURCE: resource,
 			RUNBOOK_ISOLATION: isolation,
 			RUNBOOK_LOG: logPath,
+			// Optional positional args from the CLI (`node run.js lint a.php b.php`), space-joined.
+			// A command may use them to override its default scope; empty when none were passed.
+			RUNBOOK_ARGS: args.join(' '),
+			RUNBOOK_ARGC: String(args.length),
 		};
 
 		let combined = '';
@@ -318,7 +326,9 @@ function runFlow(root, manifest, opts = {}) {
 		throw new Error(`runbook flow cycle detected: "${manifest.name}" via [${[...stack].join(' -> ')}]`);
 	}
 	stack.add(manifest.name);
-	const childOpts = {...opts, _stack: stack};
+	// Flows are fixed compositions: steps run their own default scope, so args passed to the flow
+	// are NOT forwarded to steps (granular params are for direct command runs).
+	const childOpts = {...opts, args: [], _stack: stack};
 	const startedAt = Date.now();
 	const results = [];
 	let status = 'pass';
@@ -458,7 +468,7 @@ function main() {
 		return;
 	}
 	if (!cmd) throw new Error('usage: run.js <name> | scaffold <name> | list | --self-test');
-	const result = runCommand(root, cmd, {dryRun: !!cli.flags['dry-run']});
+	const result = runCommand(root, cmd, {dryRun: !!cli.flags['dry-run'], args: cli._.slice(1)});
 	print(result);
 	if (result.status === 'fail' || result.status === 'error') process.exitCode = 1;
 }

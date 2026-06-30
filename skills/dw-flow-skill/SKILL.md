@@ -64,10 +64,16 @@ playbook with completion criteria: `references/playbook.md`.
 4. **Implement**.
 5. **Deslop** — `dw-deslop` the diff.
 6. **Review** — `/code-review` (or `fp-cdp-review` in that scope).
-7. **Verify** *(offered)* — run the app / `verify`.
-8. **Ship** — propose a layer-split if large; commit, push, open a **draft** PR.
+7. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
+   **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
+   folding the `fmt` patch into the commit. Recall `dw-knowledge` for the repo's verify recipe
+   (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
+8. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → commit, push, open a
+   **draft** PR.
 9. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
-10. **Capture** *(offered)* — `dw-knowledge`.
+10. **Capture** *(offered)* — `dw-knowledge`; especially the **how-to-git / commands / verify-ship
+    flow** you worked out this task (these recur every task and stop the next agent re-deriving or
+    asking — auto-captured, no confirm).
 
 ## Skill discovery (every step)
 
