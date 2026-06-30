@@ -10,7 +10,7 @@ token use while preserving technical accuracy. Embedded from the `caveman` skill
 |---|---|
 | thinking / model-facing — internal reasoning, subagent prompts, narration the dev does not read | **ultra** |
 | talking to the dev — gate questions, progress narration, summaries | **full** |
-| outward artifacts — commit messages, PR title/body, `dw-product-decision` drafts, code comments | **off** (professional prose) |
+| outward artifacts — commit messages, PR title/body, `dw-team-communication` drafts, code comments | **off** (professional prose) |
 
 The carve-out is absolute: anything written for another person or system is normal, professional
 prose. Caveman is only how the conductor talks to the model and to the dev.

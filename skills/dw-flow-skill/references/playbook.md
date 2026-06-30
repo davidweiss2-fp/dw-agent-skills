@@ -14,7 +14,7 @@ For **bug tasks**: search the APM (Coralogix) for the real error / stack trace b
 hypothesis. If no trace is found there, ask the dev for the specific trace. Never reason from a
 guessed location.
 
-Surface any clear, non-trivial product/UX call here via `dw-product-decision` (drafts only).
+Surface any clear, non-trivial product/UX call here via `dw-team-communication` (drafts only).
 
 *Done when:* knowledge recalled, ticket context in hand, an approach recommended (and, for bugs, a
 trace-backed cause located or explicitly requested from the dev).
@@ -33,7 +33,7 @@ approved plan to the worktree context dir. *Done when:* the dev approves.
 ## 4. Implement
 
 Build to the approved plan — minimal diff, no churn. Auto-fix behavior-preserving lint/test
-failures. If a clear product/UX call appears mid-build, surface it via `dw-product-decision` and
+failures. If a clear product/UX call appears mid-build, surface it via `dw-team-communication` and
 keep going where you can. *Done when:* the plan is implemented and behavior-preserving checks pass.
 
 ## 5. Deslop
@@ -44,7 +44,7 @@ Run `dw-deslop` on the branch diff. *Done when:* the diff is clean of slop and s
 
 Run `/code-review` (or `fp-cdp-review` in that scope). Re-check the regressions that bite late:
 permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface any product/UX
-call that review exposes via `dw-product-decision`. *Done when:* findings are triaged and the
+call that review exposes via `dw-team-communication`. *Done when:* findings are triaged and the
 blocking ones fixed.
 
 ## 7. Verify *(offered)*
