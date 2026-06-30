@@ -75,6 +75,188 @@ describe('km-scrub', () => {
 		const r = run(KM_SCRUB, [], {input: `here is a key:\n${key}\n`});
 		assert.equal(r.status, 2, 'private key must force refusal (exit 2)');
 	});
+
+	// --- table-driven coverage: every slot/replace detector -----------------
+	// Each case builds its synthetic secret at RUNTIME (no literal secret in
+	// source), runs km-scrub, and asserts the raw value never survives while
+	// the expected slot does land in stdout.
+	const slotCases = [
+		{
+			name: 'connection_string (scheme://user:pass@host)',
+			build: () => {
+				const secret = 'sup3rSecretPass_' + 'Q'.repeat(8);
+				return {secret, input: `db: postgres://appuser:${secret}@db.example.com:5432/prod\n`};
+			},
+			expectSlot: '{connection_string}',
+		},
+		{
+			name: 'connection_string (jdbc:...)',
+			build: () => {
+				const secret = 'jdbcSecret_' + 'R'.repeat(8);
+				return {secret, input: `jdbc:postgresql://dbhost:5432/prod?password=${secret}\n`};
+			},
+			expectSlot: '{connection_string}',
+		},
+		{
+			name: 'openai_key (sk-...)',
+			build: () => {
+				const secret = 'sk-' + 'B'.repeat(30);
+				return {secret, input: `OPENAI_API_KEY=${secret}\n`};
+			},
+			expectSlot: '{api_key}',
+		},
+		{
+			name: 'aws_access_key_id (AKIA...)',
+			build: () => {
+				const secret = 'AKIA' + '0'.repeat(16);
+				return {secret, input: `aws_access_key_id = ${secret}\n`};
+			},
+			expectSlot: '{api_key}',
+		},
+		{
+			name: 'slack_token (xox...)',
+			build: () => {
+				const secret = 'xoxb-' + '1'.repeat(20);
+				return {secret, input: `slack token: ${secret}\n`};
+			},
+			expectSlot: '{api_key}',
+		},
+		{
+			name: 'bearer_token (Bearer ...)',
+			build: () => {
+				const secret = 'Bearer ' + 'C'.repeat(24);
+				return {secret, input: `Authorization: ${secret}\n`};
+			},
+			// The token portion (without the literal word "Bearer") is slotted.
+			expectSlot: 'Bearer {api_key}',
+		},
+		{
+			name: 'uuid',
+			build: () => {
+				const secret = '123e4567-e89b-12d3-a456-426614174000';
+				return {secret, input: `request_id: ${secret}\n`};
+			},
+			expectSlot: '{uuid}',
+		},
+		{
+			name: 'org_id (account id adjacent to keyword)',
+			build: () => {
+				const secret = '987654321';
+				return {secret, input: `account_id: ${secret}\n`};
+			},
+			expectSlot: 'account_id: {account_id}',
+		},
+		{
+			name: 'internal_host (builtin suffix)',
+			build: () => {
+				const secret = 'build-box-7.corp';
+				return {secret, input: `ssh into ${secret} to debug\n`};
+			},
+			expectSlot: '{host}',
+		},
+		{
+			name: 'email',
+			build: () => {
+				const secret = 'jane.doe' + '+test@realcompany.io';
+				return {secret, input: `contact: ${secret}\n`};
+			},
+			expectSlot: '{email}',
+		},
+		{
+			name: 'private_ip (RFC1918)',
+			build: () => {
+				const secret = '192.168.1.42';
+				return {secret, input: `host at ${secret} is unreachable\n`};
+			},
+			expectSlot: '{host}',
+		},
+		{
+			name: 'high_entropy_blob (generic catch-all)',
+			build: () => {
+				// 40+ mixed-case/digit chars, no recognizable provider prefix, length
+				// and shape chosen to clear the >4.0 bits/char entropy gate.
+				const secret = 'qT7zR2mK9wL4vN8xJ1bH6cF3sD5gA0pY2eU9rW7t';
+				return {secret, input: `token=${secret}\n`};
+			},
+			expectSlot: '{secret}',
+		},
+	];
+
+	for (const {name, build, expectSlot} of slotCases) {
+		it(`slots ${name} and exits 0`, () => {
+			const {secret, input} = build();
+			const r = run(KM_SCRUB, [], {input});
+			assert.equal(r.status, 0, `should exit 0 (clean / auto-slotted); stderr=${r.stderr}`);
+			assert.ok(!r.stdout.includes(secret), 'raw secret value must not survive in output');
+			assert.ok(
+				r.stdout.includes(expectSlot),
+				`expected slot ${expectSlot} in output, got: ${r.stdout}`,
+			);
+		});
+	}
+
+	// --- refuse detectors -----------------------------------------------------
+	const refuseCases = [
+		{
+			name: 'private_key (BEGIN/END block)',
+			build: () => {
+				const body = 'MIIBVgIBADANBgkqhkiG9w0BAQEFAASCAUAwggE8' + 'Z'.repeat(20);
+				const key = [
+					'-----BEGIN RSA PRIVATE KEY-----',
+					body,
+					'-----END RSA PRIVATE KEY-----',
+				].join('\n');
+				return {secret: body, input: `here is a key:\n${key}\n`};
+			},
+		},
+		{
+			name: 'private_key (bare BEGIN header, truncated paste)',
+			build: () => {
+				const header = '-----BEGIN PRIVATE KEY-----';
+				return {secret: header, input: `truncated paste:\n${header}\n(rest got cut off)\n`};
+			},
+		},
+	];
+
+	for (const {name, build} of refuseCases) {
+		it(`refuses (exit 2) on ${name}`, () => {
+			const {secret, input} = build();
+			const r = run(KM_SCRUB, [], {input});
+			assert.equal(r.status, 2, `must refuse (exit 2); stdout=${r.stdout}`);
+			assert.ok(!r.stdout.includes(secret), 'raw secret value must not survive in output');
+		});
+	}
+
+	// --- regression: detector-ordering guard ---------------------------------
+	// A high-entropy blob INSIDE a BEGIN/END PRIVATE KEY block must be caught by
+	// the private_key REFUSE detector (which runs first and strips the match to
+	// a {REDACTED_PRIVATE_KEY} marker) before the generic high_entropy_blob
+	// detector ever gets a chance to slot it to {secret}. If detector order ever
+	// regresses, this would silently leak key material behind a generic slot.
+	it('regression: high-entropy key body inside BEGIN/END block must REFUSE, not slot to {secret}', () => {
+		const body = 'qT7zR2mK9wL4vN8xJ1bH6cF3sD5gA0pY2eU9rW7tQ8mZ3nB6vC1xL4kJ9wR2tY7q';
+		const key = ['-----BEGIN PRIVATE KEY-----', body, '-----END PRIVATE KEY-----'].join('\n');
+		const r = run(KM_SCRUB, [], {input: `key:\n${key}\n`});
+		assert.equal(r.status, 2, 'must refuse (exit 2), not fall through to a generic slot');
+		assert.ok(!r.stdout.includes(body), 'raw key body must not survive in output');
+		assert.ok(
+			!r.stdout.includes('{secret}'),
+			'must not be slotted to the generic high_entropy_blob placeholder',
+		);
+	});
+
+	// --- regression: allow-list pass-through ---------------------------------
+	// example.com/org/net and localhost are explicitly allow-listed placeholder
+	// hosts; they must pass through verbatim, not get redacted.
+	it('regression: example.com email and localhost pass through unredacted', () => {
+		const input = 'contact placeholder@example.com or reach the service at localhost:8080\n';
+		const r = run(KM_SCRUB, [], {input});
+		assert.equal(r.status, 0, 'should exit 0 (clean)');
+		assert.ok(r.stdout.includes('placeholder@example.com'), 'example.com email must pass through verbatim');
+		assert.ok(r.stdout.includes('localhost:8080'), 'localhost must pass through verbatim');
+		assert.ok(!r.stdout.includes('{email}'), 'allow-listed email must not be redacted');
+		assert.ok(!r.stdout.includes('{host}'), 'allow-listed host must not be redacted');
+	});
 });
 
 describe('km-frontmatter', () => {
