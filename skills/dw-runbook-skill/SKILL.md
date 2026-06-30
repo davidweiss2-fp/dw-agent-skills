@@ -86,9 +86,10 @@ Each command declares an **isolation mode**:
 The lock is a **single-flight coordinator**, not just a mutex: identical in-flight runs (same
 signature) **coalesce** onto one execution and share its result; a recently-cached result is
 reused outright. So N agents asking for the same check pay for **one** run. Mutex keys on the
-resource; coalesce keys on the run signature `(command, ref, file-versions, args)`. Atomicity is
-`mkdir`-based (cross-platform; macOS has no `flock(1)`); crashed holders are reclaimed by
-PID-liveness + a staleness backstop. Design + proof: `references/lock-design.md`.
+resource; coalesce keys on the run signature `(command, ref, file-versions, args)`. Ownership is
+an O_EXCL meta-file create (cross-platform; macOS has no `flock(1)`); crashed holders are
+reclaimed by PID-liveness, with a `timeoutMs` waiter backstop for the rare PID-reuse case. Design +
+proof: `references/lock-design.md`.
 
 ## The result envelope
 
