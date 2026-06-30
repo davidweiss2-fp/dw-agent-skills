@@ -29,18 +29,21 @@ jobs:
           node --check skills/dw-knowledge-skill/scripts/km-index.js
           node --check skills/dw-knowledge-skill/scripts/km-review.js
           node --check skills/dw-handoff-skill/scripts/dw-handoff-path.js
-          node --check skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js
           node --check skills/dw-runbook-skill/scripts/runbook-paths.js
           node --check skills/dw-runbook-skill/scripts/lock.js
           node --check skills/dw-runbook-skill/scripts/run.js
           node --check skills/dw-runbook-skill/scripts/run-self-test.js
           node --check skills/dw-runbook-skill/scripts/dw-runbook-hint.js
+          bash -n skills/dw-git-ops-skill/scripts/ops.sh
+          bash -n skills/dw-git-ops-skill/scripts/ops-self-test.sh
 
       - name: Unit tests
         run: npm test
 
-      - name: git-guardrails self-test
-        run: node skills/dw-git-guardrails-skill/scripts/dw-git-guardrails.js --self-test
+      - name: git-ops self-test (worktree/branch/commit/pr/reap)
+        # Builds its own throwaway repo + bare remote + gh stub and sets a repo-local git
+        # identity, so no global git config or real gh is needed here.
+        run: bash skills/dw-git-ops-skill/scripts/ops-self-test.sh
 
       - name: runbook lock self-test (mutex, coalesce, stale-takeover)
         run: node skills/dw-runbook-skill/scripts/lock.js --self-test
@@ -69,6 +72,6 @@ jobs:
           node bin/install.js --list
           node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
-          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-guardrails-skill dw-deslop-skill dw-product-decision-skill dw-runbook-skill; do
+          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-product-decision-skill dw-runbook-skill; do
             test -f "skills/$s/SKILL.md"
           done

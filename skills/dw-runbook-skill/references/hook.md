@@ -12,7 +12,7 @@ Verify the matching logic any time: `node scripts/dw-runbook-hint.js --self-test
 
 ## Wiring — APPEND, do not clobber
 
-`hooks.PreToolUse` is an array shared with any other PreToolUse hooks (e.g. `dw-git-guardrails`).
+`hooks.PreToolUse` is an array shared with any other PreToolUse hooks you run.
 Add this as **one more element**; don't overwrite. Prefer the **`update-config`** skill, which
 merges additively.
 

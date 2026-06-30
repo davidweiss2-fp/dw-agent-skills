@@ -34,7 +34,7 @@ See [INSTALL.md](INSTALL.md) for details.
 | `dw-skill-authoring-skill` | "help me write a skill" / "review this skill" / "why won't my skill trigger" | Principles, a checklist, and a failure-mode table for authoring reliable, well-triggered Agent Skills (naming, description, progressive disclosure, scripts-vs-prose). Invoked by name |
 | `dw-handoff-skill` | "write a handoff" / "hand this off" / `/dw-handoff [focus]` | Compresses the session into a self-contained, secret-scrubbed handoff doc (state, next steps, suggested next skills) in the temp dir; redaction delegated to `km-scrub` |
 | `dw-grilling-skill` | "grill me on this" / "stress-test this plan" / `/dw-grill [topic]` | Interview engine — resolves a plan's open decisions one question at a time, each led by a recommended default, ending in a resolved-design summary |
-| `dw-git-guardrails-skill` | "block dangerous git" / `/dw-git-guardrails [project\|global\|verify]` | Installs a PreToolUse hook that blocks irreversible git commands (force-push, `reset --hard`, `clean -f`, `branch -D`, `checkout`/`restore .`) before they run; parses only, never executes |
+| `dw-git-ops-skill` | "commit/push/branch/PR" / "ship this" / `/dw-git-ops [task]` | The suite's single git owner — worktree-first flow (`branch`→worktree, `add`/`commit`/`push`/`cap`, `pr`/`pr-ready`/`pr-draft`, `worktree-rm`, `reap`; one worktree = one branch = one scope = one PR, reaped on merge) via `ops.sh`; destructive git (`reset --hard`, force-push, `clean -f`, `branch -D`) is run raw under a judgment rubric, not blocked |
 | `dw-deslop-skill` | "deslop this" / "remove the AI slop" / `/dw-deslop [path\|--staged]` | Strips AI slop (code + prose) from the branch diff — over-commenting, defensive boilerplate, `any`-casts, dead code, needless abstraction, puffery, emoji bullets — behavior-preserving, keeping legitimate code/comments at trust boundaries |
 | `dw-runbook-skill` | "run the ci/test runbook" / "cache this workflow" / "promote this to a runbook" / `/dw-runbook` | Memoizes a recurring shell workflow into one cached, queued, self-cleaning command; first run captures the method to `dw-knowledge`, then promotes it to a script; `worktree`/`shared-dir` isolation with a file-based single-flight lock so parallel agents never collide |
 
@@ -82,7 +82,7 @@ optional `UserPromptSubmit` hook can auto-recall on each prompt — see
 ## CI
 
 [`.github/workflows/verify.yml`](.github/workflows/verify.yml) runs on every push and pull
-request to `main` (syntax check → unit tests → guardrails self-test → packaging smoke). You
+request to `main` (syntax check → unit tests → git-ops self-test → packaging smoke). You
 can also run the same job locally with [`act`](https://github.com/nektos/act), which executes
 the workflow inside Docker exactly as GitHub Actions would — useful for checking a change
 before pushing.
