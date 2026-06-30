@@ -5,8 +5,8 @@ description: Capture a reusable, verified, generalizable fact or procedure into 
 
 # /dw-remember
 
-Drive the capture workflow to save reusable knowledge. Auto-suggest a capture when the
-gate passes, but **always confirm before writing**.
+Drive the capture workflow to save reusable knowledge. When the gate passes, capture
+directly — no confirmation needed.
 
 ## Invocation
 
@@ -32,8 +32,9 @@ If no text is given, infer the candidate from what just worked in this session.
 5. **Dedup / supersede** — read the target store first. ADD / UPDATE / NOOP. On a
    contradiction, mark the old file `status: superseded` and write the corrected one.
    An unverified candidate never overwrites a verified one.
-6. **Confirm** — show the genericized + scrubbed candidate and the chosen store; wait for yes.
-7. **Write + index** — write the `*.md` (frontmatter per `references/schema.md`), then:
+6. **Write + index** — once the gate passes and scrub succeeds, write proceeds
+   automatically (no yes/no prompt). Write the `*.md` (frontmatter per
+   `references/schema.md`), then:
 
    ```bash
    node scripts/km-index.js --scope <global|project|both> [--now YYYY-MM-DD]
@@ -44,5 +45,5 @@ Full procedure: `references/write-workflow.md`.
 ## Hard rules
 
 - Never store a literal secret — store the METHOD, not the data. `km-scrub.js` exit `2` = refuse.
-- Always confirm before writing — auto-suggest, never auto-save.
+- Auto-capture when the gate passes — no confirmation required; the gate + scrub are the safeguards.
 - The skill repo ships ZERO real memories — examples use placeholders only (`{site}`, example.com).

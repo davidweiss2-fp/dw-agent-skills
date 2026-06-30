@@ -1,7 +1,7 @@
 # Write workflow
 
-How a verified, generalizable fact becomes a stored memory. Auto-suggest when the gate
-passes; **never write without confirmation.** Run scripts from the skill directory.
+How a verified, generalizable fact becomes a stored memory. When the gate passes, the
+write proceeds automatically. Run scripts from the skill directory.
 
 ## 1. Gate
 
@@ -57,12 +57,10 @@ Read the target store first and decide:
 **An unverified candidate NEVER overwrites a verified memory.** A guess does not replace
 known-good knowledge.
 
-## 6. Confirm
+Once the gate passes and scrub succeeds, the write proceeds automatically — no yes/no
+prompt.
 
-Show the user the genericized + scrubbed candidate (frontmatter + body) and the chosen
-store path. Wait for an explicit yes. No silent writes.
-
-## 7. Write + index
+## 6. Write + index
 
 - Write the `*.md` file into the chosen store (filename = kebab-cased `name`).
 - Regenerate the index (idempotent):
