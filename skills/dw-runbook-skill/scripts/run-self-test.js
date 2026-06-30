@@ -30,12 +30,18 @@ function mkRepo() {
 
 // Write a command runbook directly into the store (exercises the same layout
 // scaffold() produces, with a real body).
-function writeCommand(root, name, {isolation, ref, body, report, cleanups}) {
+function writeCommand(root, name, {isolation, ref, body, report, setups, cleanups}) {
 	const dir = paths.commandDir(root, name);
 	paths.ensureDir(dir);
-	const manifest = {name, kind: 'command', isolation, ref, setups: [], cleanups: cleanups ? Object.keys(cleanups) : [], command: 'command.sh', report: report || {}};
+	const manifest = {name, kind: 'command', isolation, ref, setups: setups ? Object.keys(setups) : [], cleanups: cleanups ? Object.keys(cleanups) : [], command: 'command.sh', report: report || {}};
 	writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 	writeFileSync(join(dir, 'command.sh'), `#!/usr/bin/env bash\nset -uo pipefail\n${body}\n`, {mode: 0o755});
+	if (setups) {
+		paths.ensureDir(paths.setupsDir(root));
+		for (const [sn, sbody] of Object.entries(setups)) {
+			writeFileSync(join(paths.setupsDir(root), `${sn}.sh`), `#!/usr/bin/env bash\n${sbody}\n`, {mode: 0o755});
+		}
+	}
 	if (cleanups) {
 		paths.ensureDir(paths.cleanupsDir(root));
 		for (const [cn, cbody] of Object.entries(cleanups)) {
@@ -145,6 +151,61 @@ function run() {
 			cycleThrew = /cycle/.test(e.message);
 		}
 		log(cycleThrew, 'flow cycle: a self-referential flow throws instead of overflowing');
+
+			// 10. git-operation lifecycle: setup creates a FRESH temp branch + worktree, stages a
+			//     file from it INTO the main checkout (the "copy worktree -> main" move), the command
+			//     does git work against it, and cleanup tears the branch + worktree down. The MAIN
+			//     repo must be left byte-for-byte intact (same branch, same HEAD, clean tree) and the
+			//     temp branch + worktree gone. Proves setup->run->cleanup can safely perform git
+			//     operations on the shared main checkout without the agent seeing the mechanics.
+			const origBranch = git(repo, ['symbolic-ref', '--short', 'HEAD']).stdout.trim();
+			const origHead = git(repo, ['rev-parse', 'HEAD']).stdout.trim();
+			writeCommand(root, 'git-lifecycle', {
+				isolation: 'shared-dir',
+				ref: 'working',
+				setups: {
+					'git-stage': [
+						'set -uo pipefail',
+						'cd "$RUNBOOK_REPO"',
+						'state="${RUNBOOK_LOG%.log}.state"',
+						'git worktree prune 2>/dev/null || true',
+						'git branch -D rb-selftest-tmp 2>/dev/null || true',
+						'wt=$(mktemp -d)',
+						'echo "wt=$wt" > "$state"',
+						'git worktree add -q -b rb-selftest-tmp "$wt" HEAD',
+						'printf "staged from worktree\\n" > "$wt/rb_staged.txt"',
+						'cp "$wt/rb_staged.txt" "$RUNBOOK_REPO/rb_staged.txt"',
+					].join('\n'),
+				},
+				body: [
+					'cd "$RUNBOOK_WORKDIR"',
+					'test -f rb_staged.txt || { echo "staged file missing"; exit 1; }',
+					'git status --porcelain >/dev/null',
+					'echo "git op ok on staged file"',
+				].join('\n'),
+				cleanups: {
+					'git-unstage': [
+						'set -uo pipefail',
+						'cd "$RUNBOOK_REPO"',
+						'state="${RUNBOOK_LOG%.log}.state"',
+						'rm -f "$RUNBOOK_REPO/rb_staged.txt"',
+						'wt=$(sed -n "s/^wt=//p" "$state" 2>/dev/null)',
+						'[ -n "${wt:-}" ] && git worktree remove --force "$wt" 2>/dev/null || true',
+						'git branch -D rb-selftest-tmp 2>/dev/null || true',
+						'rm -f "$state"',
+					].join('\n'),
+				},
+			});
+			const r8 = runner.runCommand(root, 'git-lifecycle', {cwd: repo});
+			log(r8.status === 'pass', `git lifecycle: status pass (got ${r8.status})`);
+			log(r8.pristine === true, `git lifecycle: main checkout left pristine (pristine=${r8.pristine})`);
+			const tmpBranch = git(repo, ['branch', '--list', 'rb-selftest-tmp']).stdout.trim();
+			log(tmpBranch === '', `git lifecycle: temp branch deleted (got "${tmpBranch}")`);
+			const wtCount = git(repo, ['worktree', 'list']).stdout.trim().split('\n').filter(Boolean).length;
+			log(wtCount === 1, `git lifecycle: temp worktree removed (worktrees=${wtCount})`);
+			const nowBranch = git(repo, ['symbolic-ref', '--short', 'HEAD']).stdout.trim();
+			const nowHead = git(repo, ['rev-parse', 'HEAD']).stdout.trim();
+			log(nowBranch === origBranch && nowHead === origHead, `git lifecycle: HEAD + branch unchanged (${nowBranch}@${nowHead.slice(0, 7)})`);
 	} finally {
 		rmSync(repo, {recursive: true, force: true});
 		rmSync(root, {recursive: true, force: true});
