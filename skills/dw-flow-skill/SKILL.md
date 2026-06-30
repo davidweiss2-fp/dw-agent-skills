@@ -69,7 +69,8 @@ playbook with completion criteria: `references/playbook.md`.
    folding the `fmt` patch into the commit. Recall `dw-knowledge` for the repo's verify recipe
    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
 8. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
-   **dw-git-ops** (`ops.sh cap` then `ops.sh pr --draft`; worktree-first — never hand-roll git).
+   **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
+   the default, add `--ready` only when shipping ready; worktree-first — never hand-roll git).
 9. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
 10. **Capture** *(offered)* — `dw-knowledge`; especially the **how-to-git / commands / verify-ship
     flow** you worked out this task (these recur every task and stop the next agent re-deriving or
