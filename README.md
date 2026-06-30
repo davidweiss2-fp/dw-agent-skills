@@ -72,9 +72,9 @@ non-trivial work; capture what worked.
 ```
 
 It recalls (`node scripts/km-recall.js <query>`), ranks hits by relevance × recency ×
-confidence, and treats them as advisory — verify before relying. Capture runs a gate →
-genericize → scrub → dedup → confirm → write+index flow, storing the **method, never
-secrets**, and never writes without your confirmation. Memories live globally in
+confidence, and treats them as advisory — verify before relying. Capture runs automatically
+once the gate passes — gate → genericize → scrub → dedup → write+index, storing the
+**method, never secrets**, with no confirmation prompt and no user notification. Memories live globally in
 `~/.claude/knowledge/` or project-locally in `~/.claude/projects/<slug>/memory/`. An
 optional `UserPromptSubmit` hook can auto-recall on each prompt — see
 `skills/dw-knowledge-skill/references/recall-hook.md`.
