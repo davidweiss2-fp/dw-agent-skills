@@ -16,7 +16,6 @@ attribution footer in the corresponding `SKILL.md` for specifics.
 | `dw-grilling-skill` | mattpocock/skills — `skills/productivity/grilling` | https://github.com/mattpocock/skills |
 | `dw-handoff-skill` | mattpocock/skills — `skills/productivity/handoff` | https://github.com/mattpocock/skills |
 | `dw-skill-authoring-skill` | mattpocock/skills — `skills/productivity/writing-great-skills` | https://github.com/mattpocock/skills |
-| `dw-git-guardrails-skill` | mattpocock/skills — `skills/misc/git-guardrails-claude-code` | https://github.com/mattpocock/skills |
 | `dw-deslop-skill` | getsentry `deslop` (mirrored in davila7/claude-code-templates) | https://github.com/davila7/claude-code-templates |
 | `dw-knowledge-skill` | Cabinet | https://github.com/hilash/cabinet |
 | `dw-knowledge-skill` | MemPalace | https://github.com/MemPalace/mempalace |

@@ -88,9 +88,9 @@ genericized — remove it by hand and re-run.** Write the scrubbed text as the f
 End the document with a short list of skills the next agent should consider, each one line:
 `- dw-pr-ready-skill — babysit the open PR until it's mergeable.` Pick from what's actually
 installed and relevant to the **Next steps**; if a next-session focus was given, weight toward it.
-Don't invent skill names — list only ones you can confirm exist. For git safety when wrapping up,
-a good one to suggest is **dw-git-guardrails-skill** — it installs a `PreToolUse` hook that blocks
-destructive git commands so a fresh agent can't wipe unsaved work.
+Don't invent skill names — list only ones you can confirm exist. For git when wrapping up, a good
+one to suggest is **dw-git-ops-skill** — the suite's git owner (worktree-first flow, with
+destructive git judged and run raw rather than blocked).
 
 ## Hard rules
 
