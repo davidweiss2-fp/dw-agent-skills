@@ -29,7 +29,7 @@ See [INSTALL.md](INSTALL.md) for details.
 |-------|---------|------|
 | `dw-flow-skill` | `/dw-flow [task]` / "run the flow" / "take RD-1234 to a PR" | Adaptive conductor — drives a substantial task from understanding to a merge-ready PR (ground, grill, plan, implement, deslop, review, ship), delegating to the other `dw-*` skills and surveying in-scope skills; pauses only at 4 gates (intent / grill / plan / post-PR); caveman by default |
 | `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; updates branch when safe; exits with next action |
-| `dw-product-decision-skill` | "ask product about this" / `/dw-product-decision [slack\|jira\|both]` | Reframes a dev question into a product-level decision and drafts a Slack DM + JIRA comment (drafts only, never posts) |
+| `dw-team-communication-skill` | "ask product about this" / "announce this change" / `/dw-team-communication [audience] [intent]` | Turns a change, decision, or status into the right message for the right audience — approval asks, announcements, status updates, loop-ins — tone-matched, drafted as copy-ready Slack DM / JIRA comment / channel post (drafts only, never posts) |
 | `dw-knowledge-skill` | "how do we run X here" / "remember this" / `/dw-recall` / `/dw-remember` | Live cross-project agent memory — recall before non-trivial work, capture verified+generalizable knowledge, self-update and prune; stores the method never secrets, confirms before writing |
 | `dw-skill-authoring-skill` | "help me write a skill" / "review this skill" / "why won't my skill trigger" | Principles, a checklist, and a failure-mode table for authoring reliable, well-triggered Agent Skills (naming, description, progressive disclosure, scripts-vs-prose). Invoked by name |
 | `dw-handoff-skill` | "write a handoff" / "hand this off" / `/dw-handoff [focus]` | Compresses the session into a self-contained, secret-scrubbed handoff doc (state, next steps, suggested next skills) in the temp dir; redaction delegated to `km-scrub` |
@@ -48,18 +48,20 @@ https://github.com/org/repo/pull/123
 
 The skill runs `node scripts/dw-pr-ready-watch.js "<url>"` and loops until the PR needs attention or is ready.
 
-## Usage — dw-product-decision-skill
+## Usage — dw-team-communication-skill
 
-Invoke when an engineering question needs a product call:
+Invoke when something needs to go from you to a teammate, PM, or channel — an approval ask, an
+announcement, a status update, or a loop-in:
 
 ```
-/dw-product-decision [slack|jira|both] [optional topic]
+/dw-team-communication [audience/channel] [free-text intent] [optional topic]
 ```
 
-It reframes the question to product altitude (Context / Scenario / Question / Suggested resolution),
-derives the JIRA ticket from the branch, optionally attaches app screenshots (staging or local) for
-UI questions, and outputs copy-ready Slack-DM and JIRA-comment drafts with click-to-open links. It
-never posts — you paste.
+Same engine every time: context → intent → CTA → audience-matched tone. It writes terse natural
+prose with no labeled sections or headers, derives the JIRA ticket from the branch, optionally
+attaches app screenshots (staging or local) for UI topics, and outputs copy-ready Slack-DM,
+JIRA-comment, and/or team-channel-post drafts with click-to-open links — tone matched to whoever's
+reading (product owner, eng peers, mixed/leadership). It never posts — you paste.
 
 ## Usage — dw-knowledge-skill
 

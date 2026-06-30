@@ -33,7 +33,7 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 |---|---|
 | thinking / model-facing (reasoning, subagents, internal narration) | caveman **ultra** |
 | talking to the dev | caveman **full** |
-| commit messages, PR title/body, `dw-product-decision` drafts, code comments | **no caveman** — professional prose, always |
+| commit messages, PR title/body, `dw-team-communication` drafts, code comments | **no caveman** — professional prose, always |
 
 Caveman = compressed: drop articles, filler, hedging, tool-call narration; keep code blocks,
 exact error strings, and function/API names intact; fragment pattern; revert to normal phrasing
@@ -92,7 +92,7 @@ do not guess a location. Confirm the cause at the Plan gate.
 ## Product / UX calls
 
 When a clear, non-trivial product or UI/UX decision is missing, surface it via
-`dw-product-decision` (drafts only, never posts) at three points: **Ground**, **after the plan
+`dw-team-communication` (drafts only, never posts) at three points: **Ground**, **after the plan
 during Implement**, and **Review**. Skip the trivial or obvious calls.
 
 ## Operating principles
@@ -121,6 +121,6 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
 - Never edit on a guessed cause — prove it (APM or ask the dev) first.
-- Artifacts (commit / PR / product drafts) are never caveman.
+- Artifacts (commit / PR / team-communication drafts) are never caveman.
 - Delegate to the skills; never reimplement them.
 - Never silently change scope — restate the intent and confirm.
