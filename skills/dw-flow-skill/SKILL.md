@@ -46,7 +46,8 @@ the mode. Full spec and the mode mapping: `references/communication.md`.
    explicit call-to-action) plus a one-line **desired output**, then confirm. Fire on a new task
    or a scope change, **or any message over 20 words**; skip trivial steering replies (one-word
    answers, "go", redirects). On a model-invoke, this gate also carries the engage y/n.
-2. 🚪 **Grill** — `dw-grilling` over the open decisions.
+2. 🚪 **Grill** — **invoke `dw-grilling`** and hand fully into it; let its inline text
+   interview run to completion before moving on.
 3. 🚪 **Plan** — approve the resolved-design summary before any code.
 4. 🚪 **Post-PR** — present the draft PR; the dev decides whether to hand off to `dw-pr-ready`.
 
@@ -59,7 +60,8 @@ playbook with completion criteria: `references/playbook.md`.
 
 1. **Ground** — recall `dw-knowledge`; gather codebase + ticket context (derive the ticket from
    the branch); recommend an approach. Bug tasks: establish root cause (below).
-2. 🚪 **Grill** — `dw-grilling`.
+2. 🚪 **Grill** — **invoke `dw-grilling`** (don't reimplement it); hand fully in and let its
+   inline text interview run uninterrupted to completion.
 3. 🚪 **Plan** — resolved-design summary → approve. Suggest a knowledge capture here.
 4. **Implement**.
 5. **Deslop** — `dw-deslop` the diff.
@@ -121,6 +123,9 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 ## Hard rules
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
+- At the Grill gate, **invoke `dw-grilling`** and hand fully into it — inline chat text, one
+  question at a time, uninterrupted. Never pose grill questions through a picker and never inject
+  flow narration, data, or plans between them (`dw-grilling` holds context to the end).
 - Never edit on a guessed cause — prove it (APM or ask the dev) first.
 - Artifacts (commit / PR / team-communication drafts) are never caveman.
 - Delegate to the skills; never reimplement them.

@@ -21,8 +21,11 @@ trace-backed cause located or explicitly requested from the dev).
 
 ## 2. 🚪 Grill
 
-Run `dw-grilling` over the open decisions — one question at a time, each led by a recommended
-default. *Done when:* the resolved-design summary has no material open decision.
+**Invoke `dw-grilling`** and hand fully into it — don't reimplement its loop in the conductor.
+Its interview runs inline as plain chat text: one question at a time, each led by a recommended
+default, never through a picker/question tool. Let it run uninterrupted — keep flow's own
+narration, data, and plans out until the grill is done (`dw-grilling` holds context to the end).
+*Done when:* the resolved-design summary has no material open decision.
 
 ## 3. 🚪 Plan
 
