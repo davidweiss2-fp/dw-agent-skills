@@ -21,6 +21,11 @@ still undecided.
 This is a prompt-driven engine — no scripts to run. The discipline is the value: one
 question, a clear recommendation, wait for the answer, then the next.
 
+Run it **inline, in the chat, as plain text** — never pose grilling questions through a
+picker or structured-question tool; the back-and-forth *is* the method. And **hold any
+supporting data, context, or plans you want to show until the grill is done** — surfacing
+them between questions breaks the focus. Present all of that once every decision is locked.
+
 ## Invocation
 
 `/dw-grill [optional topic, plan, or file/PR reference]`
@@ -39,12 +44,14 @@ the user in one line what they want stress-tested before starting.
    exists — an established pattern, a config value, a prior decision, an existing type.
    If exploring resolves it, resolve it and tell the user what you found instead of
    asking. Only ask what genuinely needs a human judgment call.
-3. **Ask exactly one question.** State the decision, give the realistic options, and
-   **lead with your recommended default and why.** Make it answerable in a word
-   ("Go with A?", "yes/no"). See `references/asking-well.md` for the question shape.
+3. **Ask exactly one question — inline, as chat text.** State the decision, give the
+   realistic options, and **lead with your recommended default and why.** Make it
+   answerable in a word ("Go with A?", "yes/no"), and never pose it through a
+   picker/question tool. See `references/asking-well.md` for the question shape.
 4. **Wait.** Do not stack questions. Do not start the next question until this one is
    answered. Multiple questions at once defeats the purpose.
-5. **Record and branch.** Capture the answer. If it opens or closes downstream
+5. **Record, lock, then branch.** Capture the answer — but only advance if it's a clean,
+   unconditional pick (see *Locking an answer*). If it opens or closes downstream
    decisions, re-prune the tree before the next question.
 6. **Repeat** until no material decision is open.
 7. **Summarize the resolved design** — every decision and its outcome — so the user has
@@ -55,6 +62,23 @@ the user in one line what they want stress-tested before starting.
 One **decision**, not one sentence. You may show the options and your reasoning, but the
 user should have to make a single call to move on. If you catch yourself writing "also,"
 or a second "?", split it into the next turn.
+
+## Locking an answer before you advance
+
+An answer only moves the interview forward when it's a **clean, unconditional pick** of an
+option you offered. It is **not** locked — and you do **not** go to the next question —
+when the user:
+
+- picks something **off your list** (a different option than any you proposed), or
+- accepts an option but **attaches conditions or how-to comments** ("yes, but do it this
+  way…", "agree, except…").
+
+In either case the next turn stays on the *same* decision: either **revisit** it (fold
+their input into a tightened set of options and re-ask), or **restate to verify intent** —
+play back exactly what you now understand the decision to be and get a one-word
+confirmation (the same intent-gate move `dw-flow` uses). Only once it's cleanly confirmed
+do you record it and move on. A restate that reveals you'd captured more (or less) than the
+user meant is the mechanism working, not a wasted turn.
 
 ## The recommended default is mandatory
 
@@ -74,8 +98,13 @@ real options — but that should be rare. See `references/asking-well.md`.
 
 ## Hard rules
 
-- **One question per turn.** Always wait for the answer before the next.
+- **One question per turn, inline.** Ask in chat as plain text and wait for the answer
+  before the next — never through a picker/question tool.
 - **Always recommend.** Lead with your default and the trade-off; no bare open questions.
+- **Lock before advancing.** Only a clean, unconditional pick moves on; an off-list answer
+  or one with attached conditions gets a revisit or a restate-to-verify first.
+- **Hold context to the end.** Save supporting data/plans for after the grill; don't dump
+  them between questions.
 - **Codebase before user.** If exploring answers it, explore — don't ask what you can find.
 - **Order by dependency.** Never ask a question whose answer depends on a later one.
 - **Never silently assume.** An unresolved decision is asked or explicitly deferred in the
