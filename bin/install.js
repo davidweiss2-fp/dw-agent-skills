@@ -153,8 +153,15 @@ function installClaude(ctx) {
 	if (!opts.force) {
 		const r = captureSpawn('claude', ['plugin', 'list']);
 		if (r.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(r.stdout || '')) {
-			note('  plugin already installed (use --force to reinstall)');
-			results.skipped.push(['claude', 'plugin already installed']);
+			note('  plugin already installed — updating to the latest version (use --force to reinstall)');
+			// Refresh the marketplace from its source, then update the plugin to apply it.
+			const u1 = runSpawn('claude', ['plugin', 'marketplace', 'update', PLUGIN_NAME], opts.dryRun);
+			const u2 = runSpawn('claude', ['plugin', 'update', `${PLUGIN_NAME}@${PLUGIN_NAME}`], opts.dryRun);
+			if ((u1.status || 0) === 0 && (u2.status || 0) === 0) {
+				results.installed.push('claude (updated — restart Claude Code to apply)');
+			} else {
+				results.failed.push(['claude', 'claude plugin update failed (use --force to reinstall)']);
+			}
 			return;
 		}
 	}

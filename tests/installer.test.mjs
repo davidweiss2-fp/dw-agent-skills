@@ -1,6 +1,8 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -46,6 +48,27 @@ describe('installer dry-run', () => {
 		const r = runInstall(['--dry-run', '--only', 'claude', '--force']);
 		assert.equal(r.status, 0);
 		assert.match(r.stdout, /plugin install/);
+	});
+
+	it('--dry-run --only claude updates the plugin when already installed', () => {
+		// Stub `claude` so `plugin list` reports the plugin present, exercising the
+		// already-installed path deterministically (host-independent).
+		const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-claude-stub-'));
+		try {
+			const stub = path.join(stubDir, 'claude');
+			fs.writeFileSync(stub, '#!/bin/sh\nif [ "$1" = plugin ] && [ "$2" = list ]; then echo dw-agent-skills@dw-agent-skills; fi\nexit 0\n');
+			fs.chmodSync(stub, 0o755);
+			const r = spawnSync('node', [installJs, '--dry-run', '--only', 'claude'], {
+				cwd: root,
+				encoding: 'utf8',
+				env: {...process.env, PATH: `${stubDir}${path.delimiter}${process.env.PATH}`},
+			});
+			assert.equal(r.status, 0);
+			assert.match(r.stdout, /marketplace update dw-agent-skills/);
+			assert.match(r.stdout, /plugin update dw-agent-skills@dw-agent-skills/);
+		} finally {
+			fs.rmSync(stubDir, {recursive: true, force: true});
+		}
 	});
 
 	it('tolerates the npx `--` separator forwarded to the bin', () => {
