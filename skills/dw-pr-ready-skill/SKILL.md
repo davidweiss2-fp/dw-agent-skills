@@ -13,23 +13,32 @@ Your job is to keep one PR merge-ready. User gives a **full PR URL** (e.g. `http
 
 ## Start
 
-From this skill directory, run the watcher:
+From this skill directory, run the watcher. `--run` and `--branch-update` are **required** — the watcher exits non-zero with a usage error if either is missing or set to an unrecognized value:
 
 ```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>"
+node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run watch-for-new --branch-update when-behind
 ```
 
-One-shot (no loop):
+One-shot (single poll, no loop):
 
 ```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>" --once
+node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update when-behind
 ```
 
-Dry poll without branch update:
+Dry poll without any branch update:
 
 ```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>" --once --no-update
+node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update never
 ```
+
+`--run` values:
+- `get-all` — one full poll, then exit.
+- `watch-for-new` — keep looping, polling for new events.
+
+`--branch-update` values:
+- `when-behind` — update the branch from base whenever it's behind.
+- `on-conflicts` — update only when the PR is conflicting/not-mergeable.
+- `never` — never update the branch.
 
 Requirements: GitHub CLI installed and authenticated (`gh auth status`).
 
@@ -48,7 +57,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Do **not** update branch. Wait for reviewer. |
 | `waiting-draft` | Resolve comments only. Do **not** update branch. Mark ready when user wants. |
-| `waiting-checks` | CI still running. Loop mode keeps polling automatically; in `--once` mode, re-run when checks finish. |
+| `waiting-checks` | CI still running. `watch-for-new` keeps polling automatically; with `--run get-all`, re-run when checks finish. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
 
@@ -57,7 +66,9 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 - **Draft PR** — no base update; comments only.
 - **Review required / changes requested** — no base update until review clears.
 - **Merge queue enabled** on repo/base — no base update.
-- **Otherwise** — update from base when behind (`updatePullRequestBranch`).
+- **Otherwise** — update from base per `--branch-update`: `when-behind` updates whenever the branch
+  is behind base (`updatePullRequestBranch`); `on-conflicts` updates only when the PR is
+  conflicting/not-mergeable; `never` never updates.
 
 ## Agent work loop
 

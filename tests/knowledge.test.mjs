@@ -1,7 +1,7 @@
 import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -13,6 +13,7 @@ const SCRIPTS = join(HERE, '..', 'skills', 'dw-knowledge-skill', 'scripts');
 const KM_SCRUB = join(SCRIPTS, 'km-scrub.js');
 const KM_RECALL = join(SCRIPTS, 'km-recall.js');
 const KM_INDEX = join(SCRIPTS, 'km-index.js');
+const KM_REVIEW = join(SCRIPTS, 'km-review.js');
 
 const require = createRequire(import.meta.url);
 const fm = require(join(SCRIPTS, 'km-frontmatter.js'));
@@ -33,7 +34,14 @@ function run(script, args, {input = '', cwd, env} = {}) {
 }
 
 // Build a minimal valid memory file body (frontmatter + body).
-function memory({name, description, type = 'how-to', trigger = '', lastVerified = '2026-06-18'}) {
+function memory({
+	name,
+	description,
+	type = 'how-to',
+	trigger = '',
+	lastVerified = '2026-06-18',
+	confidence = 2,
+}) {
 	return [
 		'---',
 		`name: ${name}`,
@@ -44,7 +52,7 @@ function memory({name, description, type = 'how-to', trigger = '', lastVerified 
 		'  scope: global',
 		`  trigger: ${trigger}`,
 		`  last_verified: ${lastVerified}`,
-		'  confidence: 2',
+		`  confidence: ${confidence}`,
 		'  status: active',
 		'---',
 		'',
@@ -371,5 +379,120 @@ describe('km-index', () => {
 		assert.equal(second.status, 0, second.stderr);
 		const b = readFileSync(indexPath, 'utf8');
 		assert.equal(a, b, 'two runs must produce a byte-identical index');
+	});
+});
+
+describe('km-review', () => {
+	let store;
+	let env;
+	let dir;
+	let freshFile;
+	let staleFile;
+	let pruneFile;
+
+	before(() => {
+		store = mkdtempSync(join(tmpdir(), 'km-review-'));
+		dir = join(store, '.claude', 'knowledge');
+		mkdirSync(dir, {recursive: true});
+
+		// (a) fresh — recent last_verified, confidence 2. Well inside the window.
+		freshFile = join(dir, 'fresh.md');
+		writeFileSync(
+			freshFile,
+			memory({
+				name: 'Fresh procedure',
+				description: 'A recently verified memory',
+				lastVerified: '2026-06-25',
+				confidence: 2,
+			}),
+		);
+
+		// (b) stale — last_verified well past --window-days, confidence 2.
+		staleFile = join(dir, 'stale.md');
+		writeFileSync(
+			staleFile,
+			memory({
+				name: 'Stale procedure',
+				description: 'A memory that has not been re-verified in a long time',
+				lastVerified: '2026-01-01',
+				confidence: 2,
+			}),
+		);
+
+		// (c) prune candidate — confidence 0, regardless of last_verified.
+		pruneFile = join(dir, 'prune-me.md');
+		writeFileSync(
+			pruneFile,
+			memory({
+				name: 'Prune candidate',
+				description: 'A memory that has been invalidated',
+				lastVerified: '2026-06-25',
+				confidence: 0,
+			}),
+		);
+
+		env = {HOME: store, USERPROFILE: store};
+	});
+
+	after(() => {
+		rmSync(store, {recursive: true, force: true});
+	});
+
+	it('REPORT mode flags the stale memory but not the fresh one', () => {
+		const r = run(
+			KM_REVIEW,
+			['--scope', 'global', '--window-days', '30', '--today', '2026-06-30'],
+			{env},
+		);
+		assert.equal(r.status, 0, r.stderr);
+		assert.match(r.stdout, /# km-review — REPORT/);
+
+		// Stale memory (last_verified 2026-01-01, ~180d ago) must be listed under STALE.
+		assert.match(
+			r.stdout,
+			/STALE[\s\S]*Stale procedure/,
+			'stale memory should be flagged in the STALE section',
+		);
+		// Fresh memory (last_verified 2026-06-25, 5d ago) must NOT appear in the STALE list.
+		const staleSection = r.stdout.split('STALE')[1] || '';
+		assert.ok(
+			!staleSection.includes('Fresh procedure'),
+			'fresh memory must not be flagged as stale',
+		);
+
+		// The confidence-0 memory is reported as a prune candidate but not deleted.
+		assert.match(
+			r.stdout,
+			/PRUNE CANDIDATES[\s\S]*Prune candidate/,
+			'confidence-0 memory should be listed as a prune candidate',
+		);
+		assert.ok(existsSync(pruneFile), 'REPORT mode must not delete any files');
+		assert.ok(existsSync(staleFile), 'REPORT mode must not delete any files');
+		assert.ok(existsSync(freshFile), 'REPORT mode must not delete any files');
+	});
+
+	it('--prune deletes only the confidence-0 file and rewrites the index, keeping fresh + stale', () => {
+		const indexPath = join(dir, 'INDEX.md');
+		const r = run(
+			KM_REVIEW,
+			['--scope', 'global', '--prune', '--window-days', '30', '--today', '2026-06-30'],
+			{env},
+		);
+		assert.equal(r.status, 0, r.stderr);
+		assert.match(r.stdout, /# km-review — PRUNE/);
+
+		// Only the confidence-0 file is unlinked; staleness alone does not prune.
+		assert.ok(!existsSync(pruneFile), 'confidence-0 file must be deleted by --prune');
+		assert.ok(existsSync(staleFile), 'stale but nonzero-confidence file must survive --prune');
+		assert.ok(existsSync(freshFile), 'fresh file must survive --prune');
+
+		// The regenerated index must drop the pruned entry and keep the survivors.
+		const indexBody = readFileSync(indexPath, 'utf8');
+		assert.ok(
+			!indexBody.includes('Prune candidate'),
+			'pruned memory must be removed from the index',
+		);
+		assert.ok(indexBody.includes('Stale procedure'), 'stale (unpruned) memory must remain in the index');
+		assert.ok(indexBody.includes('Fresh procedure'), 'fresh memory must remain in the index');
 	});
 });

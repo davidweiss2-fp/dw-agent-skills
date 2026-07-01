@@ -28,7 +28,9 @@ and **Suggested next skills** sections toward it. With no argument, hand off the
 ## Where it goes
 
 Write to the OS temp dir, **never** the working tree — a handoff is scratch, not a tracked artifact
-that pollutes `git status`. Get a stable, collision-free path from the scaffold script:
+that pollutes `git status`. Get a stable, idempotent path from the scaffold script — it's keyed by
+branch + date, so a same-branch, same-day re-run intentionally resolves to the same path and
+overwrites the previous handoff:
 
 ```bash
 node scripts/dw-handoff-path.js [--focus "next-session focus"]

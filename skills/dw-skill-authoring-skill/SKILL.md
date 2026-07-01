@@ -1,13 +1,9 @@
 ---
 name: dw-skill-authoring-skill
 description: >-
-  Principles and a checklist for authoring Agent Skills that trigger reliably
-  and run the same way every time. Use when the user is writing, reviewing, or
-  fixing a SKILL.md — "help me write a skill", "review this skill", "why won't
-  my skill trigger", "is this description good", "should this be a script or
-  prose", "split this skill", "trim this SKILL.md". Covers naming, the
-  description/triggering, progressive disclosure, scripts-vs-prose, and the
-  common failure modes. Invoked by name (no slash command).
+  Principles, a checklist, and a failure-mode table for authoring reliable
+  Agent Skills — naming, description, progressive disclosure, scripts vs.
+  prose. Invoked by name.
 disable-model-invocation: true
 ---
 

@@ -8,16 +8,38 @@ const lib = require('./pr-ready-lib');
 
 const DEFAULT_POLL_MS = 120_000;
 
+const RUN_VALUES = ['get-all', 'watch-for-new'];
+const BRANCH_UPDATE_VALUES = ['when-behind', 'on-conflicts', 'never'];
+
+function usageError(message) {
+	console.error(`Usage error: ${message}`);
+	console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> --branch-update <when-behind|on-conflicts|never> [--poll-ms N]');
+	process.exit(1);
+}
+
+function requireEnumArg(args, key, envKey, allowedValues) {
+	const raw = utils.getStringArg(args, key, envKey, '');
+	if (!raw) {
+		usageError(`--${key} is required. Valid values: ${allowedValues.join(', ')}`);
+	}
+	if (!allowedValues.includes(raw)) {
+		usageError(`--${key}=${raw} is invalid. Valid values: ${allowedValues.join(', ')}`);
+	}
+	return raw;
+}
+
 function parseCliOptions() {
 	const args = utils.parseArgs(process.argv);
 	const pollMsRaw = utils.getStringArg(args, 'poll-ms', 'DW_PR_READY_POLL_MS', String(DEFAULT_POLL_MS));
 	const pollMs = Number.parseInt(pollMsRaw, 10);
 	const positional = args._ ?? [];
 	const prUrl = positional[0] || utils.getStringArg(args, 'pr', 'DW_PR_READY_URL', '');
+	const run = requireEnumArg(args, 'run', 'DW_PR_READY_RUN', RUN_VALUES);
+	const branchUpdate = requireEnumArg(args, 'branch-update', 'DW_PR_READY_BRANCH_UPDATE', BRANCH_UPDATE_VALUES);
 	return {
 		prUrl,
-		once: args.once === true,
-		noUpdate: args['no-update'] === true,
+		once: run === 'get-all',
+		branchUpdate,
 		resetState: args['reset-state'] === true,
 		pollMs: Number.isFinite(pollMs) && pollMs > 0 ? pollMs : DEFAULT_POLL_MS,
 		statePath: utils.getStringArg(args, 'state', 'DW_PR_READY_STATE', defaultStatePath(prUrl)),
@@ -273,7 +295,7 @@ function recommendedNextCommands(owner, repo, prNumber, reason) {
 		case 'user-directive':
 			return [
 				`gh pr view ${prNumber} ${repoFlag.join(' ')} --comments`,
-				`gh api graphql -f query='query{repository(owner:"${owner}",name:"${repo}"){pullRequest(number:${prNumber}){reviewThreads(first:20){nodes{id isResolved comments(first:5){nodes{body author{login}}}}}}}'`,
+				`gh api graphql -f query='query{repository(owner:"${owner}",name:"${repo}"){pullRequest(number:${prNumber}){reviewThreads(first:20){nodes{id isResolved comments(first:5){nodes{body author{login}}}}}}}}'`,
 			];
 		case 'ci-failure':
 			return [
@@ -372,7 +394,13 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 	const newFailures = lib.unseenFailures(summary.number, failures, state);
 	const gate = lib.canUpdateBranch(summary, {mergeQueueEnabled});
 
-	if (!options.noUpdate && lib.shouldUpdateBranch(summary, state, gate)) {
+	const wantsUpdate = options.branchUpdate === 'never'
+		? false
+		: options.branchUpdate === 'on-conflicts'
+			? gate.allowed && lib.hasMergeConflict(summary)
+			: lib.shouldUpdateBranch(summary, state, gate);
+
+	if (wantsUpdate) {
 		const update = updatePullRequestBranch(summary);
 		if (update.ok === false) {
 			if (lib.isBenignUpdateBranchError(update.error)) {
@@ -465,8 +493,8 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 		&& failures.length === 0
 		&& !summary.isDraft
 	) {
-		// Loop mode keeps polling quietly while checks run; --once surfaces a
-		// calm "still waiting" interrupt (exit 0), never a premature pr-ready.
+		// watch-for-new keeps polling quietly while checks run; get-all surfaces
+		// a calm "still waiting" interrupt (exit 0), never a premature pr-ready.
 		if (!options.once) return null;
 		return {
 			summary, owner, repo,
@@ -555,7 +583,7 @@ function isTransientGhError(message) {
 async function main() {
 	const options = parseCliOptions();
 	if (!options.prUrl) {
-		console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> [--once] [--no-update] [--poll-ms N]');
+		console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> --branch-update <when-behind|on-conflicts|never> [--poll-ms N]');
 		process.exit(1);
 	}
 
@@ -568,7 +596,7 @@ async function main() {
 	console.log(`[dw-pr-ready] state=${options.statePath}`);
 	console.log(`[dw-pr-ready] directiveLogins=${[...directiveLogins].join(',') || '(none)'}`);
 	console.log(
-		`[dw-pr-ready] mode=${options.once ? 'once' : 'loop'} update=${options.noUpdate ? 'disabled' : 'enabled'} pollMs=${options.pollMs}`,
+		`[dw-pr-ready] mode=${options.once ? 'once' : 'loop'} branchUpdate=${options.branchUpdate} pollMs=${options.pollMs}`,
 	);
 
 	for (;;) {

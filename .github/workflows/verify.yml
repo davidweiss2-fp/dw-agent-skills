@@ -17,25 +17,7 @@ jobs:
           node-version: '20'
 
       - name: Syntax check
-        run: |
-          node --check bin/install.js
-          node --check skills/dw-pr-ready-skill/scripts/utils.js
-          node --check skills/dw-pr-ready-skill/scripts/pr-ready-lib.js
-          node --check skills/dw-pr-ready-skill/scripts/dw-pr-ready-watch.js
-          node --check skills/dw-knowledge-skill/scripts/km-paths.js
-          node --check skills/dw-knowledge-skill/scripts/km-frontmatter.js
-          node --check skills/dw-knowledge-skill/scripts/km-scrub.js
-          node --check skills/dw-knowledge-skill/scripts/km-recall.js
-          node --check skills/dw-knowledge-skill/scripts/km-index.js
-          node --check skills/dw-knowledge-skill/scripts/km-review.js
-          node --check skills/dw-handoff-skill/scripts/dw-handoff-path.js
-          node --check skills/dw-runbook-skill/scripts/runbook-paths.js
-          node --check skills/dw-runbook-skill/scripts/lock.js
-          node --check skills/dw-runbook-skill/scripts/run.js
-          node --check skills/dw-runbook-skill/scripts/run-self-test.js
-          node --check skills/dw-runbook-skill/scripts/dw-runbook-hint.js
-          bash -n skills/dw-git-ops-skill/scripts/ops.sh
-          bash -n skills/dw-git-ops-skill/scripts/ops-self-test.sh
+        run: npm run syntax
 
       - name: Unit tests
         run: npm test

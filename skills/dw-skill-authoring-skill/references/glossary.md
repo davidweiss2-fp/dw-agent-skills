@@ -29,10 +29,20 @@ design; keeping the words consistent is itself a predictability move.
 
 ## Invocation
 
+- **Trigger** — a phrasing or situation named in the `description` that should make the model fire
+  the skill. Concrete and quoted from real usage, not an abstract category; one trigger per distinct
+  path.
 - **Model-invoked** — the skill keeps a `description`, so the agent can fire it on its own and other
   skills can reach it. Costs context every turn the description is loaded.
 - **User-invoked** — `disable-model-invocation: true`; only a human typing the name can run it. Zero
   context cost, but you must remember it exists.
+
+## Scripts vs. prose
+
+- **Script** — deterministic, repeatable mechanics pulled out of the body and into code: same steps,
+  same order, identical run to run. Use it where a wrong step is costly.
+- **Prose** — the body text that carries judgment work — triage, drafting, deciding which path
+  applies. Spends words on *how to think*, not *what to type*.
 
 ## Failure modes
 
