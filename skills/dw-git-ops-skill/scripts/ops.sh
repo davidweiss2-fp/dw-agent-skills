@@ -228,7 +228,7 @@ main() {
     worktree-rm) cmd_worktree_rm "$@";;
     reap)        cmd_reap "$@";;
     status)      cmd_status "$@";;
-    ""|-h|--help|help) sed -n '3,38p' "$0" | sed 's/^# \{0,1\}//';;
+    ""|-h|--help|help) sed -n '3,/^[^#]/p' "$0" | sed '/^[^#]/d; s/^# \{0,1\}//';;
     *) die "unknown subcommand '$sub' (try: branch | add | commit | push | cap | pr | pr-ready | pr-draft | worktree-rm | reap | status)";;
   esac
 }

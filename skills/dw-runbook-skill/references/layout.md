@@ -30,7 +30,7 @@ holds only data:
 | `command` | the body file (default `command.sh`). |
 | `report` | `{summary, findings, findingsMax}` parser. See `reporting.md`. |
 | `triggers` | optional regexes the hint hook matches against a hand-run command. |
-| `pollMs`/`staleMs`/`ttlMs`/`timeoutMs` | optional lock tunables; sane defaults otherwise. |
+| `pollMs`/`ttlMs`/`timeoutMs` | optional lock tunables; sane defaults otherwise. A slow-but-live run is protected by PID-liveness, not a stale ceiling — raise `timeoutMs` for very long runs. |
 
 ## manifest.json — flow
 

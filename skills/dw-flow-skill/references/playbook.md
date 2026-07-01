@@ -50,7 +50,14 @@ blocking ones fixed.
 ## 7. Verify *(offered)*
 
 Offer to run the app / the `verify` skill when the change is runnable and worth it; skip otherwise
-and say so. *Done when:* the dev declines, or behavior is confirmed against a real run.
+and say so.
+
+Before shipping, run the mandatory preflight regardless of whether the offered `verify` run
+happens: recall `dw-knowledge` for the repo's verify recipe (which runbook, how it runs, what it
+tolerates) rather than re-deriving or asking; run the repo's lint/typecheck/test on the diff via
+`dw-runbook`; then `fmt` the diff and fold the resulting `fmt` patch into the commit. *Done when:*
+the dev declines the offered `verify` run (or behavior is confirmed against a real run), **and**
+the preflight is green with `fmt` applied.
 
 ## 8. Ship
 

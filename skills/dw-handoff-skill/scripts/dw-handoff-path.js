@@ -1,6 +1,8 @@
 'use strict';
 
-// Scaffold a stable, collision-free path for a session handoff document.
+// Scaffold a stable, idempotent path for a session handoff document — keyed by
+// branch + date, so a same-branch, same-day re-run intentionally resolves to
+// the same path and overwrites the previous handoff.
 //
 // Dependency-free; node: builtins only. No network, no randomness, no shelling
 // out. Pure path derivation + a skeleton emitted to stderr.
