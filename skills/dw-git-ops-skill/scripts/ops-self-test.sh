@@ -81,5 +81,13 @@ ok "$([ -d "$wt" ] && echo 0 || echo 1)" "reap left the unmerged worktree (demo)
 # 12. status shows location + managed worktrees (capture to a var; see the note on test 7)
 out12="$( cd "$wt"; bash "$OPS" status 2>/dev/null )"; printf '%s' "$out12" | grep -q "\[worktree\]"; ok $? "status reports [worktree] in a worktree"
 
+# 13. commit prints the context block (repo/branch/worktree) before mutating
+out13="$( cd "$wt"; echo c > c.txt; bash "$OPS" add c.txt >/dev/null 2>&1; bash "$OPS" commit "add c" 2>&1 )"
+printf '%s' "$out13" | grep -q "repo:" && printf '%s' "$out13" | grep -q "branch:"; ok $? "commit prints the repo/branch context lines"
+
+# 14. expectation gate: a wrong OPS_EXPECT_BRANCH refuses to commit
+out14="$( cd "$wt"; echo d > d.txt; bash "$OPS" add d.txt >/dev/null 2>&1; OPS_EXPECT_BRANCH=wrong bash "$OPS" commit "add d" 2>&1 )"; rc14=$?
+[ "$rc14" -ne 0 ] && printf '%s' "$out14" | grep -q "context mismatch"; ok $? "wrong OPS_EXPECT_BRANCH exits non-zero with 'context mismatch'"
+
 printf '\n%s — ops self-test (%s failure(s))\n' "$([ "$fails" = 0 ] && echo PASS || echo FAIL)" "$fails"
 [ "$fails" = 0 ]

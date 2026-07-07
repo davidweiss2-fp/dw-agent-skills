@@ -55,6 +55,11 @@ ops.sh reap               remove worktrees whose PR is MERGED + delete their loc
 ops.sh status             branch + short status + managed worktrees
 ```
 
+Every mutating command (`commit`, `push`, `cap`, `pr`) first prints a context block to stderr -
+repo, branch, worktree - so a parallel-agent cwd slip surfaces before anything lands in the
+wrong checkout. `--expect-branch <b>` (or env `OPS_EXPECT_BRANCH=<b>`) turns it into a gate:
+the command dies with `context mismatch` when the current branch differs.
+
 Global `--root` opts into the primary checkout. Env: `OPS_DRY=1` (echo instead of run),
 `OPS_NO_COAUTHOR=1`, `OPS_REMOTE=<name>`.
 
@@ -93,6 +98,8 @@ already safe in the base — so removing the worktree and its branch loses nothi
 
 - **Worktree-first** — routine mutating work belongs in a worktree; root needs `--root`.
 - **One worktree = one scope = one PR**, reaped on merge.
+- **Confirm the context before mutating** - every commit/push/pr prints repo+branch+worktree;
+  pass the expected branch when driving multiple worktrees.
 - **Never `git add -A`** — name the paths.
 - **Destructive git is judged, run raw, and never prompt-dodged** — the prompt is the gate.
 - **Don't reinvent the flow** — extend `ops.sh` rather than hand-rolling git sequences.

@@ -25,9 +25,12 @@
 #   ops.sh reap                      remove worktrees whose PR is MERGED + delete their branch
 #   ops.sh status                    branch + short status + managed worktrees
 #
-# Global flag: --root  operate on the main checkout (mutating ops only warn otherwise).
+# Global flags: --root  operate on the main checkout (mutating ops only warn otherwise);
+#      --expect-branch <b>  die before mutating unless the current branch is <b>.
 # Env: OPS_DRY=1 echo mutating git/gh instead of running; OPS_NO_COAUTHOR=1 drop the
-#      Co-Authored-By trailer; OPS_REMOTE=<name> push remote (default origin).
+#      Co-Authored-By trailer; OPS_REMOTE=<name> push remote (default origin);
+#      OPS_EXPECT_BRANCH=<b> same as --expect-branch.
+# commit/push/cap/pr print a repo/branch/worktree context block (stderr) before mutating.
 set -uo pipefail
 
 PROTECTED_RE='^(master|main)$'
@@ -35,6 +38,8 @@ REMOTE="${OPS_REMOTE:-origin}"
 WT_SUBDIR=".claude/worktrees"
 COAUTHOR_TRAILER="Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ROOT_OK=0
+EXPECT_BRANCH="${OPS_EXPECT_BRANCH:-}"
+CTX_SHOWN=0
 
 die()  { printf 'ops: %s\n' "$*" >&2; exit 1; }
 warn() { printf 'ops: %s\n' "$*" >&2; }
@@ -65,6 +70,21 @@ prefer_worktree() {
   [ "$ROOT_OK" = "1" ] && return 0
   is_linked_worktree && return 0
   warn "operating on the ROOT checkout (not a worktree) — prefer 'ops.sh branch' for isolated, parallel-safe work; pass --root to silence this"
+}
+
+# Print the operating context once (stderr) before any mutation, so a parallel-agent cwd
+# slip surfaces before it lands in the wrong repo/worktree; when an expected branch is set
+# (--expect-branch / OPS_EXPECT_BRANCH), a mismatch dies instead of proceeding.
+confirm_ctx() {
+  [ "$CTX_SHOWN" = "1" ] && return 0
+  CTX_SHOWN=1
+  local b top loc
+  b="$(current_branch)"; top="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if is_linked_worktree; then loc="worktree"; else loc="root"; fi
+  printf 'ops: context\n  repo:     %s\n  branch:   %s\n  worktree: %s [%s]\n' "$(main_root)" "${b:-(detached)}" "$top" "$loc" >&2
+  if [ -n "$EXPECT_BRANCH" ] && [ "$b" != "$EXPECT_BRANCH" ]; then
+    die "context mismatch: on '$b', expected '$EXPECT_BRANCH'"
+  fi
 }
 
 cmd_branch() {
@@ -106,7 +126,7 @@ cmd_add() {
 }
 
 cmd_commit() {
-  in_repo; prefer_worktree; guard_branch >/dev/null
+  in_repo; confirm_ctx; prefer_worktree; guard_branch >/dev/null
   [ "$#" -ge 1 ] && [ -n "${1:-}" ] || die "commit needs a message: ops.sh commit \"<message>\""
   local msg="$1"
   if [ "${OPS_NO_COAUTHOR:-0}" != "1" ]; then msg="$msg
@@ -117,13 +137,13 @@ $COAUTHOR_TRAILER"; fi
 }
 
 cmd_push() {
-  in_repo; prefer_worktree
+  in_repo; confirm_ctx; prefer_worktree
   local b; b="$(guard_branch)"
   run git push -u "$REMOTE" "$b"
 }
 
 cmd_cap() {
-  in_repo; guard_branch >/dev/null
+  in_repo; confirm_ctx; guard_branch >/dev/null
   [ "$#" -ge 1 ] && [ -n "${1:-}" ] || die "cap needs a message: ops.sh cap \"<message>\" [<path>...]"
   local msg="$1"; shift
   if [ "$#" -ge 1 ]; then cmd_add "$@" || die "cap: staging failed"; else warn "no paths given to cap — committing what is already staged"; fi
@@ -132,7 +152,7 @@ cmd_cap() {
 }
 
 cmd_pr() {
-  in_repo
+  in_repo; confirm_ctx
   local title="" body="" ready=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -208,10 +228,15 @@ cmd_status() {
 }
 
 main() {
-  # Pull the global --root flag out of the arg list (bash-3.2-safe for empty arrays).
-  local a; local -a rest=()
-  for a in "$@"; do
-    if [ "$a" = "--root" ]; then ROOT_OK=1; else rest[${#rest[@]}]="$a"; fi
+  # Pull the global flags (--root, --expect-branch <b>) out of the arg list
+  # (bash-3.2-safe for empty arrays).
+  local -a rest=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --root) ROOT_OK=1; shift;;
+      --expect-branch) EXPECT_BRANCH="${2:-}"; shift 2 || die "--expect-branch needs a value";;
+      *) rest[${#rest[@]}]="$1"; shift;;
+    esac
   done
   set -- ${rest[@]+"${rest[@]}"}
 
