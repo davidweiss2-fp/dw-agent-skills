@@ -38,8 +38,11 @@ the user in one line what they want stress-tested before starting.
 
 1. **Map the decision tree.** From the plan/topic, list the decisions that must be made
    for the work to be unambiguous: data shape, naming, edge cases, error handling,
-   scope boundaries, defaults, migration/rollout, UX behavior, dependencies between the
-   above. Order them so that a decision never depends on one you haven't asked yet.
+   scope boundaries, abstraction shape, defaults, migration/rollout, UX behavior,
+   dependencies between the above. Abstraction shape carries a recommended default:
+   prefer a new function over adding option-flags to a shared helper; growing a shared
+   helper's flag surface is an explicit question, never a silent default. Order them so
+   that a decision never depends on one you haven't asked yet.
 2. **Resolve from the codebase first.** Before asking, check whether the answer already
    exists — an established pattern, a config value, a prior decision, an existing type.
    If exploring resolves it, resolve it and tell the user what you found instead of
