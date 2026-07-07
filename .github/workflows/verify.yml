@@ -38,6 +38,9 @@ jobs:
       - name: runbook hint-hook self-test
         run: node skills/dw-runbook-skill/scripts/dw-runbook-hint.js --self-test
 
+      - name: handoff nudge-hook self-test (PreCompact fixtures)
+        run: node skills/dw-handoff-skill/scripts/dw-handoff-nudge.js --self-test
+
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
         # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator

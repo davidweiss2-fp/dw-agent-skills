@@ -25,6 +25,14 @@ secret redaction is delegated to the `dw-knowledge-skill` scrubber (see Redactio
 If a focus argument is given, treat it as the next session's objective and bias the **Next steps**
 and **Suggested next skills** sections toward it. With no argument, hand off the work as it stands.
 
+## Auto-nudge (plugin installs)
+
+Installed as the Claude Code plugin, a `PreCompact` hook (`scripts/dw-handoff-nudge.js`) fires just
+before the session compacts - auto or manual - and points the agent back at this skill: write the
+handoff to the derived path and persist any active dw-flow state to the worktree context dir before
+conversation detail is lost. Advisory only - it always exits 0 and never blocks compaction. Verify
+it any time: `node scripts/dw-handoff-nudge.js --self-test`.
+
 ## Where it goes
 
 Write to the OS temp dir, **never** the working tree — a handoff is scratch, not a tracked artifact

@@ -1,5 +1,9 @@
 # Optional hint hook (PreToolUse, advisory)
 
+> Installed as the Claude Code **plugin**, this hook is wired automatically - the plugin's
+> `hooks/hooks.json` registers it on enable, so there is nothing to configure. The manual
+> snippets below remain for non-plugin installs (copied skills, Cursor-style setups).
+
 `scripts/dw-runbook-hint.js` nudges the agent toward a saved runbook when it's about to hand-run a
 command that a runbook's `triggers` cover. It is **advisory**: it always exits 0 and only adds
 context — it never blocks a command. It fails open on any parse/scan error and only reads the

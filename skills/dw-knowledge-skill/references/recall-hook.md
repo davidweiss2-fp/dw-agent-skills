@@ -1,5 +1,9 @@
 # Optional auto-recall hook
 
+> Installed as the Claude Code **plugin**, this hook is wired automatically - the plugin's
+> `hooks/hooks.json` registers it on enable, so there is nothing to configure. The manual
+> snippet below remains for non-plugin installs (copied skills, Cursor-style setups).
+
 You can wire a `UserPromptSubmit` hook so saved knowledge surfaces automatically when a
 prompt matches — no need to remember to run `/dw-recall`. This is **optional** and additive.
 
