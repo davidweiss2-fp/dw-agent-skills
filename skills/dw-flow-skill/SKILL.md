@@ -68,7 +68,8 @@ playbook with completion criteria: `references/playbook.md`.
 6. **Review** — `/code-review` (or `fp-cdp-review` in that scope).
 7. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
-   folding the `fmt` patch into the commit. Recall `dw-knowledge` for the repo's verify recipe
+   folding the `fmt` patch into the commit; the proof of a green preflight is the result
+   envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
 8. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
    **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
@@ -105,6 +106,7 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Recall knowledge before starting any task.
 - Guard the code: push back on hacks and recommend the better approach.
 - Gather context and recommend an approach before asking.
+- Only touch files the task names; confirm before expanding scope; preserve TODO/context comments.
 - No product UI/UX change without approval.
 - Auto-fix lint/test failures that do not change behavior.
 - Keep PRs small and reviewable; slice by layer (~300 LOC, split beyond ~500).
@@ -130,3 +132,6 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 - Artifacts (commit / PR / team-communication drafts) are never caveman.
 - Delegate to the skills; never reimplement them.
 - Never silently change scope — restate the intent and confirm.
+- Never claim a phase done without artifact proof - a runbook result envelope (JSON), a PR URL,
+  a file path, or pasted command output. A delegated/background skill returning empty output is
+  a failure to surface, not a pass.

@@ -121,13 +121,19 @@ The whole skill is separating **boundary code (keep)** from **trusted interior
   but name what would decide it.
 - A **single intentional** em-dash, triple, or bold term. Varied punctuation reads
   more human, not less.
+- **`TODO(ticket)` / `FIXME` markers** - actionable work items, not why-slop;
+  dropping one silently loses the planned follow-up.
+- **Ported author-context / config-rationale comments** when code is moved or
+  ported - a faithful port carries the original author's comments across.
 
 ## Comments: what/how, never why (house rule)
 
 This repo's comment rule overrides the generic "keep the why-comments" advice.
 Strip **both** (a) narration of obvious syntax **and** (b) comments whose only job
 is to justify or give history — "replaces the old X", "safe because…", ticket
-refs like `See JIRA …`. Keep comments that document a non-obvious **what/how** —
+refs like `See JIRA …`. The strip rule targets newly-authored narration and
+justification, not `TODO`/`FIXME` markers or context comments carried across in a
+move or port (see KEEP discipline). Keep comments that document a non-obvious **what/how** —
 phrased as what the code does, not why it exists. Rationale belongs in the
 PR/commit, not the source.
 
