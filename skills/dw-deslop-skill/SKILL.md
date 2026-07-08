@@ -42,19 +42,23 @@ If nothing concrete is in scope, ask in one line what to deslop.
    introduced — including uncommitted work, so it catches slop before the commit:
    `git diff --merge-base <base>` (committed + working tree), `git diff --staged`
    for `--staged`, or the named paths. Never touch code outside that set.
-2. **Classify, don't reflex-delete.** For each changed hunk, ask the one question
+2. **Run the deterministic rules pass first.** Before any judgment, run
+   `node scripts/deslop-rules.js` on the same scope — it applies the house's
+   find/replace rules (e.g. em/en-dash → hyphen) only to introduced lines. Completion
+   criterion: its envelope is posted. Details + custom rules: `references/rules.md`.
+3. **Classify, don't reflex-delete.** For each changed hunk, ask the one question
    that separates slop from substance: *does this earn its keep?* Run it against
    the taxonomy — compact below, full catalog in `references/code-slop.md` and
    `references/prose-slop.md`. Code slop and prose/doc slop both count.
-3. **Strip surgically.** Remove or rewrite the slop and nothing else. Match the
+4. **Strip surgically.** Remove or rewrite the slop and nothing else. Match the
    file's existing conventions. If a change could alter runtime behavior, it is
    not deslop — leave it.
-4. **Hold the false-positive line.** The same constructs are correct at trust
+5. **Hold the false-positive line.** The same constructs are correct at trust
    boundaries (see KEEP discipline). Strip only in the trusted interior; when a
    call is genuinely ambiguous, leave it and flag it instead of guessing.
-5. **Verify.** Re-read the resulting diff; if the repo has a formatter/linter
+6. **Verify.** Re-read the resulting diff; if the repo has a formatter/linter
    wired up and it's cheap, run it. Confirm you changed only slop, behavior intact.
-6. **Summarize tersely** — what you stripped, grouped by kind, plus anything you
+7. **Summarize tersely** — what you stripped, grouped by kind, plus anything you
    deliberately left for a human. 1-5 sentences, no preamble. (The summary itself
    must not be slop.)
 
@@ -119,8 +123,9 @@ The whole skill is separating **boundary code (keep)** from **trusted interior
   behavioral contract, units, a vendor quirk's actual behavior.
 - **Calibrated uncertainty** where the evidence really is mixed — hedge honestly,
   but name what would decide it.
-- A **single intentional** em-dash, triple, or bold term. Varied punctuation reads
-  more human, not less.
+- A **single intentional** triple or bold term. Varied phrasing reads more human,
+  not less. (Punctuation the rules engine normalizes - e.g. em/en-dash - is never a
+  keep; a house rule always wins over generic keep-guidance.)
 - **`TODO(ticket)` / `FIXME` markers** - actionable work items, not why-slop;
   dropping one silently loses the planned follow-up.
 - **Ported author-context / config-rationale comments** when code is moved or
@@ -137,10 +142,22 @@ move or port (see KEEP discipline). Keep comments that document a non-obvious **
 phrased as what the code does, not why it exists. Rationale belongs in the
 PR/commit, not the source.
 
+## Custom rules
+
+Deterministic style fixes are data, not prose. Shipped defaults live in
+`references/rules.default.json` (ships `em-dash-to-hyphen`); your own rules live in
+`~/.claude/knowledge/deslop-rules/*.json` and override a default of the same name. Schema and
+workflow: `references/rules.md`. When the dev states a deterministic preference in a session
+("never X, always Y"), **offer to persist it as a rule** instead of hand-applying it every
+run. Once the rules pass recurs across repos, promote it to a `deslop-rules` runbook per the
+`dw-runbook` lifecycle so parallel agents share its lock, cache, and result envelope.
+
 ## Hard rules
 
 - **Behavior-preserving above all** — if a change could alter runtime behavior, it
   isn't deslop; leave it.
+- **Rules pass before judgment** — run `deslop-rules.js` first; it is scoped to introduced
+  lines and a house rule wins over generic keep-guidance.
 - **Scope is the diff** — only lines this branch introduced; never reformat or
   "improve" untouched code.
 - **Codebase-first** — the bar is the surrounding file's conventions.

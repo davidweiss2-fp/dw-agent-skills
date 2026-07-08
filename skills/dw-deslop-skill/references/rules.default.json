@@ -1,0 +1,11 @@
+[
+  {
+    "name": "em-dash-to-hyphen",
+    "description": "Replace em-dash and en-dash with a plain hyphen (house style)",
+    "appliesTo": ["**/*"],
+    "find": "[—–]",
+    "flags": "g",
+    "replace": "-",
+    "enabled": true
+  }
+]

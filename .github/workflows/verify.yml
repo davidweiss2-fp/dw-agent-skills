@@ -41,6 +41,9 @@ jobs:
       - name: handoff nudge-hook self-test (PreCompact fixtures)
         run: node skills/dw-handoff-skill/scripts/dw-handoff-nudge.js --self-test
 
+      - name: deslop rules-engine self-test (scope, overlay, dry-run)
+        run: node skills/dw-deslop-skill/scripts/deslop-rules.js --self-test
+
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
         # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator
