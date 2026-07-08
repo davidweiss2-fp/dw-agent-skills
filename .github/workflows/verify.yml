@@ -57,6 +57,6 @@ jobs:
           node bin/install.js --list
           node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
-          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill; do
+          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-post-merge-verification-skill; do
             test -f "skills/$s/SKILL.md"
           done
