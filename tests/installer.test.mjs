@@ -1,6 +1,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
+import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,8 @@ import {fileURLToPath} from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const installJs = path.join(root, 'bin', 'install.js');
+const require = createRequire(import.meta.url);
+const {mergeHooksIntoSettings, removeHooksFromSettings} = require(installJs);
 
 function runInstall(args) {
 	return spawnSync('node', [installJs, ...args], {
@@ -77,5 +80,81 @@ describe('installer dry-run', () => {
 		const r = runInstall(['--', '--dry-run', '--only', 'cursor']);
 		assert.equal(r.status, 0);
 		assert.match(r.stdout, /skills add/);
+	});
+
+	it('--no-hooks skips hook wiring', () => {
+		const r = runInstall(['--dry-run', '--only', 'claude', '--force', '--no-hooks']);
+		assert.equal(r.status, 0);
+		assert.doesNotMatch(r.stdout, /→ hooks/);
+	});
+});
+
+describe('hook settings merge', () => {
+	const entries = {
+		UserPromptSubmit: [{hooks: [{type: 'command', command: 'node /abs/km-recall.js --hook'}]}],
+		PreToolUse: [{matcher: 'Bash', hooks: [{type: 'command', command: 'node /abs/hint.js'}]}],
+	};
+
+	it('appends our entries and preserves a foreign entry', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-settings-'));
+		const file = path.join(dir, 'settings.json');
+		fs.writeFileSync(file, JSON.stringify({
+			hooks: {UserPromptSubmit: [{hooks: [{type: 'command', command: 'node /other/thing.js'}]}]},
+		}));
+		try {
+			const res = mergeHooksIntoSettings(file, entries, {dryRun: false});
+			assert.equal(res.added, 2);
+			const written = JSON.parse(fs.readFileSync(file, 'utf8'));
+			const cmds = written.hooks.UserPromptSubmit.flatMap((g) => g.hooks.map((h) => h.command));
+			assert.ok(cmds.includes('node /other/thing.js'), 'foreign entry survives');
+			assert.ok(cmds.includes('node /abs/km-recall.js --hook'), 'our entry added');
+			assert.ok(written.hooks.PreToolUse, 'new event array created');
+		} finally {
+			fs.rmSync(dir, {recursive: true, force: true});
+		}
+	});
+
+	it('dedupes by exact command and is idempotent', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-settings-'));
+		const file = path.join(dir, 'settings.json');
+		fs.writeFileSync(file, JSON.stringify({}));
+		try {
+			mergeHooksIntoSettings(file, entries, {dryRun: false});
+			const second = mergeHooksIntoSettings(file, entries, {dryRun: false});
+			assert.equal(second.added, 0, 'second merge adds nothing');
+			assert.equal(second.present, 2);
+		} finally {
+			fs.rmSync(dir, {recursive: true, force: true});
+		}
+	});
+
+	it('--dry-run does not write settings', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-settings-'));
+		const file = path.join(dir, 'settings.json');
+		fs.writeFileSync(file, '{}');
+		try {
+			mergeHooksIntoSettings(file, entries, {dryRun: true});
+			assert.equal(fs.readFileSync(file, 'utf8'), '{}');
+		} finally {
+			fs.rmSync(dir, {recursive: true, force: true});
+		}
+	});
+
+	it('removeHooksFromSettings drops only our entries', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-settings-'));
+		const file = path.join(dir, 'settings.json');
+		fs.writeFileSync(file, JSON.stringify({}));
+		try {
+			mergeHooksIntoSettings(file, entries, {dryRun: false});
+			let s = JSON.parse(fs.readFileSync(file, 'utf8'));
+			s.hooks.UserPromptSubmit.push({hooks: [{type: 'command', command: 'node /other/thing.js'}]});
+			fs.writeFileSync(file, JSON.stringify(s));
+			const res = removeHooksFromSettings(file, entries, {dryRun: false});
+			assert.equal(res.removed, 2);
+			const cmds = JSON.parse(fs.readFileSync(file, 'utf8')).hooks.UserPromptSubmit.flatMap((g) => g.hooks.map((h) => h.command));
+			assert.deepEqual(cmds, ['node /other/thing.js'], 'foreign entry remains, ours gone');
+		} finally {
+			fs.rmSync(dir, {recursive: true, force: true});
+		}
 	});
 });

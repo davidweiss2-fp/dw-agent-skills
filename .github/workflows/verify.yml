@@ -51,6 +51,7 @@ jobs:
           node bin/install.js -- --dry-run --only claude
           node bin/install.js -- --dry-run --only agents --only claude
           node bin/install.js -- --dry-run --only cursor
+          node bin/install.js -- --dry-run --no-hooks
 
       - name: Packaging smoke
         run: |

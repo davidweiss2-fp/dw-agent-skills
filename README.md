@@ -21,7 +21,9 @@ Or one-liner:
 curl -fsSL https://raw.githubusercontent.com/davidweiss2-fp/dw-agent-skills/main/install.sh | bash
 ```
 
-See [INSTALL.md](INSTALL.md) for details.
+Installed as a Claude Code plugin, the suite's hooks (knowledge auto-recall, runbook hint,
+handoff nudge) wire automatically. A non-plugin install merges them into `settings.json`
+additively; pass `--no-hooks` to skip. See [INSTALL.md](INSTALL.md) for details.
 
 ## Skills
 
