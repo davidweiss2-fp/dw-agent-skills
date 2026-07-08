@@ -22,8 +22,9 @@ skippable; only four gates stop it.
 
 1. **Intent** — restate the ask expanded (clear wording, fixed grammar, explicit call-to-action)
    plus a one-line desired output → confirm.
-2. **Grill** — `dw-grilling` over open decisions.
-3. **Plan** — approve the resolved-design summary before any code.
+2. **Grill** — **invoke `dw-grilling`**; run its inline text interview to completion, uninterrupted.
+3. **Plan** — approve the resolved-design summary before any code; lock the success metric that
+   proves the change worked in prod.
 4. **Post-PR** — read the draft PR, then decide on `dw-pr-ready`.
 
 ## How to talk

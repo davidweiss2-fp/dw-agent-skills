@@ -44,6 +44,12 @@ jobs:
         # credentials.
         run: node skills/dw-env-skill/scripts/env-preflight.js --self-test
 
+      - name: handoff nudge-hook self-test (PreCompact fixtures)
+        run: node skills/dw-handoff-skill/scripts/dw-handoff-nudge.js --self-test
+
+      - name: deslop rules-engine self-test (scope, overlay, dry-run)
+        run: node skills/dw-deslop-skill/scripts/deslop-rules.js --self-test
+
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
         # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator
@@ -60,6 +66,6 @@ jobs:
           node bin/install.js --list
           node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
-          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-env-skill; do
+          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-env-skill dw-post-merge-verification-skill; do
             test -f "skills/$s/SKILL.md"
           done

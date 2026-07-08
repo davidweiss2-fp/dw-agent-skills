@@ -46,8 +46,10 @@ the mode. Full spec and the mode mapping: `references/communication.md`.
    explicit call-to-action) plus a one-line **desired output**, then confirm. Fire on a new task
    or a scope change, **or any message over 20 words**; skip trivial steering replies (one-word
    answers, "go", redirects). On a model-invoke, this gate also carries the engage y/n.
-2. 🚪 **Grill** — `dw-grilling` over the open decisions.
-3. 🚪 **Plan** — approve the resolved-design summary before any code.
+2. 🚪 **Grill** — **invoke `dw-grilling`** and hand fully into it; let its inline text
+   interview run to completion before moving on.
+3. 🚪 **Plan** — approve the resolved-design summary before any code; lock the **success
+   metric** (how we'll know it worked in prod) here too.
 4. 🚪 **Post-PR** — present the draft PR; the dev decides whether to hand off to `dw-pr-ready`.
 
 Between gates the conductor runs autonomously and is interruptible — redirect any time.
@@ -57,24 +59,36 @@ Between gates the conductor runs autonomously and is interruptible — redirect 
 Default order; reorder or skip per task. Each step names the skill it leans on. Full per-phase
 playbook with completion criteria: `references/playbook.md`.
 
+Open every phase by surveying the in-scope skills for *that* phase (see Skill discovery below).
+
 1. **Ground** — recall `dw-knowledge`; gather codebase + ticket context (derive the ticket from
    the branch); recommend an approach. Bug tasks: establish root cause (below).
-2. 🚪 **Grill** — `dw-grilling`.
-3. 🚪 **Plan** — resolved-design summary → approve. Suggest a knowledge capture here.
-4. **Implement**.
-5. **Deslop** — `dw-deslop` the diff.
-6. **Review** — `/code-review` (or `fp-cdp-review` in that scope).
-7. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
+2. 🚪 **Grill** — **invoke `dw-grilling`** (don't reimplement it); hand fully in and let its
+   inline text interview run uninterrupted to completion.
+3. **Simplify the plan** — `/simplify` the drafted plan before it goes to the gate; cut steps and
+   scope the change doesn't need.
+4. 🚪 **Plan** — resolved-design summary → approve; lock the **success metric** (metric/query +
+   expected direction) and write it, with the plan, to the worktree context. Suggest a capture.
+5. **Implement**.
+6. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
+7. **Deslop** — `dw-deslop` the diff.
+8. **Review** — `/code-review` (or `fp-cdp-review` in that scope).
+9. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
-   folding the `fmt` patch into the commit. Recall `dw-knowledge` for the repo's verify recipe
+   folding the `fmt` patch into the commit; the proof of a green preflight is the result
+   envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
-8. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
-   **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
-   the default, add `--ready` only when shipping ready; worktree-first — never hand-roll git).
-9. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
-10. **Capture** *(offered)* — `dw-knowledge`; especially the **how-to-git / commands / verify-ship
-    flow** you worked out this task (these recur every task and stop the next agent re-deriving or
-    asking — auto-captured, no confirm).
+10. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
+11. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
+    **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
+    the default, add `--ready` only when shipping ready; worktree-first — never hand-roll git).
+12. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
+13. **Post-merge verify** *(offered)* — once the PR merges, delegate to
+    `dw-post-merge-verification`; it reads the plan-time success metric from the worktree context
+    and rules the fix confirmed / no-effect / inconclusive.
+14. **Capture** *(mandatory)* — `dw-knowledge`; especially the **how-to-git / commands /
+    verify-ship flow** you worked out this task (these recur every task and stop the next agent
+    re-deriving or asking). Auto-captured through the write gate, no confirm; never skipped.
 
 ## Skill discovery (every step)
 
@@ -103,6 +117,7 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Recall knowledge before starting any task.
 - Guard the code: push back on hacks and recommend the better approach.
 - Gather context and recommend an approach before asking.
+- Only touch files the task names; confirm before expanding scope; preserve TODO/context comments.
 - No product UI/UX change without approval.
 - Auto-fix lint/test failures that do not change behavior.
 - Keep PRs small and reviewable; slice by layer (~300 LOC, split beyond ~500).
@@ -121,7 +136,13 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 ## Hard rules
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
+- At the Grill gate, **invoke `dw-grilling`** and hand fully into it — inline chat text, one
+  question at a time, uninterrupted. Never pose grill questions through a picker and never inject
+  flow narration, data, or plans between them (`dw-grilling` holds context to the end).
 - Never edit on a guessed cause — prove it (APM or ask the dev) first.
 - Artifacts (commit / PR / team-communication drafts) are never caveman.
 - Delegate to the skills; never reimplement them.
 - Never silently change scope — restate the intent and confirm.
+- Never claim a phase done without artifact proof - a runbook result envelope (JSON), a PR URL,
+  a file path, or pasted command output. A delegated/background skill returning empty output is
+  a failure to surface, not a pass.
