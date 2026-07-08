@@ -18,6 +18,7 @@ function parseArgs(argv) {
 	const opts = {
 		dryRun: false,
 		force: false,
+		hooks: true,
 		uninstall: false,
 		listOnly: false,
 		help: false,
@@ -29,6 +30,8 @@ function parseArgs(argv) {
 		switch (a) {
 			case '--dry-run': opts.dryRun = true; break;
 			case '--force': opts.force = true; break;
+			case '--hooks': opts.hooks = true; break;
+			case '--no-hooks': opts.hooks = false; break;
 			case '--uninstall':
 			case '-u': opts.uninstall = true; break;
 			case '--list': opts.listOnly = true; break;
@@ -145,14 +148,150 @@ function skillSummary(repoRoot, name) {
 	return '';
 }
 
+function claudeSettingsPath() {
+	const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+	return path.join(configDir, 'settings.json');
+}
+
+function claudePluginInstalled() {
+	if (!hasCmd('claude')) return false;
+	const r = captureSpawn('claude', ['plugin', 'list']);
+	return r.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(r.stdout || '');
+}
+
+// Load hooks/hooks.json and point its ${CLAUDE_PLUGIN_ROOT} commands at this install.
+function readHooksManifest(repoRoot) {
+	const file = path.join(repoRoot, 'hooks', 'hooks.json');
+	if (!fs.existsSync(file)) return null;
+	const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+	if (!manifest || typeof manifest.hooks !== 'object' || manifest.hooks === null) return null;
+	const entries = {};
+	for (const [event, groups] of Object.entries(manifest.hooks)) {
+		if (!Array.isArray(groups)) continue;
+		entries[event] = groups.map((group) => ({
+			...group,
+			hooks: (Array.isArray(group.hooks) ? group.hooks : []).map((h) => ({
+				...h,
+				command: String(h.command || '').replaceAll('${CLAUDE_PLUGIN_ROOT}', repoRoot),
+			})),
+		}));
+	}
+	return entries;
+}
+
+function hookCommands(groups) {
+	const commands = new Set();
+	for (const group of groups || []) {
+		for (const h of (group && group.hooks) || []) {
+			if (h && typeof h.command === 'string') commands.add(h.command);
+		}
+	}
+	return commands;
+}
+
+// Additive merge: append our entries to each event array, dedupe by exact command
+// string, never clobber foreign entries. Writes only outside --dry-run.
+function mergeHooksIntoSettings(settingsPath, entries, {dryRun} = {}) {
+	const settings = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, 'utf8')) : {};
+	if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('settings is not a JSON object');
+	if (settings.hooks === undefined) settings.hooks = {};
+	if (!settings.hooks || typeof settings.hooks !== 'object' || Array.isArray(settings.hooks)) throw new Error('"hooks" is not a JSON object');
+	let added = 0;
+	let present = 0;
+	for (const [event, groups] of Object.entries(entries)) {
+		if (settings.hooks[event] === undefined) settings.hooks[event] = [];
+		if (!Array.isArray(settings.hooks[event])) throw new Error(`"hooks.${event}" is not an array`);
+		const have = hookCommands(settings.hooks[event]);
+		for (const group of groups) {
+			const fresh = group.hooks.filter((h) => !have.has(h.command));
+			present += group.hooks.length - fresh.length;
+			if (!fresh.length) continue;
+			settings.hooks[event].push({...group, hooks: fresh});
+			for (const h of fresh) have.add(h.command);
+			added += fresh.length;
+		}
+	}
+	if (added && !dryRun) {
+		fs.mkdirSync(path.dirname(settingsPath), {recursive: true});
+		fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+	}
+	return {added, present, settingsPath};
+}
+
+// Inverse of the merge: drop exactly the hook entries whose command strings match
+// ours; foreign entries and unrelated settings stay in place.
+function removeHooksFromSettings(settingsPath, entries, {dryRun} = {}) {
+	if (!fs.existsSync(settingsPath)) return {removed: 0, settingsPath};
+	const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+	const hooks = settings && settings.hooks;
+	if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks)) return {removed: 0, settingsPath};
+	let removed = 0;
+	for (const [event, groups] of Object.entries(entries)) {
+		if (!Array.isArray(hooks[event])) continue;
+		const ours = hookCommands(groups);
+		const kept = [];
+		for (const group of hooks[event]) {
+			const before = (group && group.hooks) || [];
+			const after = before.filter((h) => !(h && typeof h.command === 'string' && ours.has(h.command)));
+			removed += before.length - after.length;
+			if (after.length === before.length) kept.push(group);
+			else if (after.length) kept.push({...group, hooks: after});
+		}
+		if (kept.length) hooks[event] = kept;
+		else if (hooks[event].length) delete hooks[event];
+	}
+	if (removed && !dryRun) fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+	return {removed, settingsPath};
+}
+
+// Hook wiring for whatever the plugin cannot cover: the Claude Code plugin registers
+// hooks/hooks.json itself; a non-plugin Claude Code install gets the entries merged
+// into settings.json; agents without settings-file hooks get the manual docs.
+function wireHooks(ctx) {
+	const {opts, repoRoot, say, note, results} = ctx;
+	if (!opts.hooks) {
+		note('hooks: skipped (--no-hooks)');
+		return;
+	}
+	let entries;
+	try {
+		entries = readHooksManifest(repoRoot);
+	} catch (err) {
+		note(`hooks: skipped - unreadable hooks/hooks.json (${err.message})`);
+		return;
+	}
+	if (!entries || !Object.keys(entries).length) return;
+
+	const ran = (id) => results.installed.some((s) => s === id || s.startsWith(`${id} `)) || results.failed.some(([f]) => f === id);
+	say('→ hooks');
+	if (ran('claude') || claudePluginInstalled()) {
+		note('  Claude Code: the plugin wires hooks/hooks.json itself - no settings changes needed');
+	} else if (fs.existsSync(path.dirname(claudeSettingsPath()))) {
+		try {
+			const res = mergeHooksIntoSettings(claudeSettingsPath(), entries, {dryRun: opts.dryRun});
+			if (res.added) note(`  Claude Code (non-plugin): ${opts.dryRun ? 'would merge' : 'merged'} ${res.added} hook ${res.added === 1 ? 'entry' : 'entries'} into ${res.settingsPath}`);
+			else note(`  Claude Code (non-plugin): hook entries already present in ${res.settingsPath}`);
+		} catch (err) {
+			note(`  Claude Code: left ${claudeSettingsPath()} untouched (${err.message})`);
+		}
+	} else {
+		note('  Claude Code: not present - no settings to wire');
+	}
+	if (ran('agents')) {
+		note('  cursor / codex / windsurf have no settings-file hooks - wire manually via:');
+		note(`    ${path.join(repoRoot, 'skills', 'dw-knowledge-skill', 'references', 'recall-hook.md')}`);
+		note(`    ${path.join(repoRoot, 'skills', 'dw-runbook-skill', 'references', 'hook.md')}`);
+		note(`    nudge script: ${path.join(repoRoot, 'skills', 'dw-handoff-skill', 'scripts', 'dw-handoff-nudge.js')}`);
+	}
+}
+
 function installClaude(ctx) {
 	const {opts, results, say, note} = ctx;
 	results.detected++;
 	say('→ Claude Code detected');
 
 	if (!opts.force) {
-		const r = captureSpawn('claude', ['plugin', 'list']);
-		if (r.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(r.stdout || '')) {
+		if (claudePluginInstalled()) {
 			note('  plugin already installed — updating to the latest version (use --force to reinstall)');
 			// Refresh the marketplace from its source, then update the plugin to apply it.
 			const u1 = runSpawn('claude', ['plugin', 'marketplace', 'update', PLUGIN_NAME], opts.dryRun);
@@ -192,16 +331,30 @@ function installAgents(ctx) {
 }
 
 function uninstall(ctx) {
-	const {opts, say, ok, note} = ctx;
+	const {opts, say, ok, note, repoRoot} = ctx;
 	say('→ uninstalling dw-agent-skills');
 
 	if (hasCmd('claude')) {
-		const probe = captureSpawn('claude', ['plugin', 'list']);
-		if (probe.status === 0 && new RegExp(PLUGIN_NAME, 'i').test(probe.stdout || '')) {
+		if (claudePluginInstalled()) {
 			runSpawn('claude', ['plugin', 'uninstall', `${PLUGIN_NAME}@${PLUGIN_NAME}`], opts.dryRun);
 			ok('  removed claude plugin');
 		} else {
 			note('  claude plugin not installed — skipping');
+		}
+	}
+
+	// Remove exactly the hook entries the installer merges (same dedupe key: the
+	// exact command string), leaving foreign hooks and other settings untouched.
+	if (opts.hooks) {
+		try {
+			const entries = readHooksManifest(repoRoot);
+			if (entries) {
+				const res = removeHooksFromSettings(claudeSettingsPath(), entries, {dryRun: opts.dryRun});
+				if (res.removed) ok(`  ${opts.dryRun ? 'would remove' : 'removed'} ${res.removed} hook ${res.removed === 1 ? 'entry' : 'entries'} from ${res.settingsPath}`);
+				else note(`  no dw hook entries in ${res.settingsPath} - skipping`);
+			}
+		} catch (err) {
+			note(`  hooks: left ${claudeSettingsPath()} untouched (${err.message})`);
 		}
 	}
 
@@ -238,7 +391,8 @@ FLAGS
   --only <id>        claude | agents (repeatable)
   --dry-run          Print commands only
   --force            Reinstall even if present
-  --uninstall, -u    Remove Claude plugin
+  --hooks/--no-hooks Wire agent hooks: Claude settings merge or fallback docs (default: on)
+  --uninstall, -u    Remove Claude plugin and dw hook entries
   --list             Show providers and skills
   --non-interactive  No prompts
   -h, --help         This help
@@ -291,6 +445,8 @@ async function main() {
 		if (prov.id === 'agents') installAgents(ctx);
 	}
 
+	if (ctx.results.detected) wireHooks(ctx);
+
 	process.stdout.write('\n');
 	ctx.say('done');
 	if (ctx.results.installed.length) {
@@ -307,7 +463,17 @@ async function main() {
 	return 0;
 }
 
-main().catch((err) => {
-	console.error(err);
-	process.exit(1);
-});
+if (require.main === module) {
+	main().catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});
+}
+
+module.exports = {
+	parseArgs,
+	readHooksManifest,
+	mergeHooksIntoSettings,
+	removeHooksFromSettings,
+	hookCommands,
+};

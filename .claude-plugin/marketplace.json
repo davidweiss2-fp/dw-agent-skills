@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "dw-agent-skills",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Workflow skills for Claude Code and Cursor - an adaptive flow conductor plus grilling, deslop, knowledge memory, PR babysitting, handoff, a git-ops owner, team-communication drafting, skill authoring, env preflight/bootstrap, and post-merge verification; ships auto-recall, runbook-hint, and handoff-nudge hooks.",
       "source": "./",
       "category": "productivity"
