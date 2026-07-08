@@ -38,6 +38,12 @@ jobs:
       - name: runbook hint-hook self-test
         run: node skills/dw-runbook-skill/scripts/dw-runbook-hint.js --self-test
 
+      - name: env preflight self-test (layout, aws creds shape, root resolution)
+        # Builds mkdtemp fixtures (fake nested clone, placeholder-only creds file)
+        # and drives the real check functions; needs no Docker daemon and no real
+        # credentials.
+        run: node skills/dw-env-skill/scripts/env-preflight.js --self-test
+
       - name: handoff nudge-hook self-test (PreCompact fixtures)
         run: node skills/dw-handoff-skill/scripts/dw-handoff-nudge.js --self-test
 
@@ -60,6 +66,6 @@ jobs:
           node bin/install.js --list
           node bin/install.js --dry-run --only agents
           node bin/install.js --dry-run --only claude
-          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-post-merge-verification-skill; do
+          for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-env-skill dw-post-merge-verification-skill; do
             test -f "skills/$s/SKILL.md"
           done
