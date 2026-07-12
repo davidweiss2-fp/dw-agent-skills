@@ -131,6 +131,7 @@ When a skill misbehaves, name the failure before fixing it:
 | Skill is just too long | **sprawl** | Disclose reference behind pointers; split by branch or sequence. |
 | A line the model already obeys | **no-op** | Delete it, or swap a weak phrase for a strong leading word. |
 | Skill doesn't fire when it should | weak description | Add the concrete trigger phrasing the user actually types; front-load the leading word. |
+| A "never do X" rule reads back as an instruction to do X | **negation** | Rephrase as the positive target behavior; keep the prohibition only where you can't phrase the target positively, and even then pair it with what to do instead. |
 
 ## Hard rules
 
@@ -143,4 +144,6 @@ When a skill misbehaves, name the failure before fixing it:
 ---
 
 Adapted from mattpocock/skills (skills/productivity/writing-great-skills), MIT License. Re-expressed
-for this repo's conventions; vocabulary and failure-mode taxonomy credit the original.
+for this repo's conventions; vocabulary and failure-mode taxonomy credit the original. The
+**negation** failure mode follows upstream's addition of the same concept (mattpocock/skills
+PR #463, 2026-07-06).

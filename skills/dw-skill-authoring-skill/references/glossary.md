@@ -58,3 +58,8 @@ design; keeping the words consistent is itself a predictability move.
 - **No-op** — a line the model already obeys by default, so you pay context to say nothing. Test
   each sentence: does it change behavior versus the default? If not, delete it (or upgrade a weak
   phrase to a stronger leading word).
+- **Negation** - steering by prohibition: naming the behavior you want *stopped* pulls it into
+  context and makes it more available, not less ("don't think of an elephant" leaves only the
+  elephant). Fix by stating the target behavior instead, so the banned one is never named; keep a
+  bare prohibition only where the target can't be phrased positively, and pair it with the
+  positive even then.
