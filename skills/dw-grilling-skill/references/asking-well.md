@@ -33,6 +33,10 @@ One decision, real options, a clear lean, a one-word answer.
   to undo beats theoretically optimal.
 - **It's consistent with what already exists** in the codebase unless there's a reason to
   diverge — and if there is, say what the reason is.
+- **It reflects the user's known preferences.** Where a recalled `dw-knowledge` memory
+  (e.g. `david-working-rules`) speaks to the decision, lead with the option it points to and
+  name the source - "you generally prefer X, so I'd…". A preference-grounded lean earns the
+  one-word "yep" faster than a generic best-practice one.
 
 ## When you genuinely have no lean
 
