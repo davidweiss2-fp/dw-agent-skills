@@ -2,6 +2,18 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.2.2
+
+### Changed
+
+- **dw-grilling** - the interview is now stateful and preference-seeded. It recalls the user's
+  `dw-knowledge` preferences (`david-working-rules`, `david-prefers-*` / `prefer-*`) to seed the
+  recommended default on every question, persists the decision trail to a session state file so a
+  grill survives a pause or context compaction and resumes at the open question, and offers to
+  capture the decision record and any newly-revealed preference back to `dw-knowledge` on the way
+  out. The abstraction-shape default is now recalled from `david-working-rules` rather than
+  hard-coded in the skill.
+
 ## 0.2.0
 
 An insights-driven overhaul: two new skills, plugin-shipped hooks, a deslop rules engine, and
