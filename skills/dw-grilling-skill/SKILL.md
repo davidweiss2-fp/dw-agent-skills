@@ -59,6 +59,9 @@ the user in one line what they want stress-tested before starting.
 6. **Repeat** until no material decision is open.
 7. **Summarize the resolved design** — every decision and its outcome — so the user has
    a single source of truth to build from. This is the handoff artifact.
+8. **Wait for confirmation before building.** The summary is a checkpoint, not authorization
+   to proceed - do not start implementing until the user confirms the resolved design matches
+   their intent.
 
 ## What counts as "one question"
 
@@ -113,9 +116,13 @@ real options — but that should be rare. See `references/asking-well.md`.
 - **Never silently assume.** An unresolved decision is asked or explicitly deferred in the
   summary — never quietly guessed.
 - **End with the resolved-design summary** so the work is unambiguous to build from.
+- **Confirm before enacting.** Do not start building until the user confirms the summary -
+  the completion criterion is shared understanding, not just a summary having been posted.
 
 ---
 
 Adapted from mattpocock/skills (skills/productivity/grilling), MIT License. Re-expressed
 for this repo: explicit decision-tree ordering, codebase-first resolution, a mandatory
-recommended default per question, and a closing resolved-design summary.
+recommended default per question, and a closing resolved-design summary. The confirm-before-
+enacting gate follows upstream's confirmation-gate addition (mattpocock/skills PR #433,
+2026-07-03).
