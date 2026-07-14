@@ -8,7 +8,10 @@ description: >-
   the user is wrapping up, running low on context, switching agents, or says
   "write a handoff", "hand this off", "summarize where we are for the next
   session", "compact this for a fresh agent", or invokes /dw-handoff [focus for
-  the next session].
+  the next session]. Has an explicit opt-in background mode - only when the
+  user says "hand this off to a background agent" / "keep working on this in
+  the background" or invokes /dw-handoff-background - that seeds a live
+  background agent with the same scrubbed handoff instead of only saving it.
 ---
 
 # Session Handoff
@@ -102,6 +105,35 @@ Don't invent skill names — list only ones you can confirm exist. For git when 
 one to suggest is **dw-git-ops-skill** — the suite's git owner (worktree-first flow, with
 destructive git judged and run raw rather than blocked).
 
+## Background mode - hand off to a live agent instead of only a file
+
+This mode produces the same scrubbed handoff as above, then hands it to a background agent that
+keeps working while you do something else. It never replaces the default flow - it adds a delivery
+option for the same document.
+
+**Opt-in only, never inferred.** Run this mode only on an explicit trigger: `/dw-handoff-background
+[focus]`, or the user plainly asking to hand off to / continue in a background agent. A wrap-up
+request alone ("write a handoff", low context, switching agents) stays the default file-only flow.
+Spawning a background agent spends compute and can take further actions on its own, so, like this
+repo's other autonomous-action skills (no auto-posting, no unrequested prod mutations), the decision
+to start one is never made silently on the user's behalf.
+
+1. Do steps 1-4 of the default flow unchanged: derive the path, fill the document, reference rather
+   than recreate existing artifacts, and run it through `km-scrub.js` (exit `2` still means refuse
+   and fix by hand). Write the scrubbed text to the derived temp path - it stays a durable, referable
+   artifact even though a live agent is also getting a copy.
+2. Spawn one background agent seeded with that scrubbed text, in this environment via the `Agent`
+   tool with `run_in_background: true` (this environment's equivalent of upstream's `claude --bg`) -
+   never edit the working tree directly to “continue the work” in this mode. Give it a short,
+   descriptive title (mirrors upstream's required `--name`), so the user can tell it apart from other
+   background work. The prompt is self-contained: repo path, the focus/next-steps, explicit
+   boundaries on what it must not do without asking, and pointers to PRDs/tickets/PR/diffs by path or
+   URL - never re-paste their content. Full prompt template and the boundary list:
+   `references/background-mode.md`.
+3. Tell the user, in one or two lines: a background agent was spawned, its title, and that they'll
+   be notified when it completes or can check on it through this environment's normal background-task
+   mechanism. Don't invent a tracking dashboard or status file this repo doesn't provide.
+
 ## Hard rules
 
 - **Temp dir, never the working tree** — a handoff must not show up in `git status`.
@@ -109,8 +141,18 @@ destructive git judged and run raw rather than blocked).
 - **Reference, don't recreate** — link PRDs/plans/diffs/tickets by path or URL.
 - **State first, narrative last** — the first screen must answer "what do I do next?".
 - **Only real skills** — suggest skills you can confirm are installed; never fabricate names.
+- **Background mode is opt-in only** - spawn a background agent solely on an explicit trigger
+  (`/dw-handoff-background` or a plain ask); never as a silent default.
+- **Boundaries travel with the prompt** - the background agent's seed prompt must state what it may
+  not do without asking (see `references/background-mode.md`); never hand off a bare summary.
+- **Real notification mechanism only** - tell the user how this environment actually surfaces a
+  finished background agent; never fabricate a tracking UI.
 
 ---
 
 Adapted from mattpocock/skills (skills/productivity/handoff), MIT License. Re-expressed for this
-repo; redaction is delegated to dw-knowledge-skill rather than reimplemented.
+repo; redaction is delegated to dw-knowledge-skill rather than reimplemented. Background mode is
+adapted from the same upstream's `claude-handoff` skill (`skills/in-progress/claude-handoff`, PR #421,
+merged 2026-07-02), which hands its summary to `claude --bg` instead of saving it - re-expressed here
+as a mode of this skill (rather than a separate one) so the shared redaction/reference/suggested-skills
+rules aren't duplicated, and mapped onto this environment's `Agent` tool with `run_in_background: true`.
