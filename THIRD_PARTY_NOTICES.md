@@ -19,6 +19,7 @@ attribution footer in the corresponding `SKILL.md` for specifics.
 | `dw-deslop-skill` | getsentry `deslop` (mirrored in davila7/claude-code-templates) | https://github.com/davila7/claude-code-templates |
 | `dw-knowledge-skill` | Cabinet | https://github.com/hilash/cabinet |
 | `dw-knowledge-skill` | MemPalace | https://github.com/MemPalace/mempalace |
+| `dw-pr-ready-skill` | obra/superpowers - `skills/subagent-driven-development` | https://github.com/obra/superpowers |
 
 ### MIT License
 

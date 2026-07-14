@@ -94,7 +94,25 @@ Recall the map before selecting tests; this loop is what grows it.
 ## Hard rules
 
 - PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, reply `[DEV-AI]`, resolve thread.
-- Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
+- Filter noise bots (github-actions, codecov, dependabot) outright - do not reply to them.
+- Act on Bugbot only when valid. Never silently dismiss a Bugbot (or other reviewer) finding
+  as invalid - reply `[DEV-AI]` with the reason and leave the thread open rather than
+  resolving it yourself. A finding discarded with no trace is indistinguishable from one
+  nobody read; the human who filters `[DEV-AI]` replies is the adjudicator, not the agent.
 - Never edit existing PR comments — create new replies.
 - Never merge the PR unless user explicitly asks.
 - Fix only failures in this PR's scope.
+
+---
+
+The "never silently dismiss a finding" rule is adapted from obra/superpowers
+(MIT License) - its `subagent-driven-development` skill bans a controller from
+pre-judging or suppressing a dispatched reviewer's findings before the reviewer
+reports (commit `833549` / "Red Flags" commit `097422`, part of the v6.0.0
+release, PR obra/superpowers#1769, merged 2026-06-16). That skill's topology
+differs from this one - it stops a controller from coaching an *internal*
+reviewer subagent in advance; this skill has no internal reviewer to coach, only
+external bots/humans who already commented. Re-expressed for that difference:
+the risk here is the agent unilaterally discarding an *already-posted* finding
+after the fact, so the port is a transparency requirement (explain a dismissal
+in the open, in a reply) rather than a dispatch-time constraint.
