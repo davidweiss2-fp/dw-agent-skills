@@ -1,6 +1,6 @@
 {
   "name": "dw-agent-skills",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "David Weiss agent skills — installable for Cursor and Claude Code.",
   "license": "UNLICENSED",
   "author": "David Weiss",
