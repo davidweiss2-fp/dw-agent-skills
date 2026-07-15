@@ -17,7 +17,8 @@ Your job: take something that came up during work — a decision, a change, a st
 and turn it into **the right message for the right audience**, then render **copy-ready DRAFTS**
 for a Slack DM, a JIRA ticket comment, and/or a team channel post. You draft and surface
 click-to-open links — **the human posts.** This skill is prompt-driven: you do the reasoning,
-mining, screenshots (via MCP), and lookups yourself. No scripts to run.
+mining, screenshots (via MCP), and lookups yourself. No scripts to run — but every draft goes
+through the **required review pass** (deslop, then review subagents) before you show it.
 
 ## Invocation
 
@@ -49,8 +50,10 @@ from product" → approval-ask) and state the inferred intent before drafting.
 6. Write the message following "What makes a good message" below — natural prose, no labels,
    tone matched to the audience (see Tone by audience).
 7. Render per channel (Slack DM / JIRA comment / team channel post).
-8. Output drafts in chat, copy-ready, each fenced, with click-to-open link(s) + inline images and
-   their file paths. Stop — do not post.
+8. **Required review pass** — run the pass below on the rendered drafts and fold in every finding
+   before anything reaches the user. See "Required review pass".
+9. Output drafts in chat, copy-ready, each fenced, with click-to-open link(s) + inline images and
+   their file paths — plus the ask-answerer's note when one ran. Stop — do not post.
 
 ## What makes a good message
 
@@ -94,6 +97,42 @@ fluff. Short — a sentence or two up to a short paragraph. Choose whatever natu
 message and the channel. Always land **one clear CTA** — a decision, an ack, or "no action
 needed" — stated plainly. Cover only what's relevant; skip points that don't apply. Match the
 asker's own voice.
+
+## Required review pass
+
+A draft is going in front of a teammate, a PM, or a channel — so it gets checked before you show
+it, every time. Runs on the rendered drafts, in this order; a draft doesn't reach the user until
+it has been through deslop and both mandatory reviews.
+
+1. **Deslop — inline, in the main agent.** Invoke `dw-deslop` on the draft prose and lean fully
+   into it until it's done: strip the AI writing tells (filler openers, puffery, bold-everything,
+   emoji bullets, em-dash→hyphen, hedging). These are professional prose, not code, so it's a
+   prose-deslop pass. Apply every edit before moving on.
+
+2. **Two mandatory review subagents — spawn both in parallel:**
+   - **Cold-reader.** Give it only the rendered draft plus the audience and intent — no drafting
+     context, so it reacts the way the real recipient will. It answers: is the point in the first
+     line, is there exactly one clear CTA, does the altitude match the audience, is anything
+     confusing or missing? It returns concrete fixes, not a score.
+   - **Correctness.** Give it repo access and have it check every factual and technical claim in
+     the draft against ground truth — the diff, the code, the ticket. File and behavior claims,
+     "before it was X", numbers, names, links. It returns each claim as confirmed / wrong (with the
+     real fact) / unverifiable.
+
+   Fold both into the drafts: fix anything correctness flagged wrong; soften or drop the
+   unverifiable; apply the cold-reader's clarity fixes.
+
+3. **Ask-answerer — a third subagent, only when the draft poses a question the reader must answer.**
+   When the message asks the recipient something that could be answered from the code or facts,
+   hand the **correctness subagent's output** to this subagent and have it try to answer that
+   question from the same ground truth. Surface its answer to the dev next to the drafts — e.g.
+   "you're asking {question}; from the code the answer looks like {answer} — you may not need to
+   ask, or you can fold it in as context." Never rewrite the ask on your own and never post; the
+   dev decides whether the question still needs sending.
+
+**Done when:** deslop is applied, both mandatory subagents have returned and their findings are
+folded in, and — if the draft contained an ask — the ask-answerer has run and its note is attached.
+Only then output.
 
 ## Per-channel rendering
 
@@ -172,6 +211,8 @@ that don't belong in front of that audience.
 ## Hard rules
 
 - **Never auto-post** — drafts + click-to-open links only. The human sends.
+- **Never output an unreviewed draft** — every draft goes through the required review pass (deslop
+  → cold-reader + correctness subagents → conditional ask-answerer) first.
 - **Never invent a person or channel** — if resolution fails, frame with no name and say so.
 - **Match altitude to the audience** — strip internal identifiers (PR numbers, branch names,
   file/class/component/method names, code, flag/config keys, internal acronyms) for non-technical

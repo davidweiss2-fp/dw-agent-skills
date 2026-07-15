@@ -2,6 +2,17 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.2.3
+
+### Changed
+
+- **dw-team-communication-skill** - added a required review pass that runs on every draft before
+  it is shown: `dw-deslop` inline first, then two mandatory review subagents in parallel
+  (cold-reader for clarity/CTA/altitude, correctness for claim-vs-code/ticket verification), plus
+  a conditional third ask-answerer subagent that, when the draft poses a question, tries to answer
+  it from the correctness subagent's ground truth and surfaces the answer to the dev. Drafts-only
+  and never-post behavior is unchanged.
+
 ## 0.2.2
 
 ### Changed
