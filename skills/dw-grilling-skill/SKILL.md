@@ -2,11 +2,11 @@
 name: dw-grilling-skill
 description: >-
   A reusable interview engine that drives every unresolved decision out of a task
-  before any building starts. Walks the decision tree one question at a time, and
+  before it's acted on. Walks the decision tree one question at a time, and
   for each open choice proposes a recommended default the user can confirm with a
-  single word. Use when a plan, design, spec, or refactor still has open judgment
+  single word. Use when a plan, design, decision, or idea still has open judgment
   calls and the user wants them pinned down — "grill me on this", "stress-test this
-  plan", "interview me before we build", "poke holes in this design", "what haven't
+  plan", "poke holes in this decision", "interview me before we build", "what haven't
   we decided", or invokes /dw-grill [topic]. Recalls your known preferences (via
   dw-knowledge) to seed each recommendation, persists the decision trail so a grill can
   pause and resume, and captures new preferences it learns. Asks; never silently assumes.
@@ -14,8 +14,8 @@ description: >-
 
 # Grilling: One-at-a-Time Decision Interview
 
-Your job is to surface and resolve **every open decision** in a task before code gets
-written. You run a focused interview: walk the decision tree, ask **one question at a
+Your job is to surface and resolve **every open decision** in a task before it's
+acted on. You run a focused interview: walk the decision tree, ask **one question at a
 time**, and for each question lead with **your recommended default** so the user can
 confirm in a word instead of designing from scratch. Stop only when nothing material is
 still undecided.
@@ -53,10 +53,11 @@ the user in one line what they want stress-tested before starting.
    adding option-flags to a shared helper; growing a shared helper's flag surface is an
    explicit question, never a silent default). Order them so a decision never depends on one
    you haven't asked yet.
-3. **Resolve from the codebase first.** Before asking, check whether the answer already
-   exists — an established pattern, a config value, a prior decision, an existing type.
-   If exploring resolves it, resolve it and tell the user what you found instead of
-   asking. Only ask what genuinely needs a human judgment call.
+3. **Resolve from the environment first.** Before asking, check whether the answer already
+   exists in the codebase, filesystem, or your tools — an established pattern, a config
+   value, a prior decision, an existing type. If exploring resolves it, resolve it and
+   tell the user what you found instead of asking. Only ask what genuinely needs a human
+   judgment call.
 4. **Ask exactly one question - inline, as chat text.** State the decision, give the
    realistic options, and **lead with your recommended default and why.** Make it
    answerable in a word ("Go with A?", "yes/no"), and never pose it through a
@@ -152,7 +153,8 @@ current open question. On resume, read that file first and re-enter at the open 
   or one with attached conditions gets a revisit or a restate-to-verify first.
 - **Hold context to the end.** Save supporting data/plans for after the grill; don't dump
   them between questions.
-- **Codebase before user.** If exploring answers it, explore — don't ask what you can find.
+- **Environment before user.** If exploring the codebase, filesystem, or tools answers it,
+  explore — don't ask what you can find.
 - **Order by dependency.** Never ask a question whose answer depends on a later one.
 - **Never silently assume.** An unresolved decision is asked or explicitly deferred in the
   summary — never quietly guessed.
@@ -166,7 +168,10 @@ Adapted from mattpocock/skills (`skills/productivity/grilling`), MIT License. Re
 for this repo: explicit decision-tree ordering, codebase-first resolution, a mandatory
 recommended default per question, and a closing resolved-design summary. The confirm-before-
 enacting gate follows upstream's confirmation-gate addition (mattpocock/skills PR #433,
-2026-07-03). Where upstream's `grill-with-docs` bolts on `domain-modeling` to persist decisions
+2026-07-03). The primitive is framed for general use — any task acted on, facts resolved
+from the whole environment (not just the codebase) — following upstream's reword
+(mattpocock/skills commit 170ad486, 2026-07-13). Where upstream's `grill-with-docs` bolts
+on `domain-modeling` to persist decisions
 as in-repo ADRs and a glossary, this version makes the grill **stateful and personalized through
 the suite's own primitives** instead - a resumable session-state trail, defaults seeded from the
 user's `dw-knowledge` preferences, and decisions/preferences captured back to `dw-knowledge` on
