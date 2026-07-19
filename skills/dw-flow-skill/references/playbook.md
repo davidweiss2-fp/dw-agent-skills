@@ -11,7 +11,7 @@ use (details under "Skill discovery" at the end). The skill you invoke is the ev
 
 Recall `dw-knowledge` first — preferences, prior decisions, already-gathered context — before any
 fresh searching or asking. Derive the ticket from the branch (`{ticket}-{context}`) and gather its
-context; if resuming, read `{repo}/.claude/worktrees/{ticket}/context` first. Then recommend an
+context; if resuming, read `~/Documents/dw-agent-store/run-notes/<project-slug>/` first. Then recommend an
 approach rather than presenting a blank slate.
 
 For **bug tasks**: search the APM (Coralogix) for the real error / stack trace before forming any

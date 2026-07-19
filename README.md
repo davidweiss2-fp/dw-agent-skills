@@ -81,9 +81,15 @@ It recalls (`node scripts/km-recall.js <query>`), ranks hits by relevance × rec
 confidence, and treats them as advisory — verify before relying. Capture runs automatically
 once the gate passes — gate → genericize → scrub → dedup → write+index, storing the
 **method, never secrets**, with no confirmation prompt and no user notification. Memories live globally in
-`~/.claude/knowledge/` or project-locally in `~/.claude/projects/<slug>/memory/`. An
-optional `UserPromptSubmit` hook can auto-recall on each prompt — see
-`skills/dw-knowledge-skill/references/recall-hook.md`.
+`~/Documents/dw-agent-store/knowledge/` or project-locally in `~/Documents/dw-agent-store/projects/<slug>/memory/`.
+
+All durable stores (knowledge, runbooks, deslop rules, run notes, handoffs) live under the
+**dw-agent store** - `DW_STORE_ROOT` or `~/Documents/dw-agent-store/` - so they survive a
+machine or Claude Code reinstall. `node bin/dw.js migrate` moves a legacy `~/.claude` layout
+there once and leaves symlinks behind; `node bin/dw.js paths` prints the resolved locations.
+The plugin's hooks (`bin/dw-hook.js`, one dispatcher for every event) auto-recall knowledge
+on each prompt and on tool failures, surface runbook hints on Bash commands, and inject the
+knowledge indexes at session start - see `skills/dw-knowledge-skill/references/recall-hook.md`.
 
 ## CI
 

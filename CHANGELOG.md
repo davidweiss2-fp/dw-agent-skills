@@ -2,6 +2,31 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.3.0
+
+### Changed
+
+- **Durable stores moved to the dw-agent store** - knowledge, runbooks, deslop rules, run
+  notes, and handoffs now live under `DW_STORE_ROOT` or `~/Documents/dw-agent-store/`
+  (`knowledge/`, `projects/<slug>/{memory,runbooks}/`, `run-notes/`, `handoffs/`) so they
+  survive a machine or Claude Code reinstall. Path resolvers fall back per-dir to the legacy
+  `~/.claude` layout until `dw migrate` runs; handoffs moved out of the OS temp dir; the
+  flow's per-ticket run notes moved out of `{repo}/.claude/worktrees/`.
+
+### Added
+
+- **`bin/dw.js`** - one command surface over the skill scripts: `dw recall`, `dw runbook`,
+  `dw handoff`, `dw hook`, `dw migrate`, `dw paths`.
+- **`bin/dw-migrate.js`** - one-time legacy-to-store move that leaves symlinks at the old
+  `~/.claude` locations; idempotent, `--dry-run`, never touches non-dw data under
+  `~/.claude/projects/<slug>/`.
+- **`bin/dw-hook.js`** - a single dispatcher now wired to fourteen hook events. Injecting
+  events (SessionStart, UserPromptSubmit, PreToolUse(Bash), PostToolUseFailure, PreCompact)
+  recall saved knowledge or build the runbook hint / handoff nudge in-process, deduped per
+  session via a run-notes cache; the rest (SessionEnd, PostToolUse, PostToolBatch, Stop,
+  StopFailure, SubagentStop, PostCompact, PermissionDenied, CwdChanged) append one JSONL line
+  to `<store>/run-notes/<slug>/session-log.jsonl`.
+
 ## 0.2.3
 
 ### Changed

@@ -146,7 +146,7 @@ PR/commit, not the source.
 
 Deterministic style fixes are data, not prose. Shipped defaults live in
 `references/rules.default.json` (ships `em-dash-to-hyphen`); your own rules live in
-`~/.claude/knowledge/deslop-rules/*.json` and override a default of the same name. Schema and
+`~/Documents/dw-agent-store/knowledge/deslop-rules/*.json` and override a default of the same name. Schema and
 workflow: `references/rules.md`. When the dev states a deterministic preference in a session
 ("never X, always Y"), **offer to persist it as a rule** instead of hand-applying it every
 run. Once the rules pass recurs across repos, promote it to a `deslop-rules` runbook per the

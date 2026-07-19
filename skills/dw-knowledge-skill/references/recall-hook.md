@@ -1,8 +1,10 @@
 # Optional auto-recall hook
 
-> Installed as the Claude Code **plugin**, this hook is wired automatically - the plugin's
-> `hooks/hooks.json` registers it on enable, so there is nothing to configure. The manual
-> snippet below remains for non-plugin installs (copied skills, Cursor-style setups).
+> Installed as the Claude Code **plugin**, recall hooks are wired automatically - the
+> plugin's `hooks/hooks.json` routes every lifecycle event through `bin/dw-hook.js`, which
+> recalls on prompts and tool failures (deduped per session), surfaces runbook hints on Bash
+> commands, and injects the knowledge indexes at SessionStart. The manual snippet below remains for non-plugin installs
+> (copied skills, Cursor-style setups) and wires the prompt-recall branch only.
 
 You can wire a `UserPromptSubmit` hook so saved knowledge surfaces automatically when a
 prompt matches — no need to remember to run `/dw-recall`. This is **optional** and additive.

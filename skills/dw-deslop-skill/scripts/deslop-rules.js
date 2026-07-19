@@ -3,7 +3,9 @@
 // Deterministic deslop rules engine. Applies find/replace rules ONLY to the lines
 // this branch introduced (the deslop scope), so unchanged code is never touched.
 // Rules are data: shipped defaults in references/rules.default.json, overlaid by user
-// rules in ~/.claude/knowledge/deslop-rules/*.json (a same-name user rule wins).
+// rules in <store>/knowledge/deslop-rules/*.json (a same-name user rule wins), where
+// <store> is DW_STORE_ROOT or ~/Documents/dw-agent-store; a legacy ~/.claude
+// location that still exists always wins (pre-migrate data, post-migrate symlink).
 
 const {spawnSync} = require('node:child_process');
 const {readFileSync, writeFileSync, readdirSync, existsSync} = require('node:fs');
@@ -12,8 +14,30 @@ const os = require('node:os');
 
 const DEFAULTS_PATH = join(__dirname, '..', 'references', 'rules.default.json');
 
+// Store root for all durable dw-* data: DW_STORE_ROOT env override, else
+// ~/Documents/dw-agent-store. (MIRROR: keep storeRoot/preferLegacy byte-identical
+// across km-paths.js / runbook-paths.js / deslop-rules.js; dw-handoff-path.js
+// mirrors storeRoot only.)
+function storeRoot(env = process.env) {
+	const fromEnv = env && env.DW_STORE_ROOT;
+	if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv;
+	return join(os.homedir(), 'Documents', 'dw-agent-store');
+}
+
+// A legacy dir that exists wins over the new-root dir - pre-migrate it holds
+// the data, post-migrate it is a symlink into the store. Deciding on the
+// legacy side (never on the new dir's existence) means creating one new-root
+// dir can never flip a sibling store away from its data mid-session.
+function preferLegacy(newDir, legacyDir) {
+	if (existsSync(legacyDir)) return legacyDir;
+	return newDir;
+}
+
 function userRulesDir() {
-	return join(os.homedir(), '.claude', 'knowledge', 'deslop-rules');
+	return preferLegacy(
+		join(storeRoot(), 'knowledge', 'deslop-rules'),
+		join(os.homedir(), '.claude', 'knowledge', 'deslop-rules'),
+	);
 }
 
 function parseArgs(argv) {

@@ -35,7 +35,7 @@ it any time: `node scripts/dw-handoff-nudge.js --self-test`.
 
 ## Where it goes
 
-Write to the OS temp dir, **never** the working tree — a handoff is scratch, not a tracked artifact
+Write to the store handoffs dir, **never** the working tree - a handoff is a session artifact, not repo content
 that pollutes `git status`. Get a stable, idempotent path from the scaffold script — it's keyed by
 branch + date, so a same-branch, same-day re-run intentionally resolves to the same path and
 overwrites the previous handoff:
@@ -44,8 +44,8 @@ overwrites the previous handoff:
 node scripts/dw-handoff-path.js [--focus "next-session focus"]
 ```
 
-It prints an absolute `.md` path under the system temp dir (e.g.
-`/tmp/dw-handoff/<branch-or-slug>-<date>.md`) and a starter skeleton on stderr. Write your document
+It prints an absolute `.md` path under the store handoffs dir (e.g.
+`~/Documents/dw-agent-store/handoffs/<branch-or-slug>-<date>.md`) and a starter skeleton on stderr. Write your document
 there, then give the user the path.
 
 ## What goes in the document
@@ -104,7 +104,7 @@ destructive git judged and run raw rather than blocked).
 
 ## Hard rules
 
-- **Temp dir, never the working tree** — a handoff must not show up in `git status`.
+- **Store handoffs dir, never the working tree** - a handoff must not show up in `git status`.
 - **Scrub before finalizing** — run `km-scrub.js`; exit `2` means refuse and fix, never ship.
 - **Reference, don't recreate** — link PRDs/plans/diffs/tickets by path or URL.
 - **State first, narrative last** — the first screen must answer "what do I do next?".

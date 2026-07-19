@@ -17,8 +17,8 @@ If any fails: don't save. A failed attempt is still worth a `gotcha` at `confide
 ## 2. Choose type & scope
 
 - `type` ∈ `how-to` | `domain` | `task` | `gotcha` (see `schema.md`).
-- **Scope** — default **global** (`~/.claude/knowledge/`). Go **project**
-  (`~/.claude/projects/<slug>/memory/`) **only** when the memory references repo paths,
+- **Scope** - default **global** (`~/Documents/dw-agent-store/knowledge/`). Go **project**
+  (`~/Documents/dw-agent-store/projects/<slug>/memory/`) **only** when the memory references repo paths,
   branch names, or build commands. Decide at save time.
 
 ## 3. Genericize
