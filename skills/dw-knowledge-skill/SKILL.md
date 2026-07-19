@@ -46,9 +46,11 @@ next git/checks/ship step instead of asking.
 
 ## Storage: global vs project (decision rule)
 
-- **GLOBAL** (default) — `~/.claude/knowledge/` (`INDEX.md` + one `*.md` per memory).
+- **GLOBAL** (default) - `~/Documents/dw-agent-store/knowledge/` (`INDEX.md` + one `*.md` per memory;
+  the store root honors `DW_STORE_ROOT`, and a pre-`dw migrate` install falls back to the
+  legacy `~/.claude` layout).
   Use for knowledge that travels across repos.
-- **PROJECT-LOCAL** — `~/.claude/projects/<slug>/memory/` (managed block inside `MEMORY.md`
+- **PROJECT-LOCAL** - `~/Documents/dw-agent-store/projects/<slug>/memory/` (managed block inside `MEMORY.md`
   + one `*.md` per memory). Use **only** when the memory references repo paths, branch
   names, or build commands. The `<slug>` is the project cwd with every non-alphanumeric
   char replaced by `-`.

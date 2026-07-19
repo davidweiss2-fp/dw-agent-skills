@@ -27,13 +27,14 @@ edit every run, no judgment. The judgment half stays in the skill body.
 ## Where rules live
 
 - **Shipped defaults:** `references/rules.default.json` (ships `em-dash-to-hyphen`).
-- **Your rules:** `~/.claude/knowledge/deslop-rules/*.json` (one or many rules per file).
+- **Your rules:** `~/Documents/dw-agent-store/knowledge/deslop-rules/*.json` (one or many rules per file).
+  A legacy `~/.claude/knowledge` store still wins until `node bin/dw.js migrate` runs - write there or migrate first.
   Same engine-in-skill / data-in-store split as `dw-runbook`; the dir is created when you
   add the first rule.
 
 ## Adding a rule
 
-1. Write it to `~/.claude/knowledge/deslop-rules/<name>.json` (single object or an array).
+1. Write it to `~/Documents/dw-agent-store/knowledge/deslop-rules/<name>.json` (single object or an array).
 2. `node scripts/deslop-rules.js --list` - confirm it loads with origin `user`.
 3. `node scripts/deslop-rules.js --dry-run --json` on a branch - confirm the diff is what you
    expect before writing.

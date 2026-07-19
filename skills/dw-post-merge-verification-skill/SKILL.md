@@ -26,7 +26,7 @@ Runs after a PR merges. If invoked inside a `dw-flow` run, it is the offered pos
 
 ## The success metric (read first, never retrofit)
 
-Read the metric from the flow's plan-time record: `{repo}/.claude/worktrees/{ticket}/context`
+Read the metric from the flow's plan-time record: `~/Documents/dw-agent-store/run-notes/<project-slug>/`
 (dw-flow's Plan gate writes it there). It states the metric or query, the expected direction
 or threshold, and the observation window.
 

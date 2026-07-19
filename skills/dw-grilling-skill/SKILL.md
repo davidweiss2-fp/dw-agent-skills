@@ -130,7 +130,7 @@ session state file - the decision tree (resolved + still-open), every locked ans
 current open question. On resume, read that file first and re-enter at the open question.
 
 - **Where.** Inside a `dw-flow`/worktree run, the worktree context dir
-  (`{repo}/.claude/worktrees/{ticket}/context`); standalone, the session scratchpad. One
+  (`~/Documents/dw-agent-store/run-notes/<project-slug>/`); standalone, the session scratchpad. One
   grill, one state file.
 - **Durable output.** The closing resolved-design summary is persisted there too - that
   file, not the chat scrollback, is what the build reads from.

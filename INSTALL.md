@@ -45,8 +45,13 @@ Under the hood:
 
 ## Hooks
 
-The plugin ships three hooks in `hooks/hooks.json`: knowledge auto-recall
-(`UserPromptSubmit`), the runbook hint (`PreToolUse`), and the handoff nudge (`PreCompact`).
+The plugin ships one hook dispatcher (`bin/dw-hook.js`) wired to every lifecycle event in
+`hooks/hooks.json` - SessionStart/SessionEnd, UserPromptSubmit, PreToolUse(Bash),
+PostToolUse, PostToolUseFailure, PostToolBatch, Stop/StopFailure, SubagentStop,
+PreCompact/PostCompact, PermissionDenied, and CwdChanged. Context-injecting events recall
+saved knowledge (deduped per session); the rest append to the run-notes session log. The
+runbook hint (PreToolUse) and handoff nudge (PreCompact) are built in-process from the
+runbook/handoff skill modules.
 
 - **Claude Code as a plugin** - the plugin registers these itself on enable; the installer
   changes no settings.

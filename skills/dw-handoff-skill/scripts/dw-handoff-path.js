@@ -7,10 +7,11 @@
 // Dependency-free; node: builtins only. No network, no randomness, no shelling
 // out. Pure path derivation + a skeleton emitted to stderr.
 //
-// PURPOSE: a handoff is scratch, not a tracked artifact, so it belongs in the
-// OS temp dir — never the working tree. This script computes the path the
-// SKILL writes to and prints a starter skeleton so the agent fills sections
-// rather than inventing structure.
+// PURPOSE: a handoff is a session artifact, not repo content, so it belongs in
+// the dw-agent store's handoffs/ dir (DW_STORE_ROOT or ~/Documents/dw-agent-store)
+// - never the working tree. This script computes the path the SKILL writes to
+// and prints a starter skeleton so the agent fills sections rather than
+// inventing structure.
 //
 // CLI:
 //   node dw-handoff-path.js
@@ -28,6 +29,15 @@
 const os = require('node:os');
 const {join} = require('node:path');
 const {spawnSync} = require('node:child_process');
+
+// Store root for all durable dw-* data: DW_STORE_ROOT env override, else
+// ~/Documents/dw-agent-store. (MIRROR: keep storeRoot byte-identical with
+// km-paths.js / runbook-paths.js / deslop-rules.js.)
+function storeRoot(env = process.env) {
+	const fromEnv = env && env.DW_STORE_ROOT;
+	if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv;
+	return join(os.homedir(), 'Documents', 'dw-agent-store');
+}
 
 // --- arg parsing (house style) --------------------------------------------
 
@@ -136,7 +146,7 @@ function derive(args) {
 	const focus = typeof args.focus === 'string' ? args.focus : '';
 	const base = branchSlug() || slugify(focus, 'session');
 	const slug = `${base}-${dateStamp(args.date)}`;
-	const path = join(os.tmpdir(), 'dw-handoff', `${slug}.md`);
+	const path = join(storeRoot(), 'handoffs', `${slug}.md`);
 	const skeleton = buildSkeleton(focus);
 	return {path, slug, skeleton};
 }
@@ -159,4 +169,4 @@ if (require.main === module) {
 	main();
 }
 
-module.exports = {slugify, dateStamp, buildSkeleton, derive};
+module.exports = {storeRoot, slugify, dateStamp, buildSkeleton, derive};

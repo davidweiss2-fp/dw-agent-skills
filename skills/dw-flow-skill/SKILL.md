@@ -122,9 +122,9 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Auto-fix lint/test failures that do not change behavior.
 - Keep PRs small and reviewable; slice by layer (~300 LOC, split beyond ~500).
 - Branch `{ticket}-{context}`; in the plan phase, derive the ticket from the branch.
-- Worktree per ticket: persist to `{repo}/.claude/worktrees/{ticket}/context` and read it first.
+- Worktree per ticket: persist to `~/Documents/dw-agent-store/run-notes/<project-slug>/` and read it first.
 - Skill overlap → the `dw-` skill wins.
-- Memory only via `dw-knowledge` (global store `~/.claude/knowledge/`); never native per-project memory.
+- Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`); never native per-project memory.
 - Comments describe what/how, never why.
 
 ## State / resume

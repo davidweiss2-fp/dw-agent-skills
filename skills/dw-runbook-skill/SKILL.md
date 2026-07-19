@@ -108,8 +108,8 @@ Details: `references/reporting.md`.
 
 ## Storage (two-tier, mirrors dw-knowledge)
 
-- **Global / user-level / repo-agnostic** → `~/.claude/knowledge/runbooks/` (`--scope global`).
-- **Repo-specific** → `~/.claude/projects/<slug>/runbooks/` (`--scope project`, the default).
+- **Global / user-level / repo-agnostic** → `~/Documents/dw-agent-store/knowledge/runbooks/` (`--scope global`).
+- **Repo-specific** → `~/Documents/dw-agent-store/projects/<slug>/runbooks/` (`--scope project`, the default).
 
 Decide at promote time; default project, go global when the flow doesn't depend on one repo.
 

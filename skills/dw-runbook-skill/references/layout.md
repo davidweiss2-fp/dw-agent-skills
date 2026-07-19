@@ -12,7 +12,7 @@ holds only data:
   .locks/  .results/  .runs/  .worktrees/   # runtime (created on demand)
 ```
 
-`<store>` is `~/.claude/knowledge/runbooks/` (global) or `~/.claude/projects/<slug>/runbooks/`
+`<store>` is `~/Documents/dw-agent-store/knowledge/runbooks/` (global) or `~/Documents/dw-agent-store/projects/<slug>/runbooks/`
 (project). The `<slug>` is the repo cwd with every non-alphanumeric char replaced by `-`.
 
 ## manifest.json — command

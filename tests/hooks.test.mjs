@@ -7,7 +7,11 @@ import {fileURLToPath} from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
-const EVENTS = ['UserPromptSubmit', 'PreToolUse', 'PreCompact'];
+const EVENTS = [
+	'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
+	'PostToolUseFailure', 'PostToolBatch', 'Stop', 'StopFailure', 'SubagentStop',
+	'PreCompact', 'PostCompact', 'PermissionDenied', 'CwdChanged',
+];
 
 const config = JSON.parse(readFileSync(join(ROOT, 'hooks', 'hooks.json'), 'utf8'));
 
@@ -39,8 +43,14 @@ function parseCommand(command) {
 }
 
 describe('hooks/hooks.json shape', () => {
-	it('declares exactly the three plugin hook events', () => {
+	it('declares exactly the fourteen plugin hook events', () => {
 		assert.deepEqual(Object.keys(config.hooks).sort(), [...EVENTS].sort());
+	});
+
+	it('routes every event through the dw-hook dispatcher', () => {
+		for (const {command} of flattenCommands(config)) {
+			assert.match(command, /bin\/dw-hook\.js/, command);
+		}
 	});
 
 	it('scopes the PreToolUse hook to Bash', () => {
