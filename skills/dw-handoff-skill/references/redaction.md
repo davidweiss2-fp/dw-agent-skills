@@ -4,7 +4,7 @@ A handoff summarizes real work, so it can quietly carry secrets: a token you pas
 endpoint, a connection string in an error message, an internal hostname, an account ID, a teammate's
 email. None of that should leave in a scratch document that gets handed to another agent.
 
-## Reuse, don't reimplement
+## Reuse the shared scrubber
 
 This skill deliberately ships **no** redaction code of its own. The `dw-knowledge-skill` already
 maintains a deterministic, `node:`-only secret scrubber (`scripts/km-scrub.js`) that is the hard
@@ -26,4 +26,4 @@ handoff. See `SKILL.md` (Redaction section) for the exact command and how to app
 The scrubber is the deterministic backstop, not a license to be careless. While summarizing, prefer
 referencing where a secret *lives* (env var name, secret manager path) over reproducing its value,
 and link artifacts by path/URL instead of pasting their contents. The cleanest redaction is the
-secret you never wrote into the document.
+secret kept out of the document in the first place.

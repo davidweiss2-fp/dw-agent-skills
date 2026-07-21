@@ -30,12 +30,12 @@ and **Suggested next skills** sections toward it. With no argument, hand off the
 Installed as the Claude Code plugin, a `PreCompact` hook (`scripts/dw-handoff-nudge.js`) fires just
 before the session compacts - auto or manual - and points the agent back at this skill: write the
 handoff to the derived path and persist any active dw-flow state to the worktree context dir before
-conversation detail is lost. Advisory only - it always exits 0 and never blocks compaction. Verify
+conversation detail is lost. Advisory only - it always exits 0 and lets compaction proceed. Verify
 it any time: `node scripts/dw-handoff-nudge.js --self-test`.
 
 ## Where it goes
 
-Write to the store handoffs dir, **never** the working tree - a handoff is a session artifact, not repo content
+Write to the store handoffs dir and **keep it clear of** the working tree - a handoff is a session artifact, not repo content
 that pollutes `git status`. Get a stable, idempotent path from the scaffold script — it's keyed by
 branch + date, so a same-branch, same-day re-run intentionally resolves to the same path and
 overwrites the previous handoff:
@@ -51,26 +51,26 @@ there, then give the user the path.
 ## What goes in the document
 
 Lead with the state, not a narrative. A good handoff answers "what do I do next?" in the first
-screen. Use these sections (drop any that are empty — don't pad):
+screen. Use these sections (drop any that are empty - keep it lean):
 
 1. **Objective** — the one-line goal of the work, plus the next-session focus if one was given.
 2. **Current state** — what's true *right now*: what works, what's half-done, what's broken, what's
    been verified vs. assumed. Name the branch and whether changes are committed/pushed.
 3. **Next steps** — an ordered, concrete checklist. Each item is an action a fresh agent can take
    without guessing. Put the single most important next action first.
-4. **Key decisions & constraints** — choices already made and *why*, so the next agent doesn't
-   relitigate them or violate a constraint it can't see.
+4. **Key decisions & constraints** - choices already made and *why*, so the next agent keeps
+   them settled and respects a constraint it can't see.
 5. **Gotchas** — traps hit this session: flaky commands, wrong turns, environment quirks. Save the
    next agent the time you already spent.
-6. **Pointers** — paths, URLs, ticket/PR links, commands to run. Reference existing artifacts; do
-   **not** recreate them (see below).
+6. **Pointers** - paths, URLs, ticket/PR links, commands to run. Reference existing artifacts and
+   **link** to them rather than recreate (see below).
 7. **Suggested next skills** — name the skills the next agent should reach for, each with a one-line
    why (see below).
 
 Keep it tight. A handoff is a launch pad, not a transcript — favor the few facts that unblock work
 over a complete record.
 
-## Don't duplicate existing artifacts
+## Link to existing artifacts
 
 If the content already lives somewhere durable — a PRD, plan, ADR, JIRA ticket, PR description,
 commit message, or a `git diff` — **link or path to it instead of restating it.** Re-pasting drifts
@@ -80,7 +80,7 @@ already written down.
 ## Redaction (hard gate — run before you finalize)
 
 A handoff summarizes real work, so it can easily pick up tokens, connection strings, internal
-hostnames, account IDs, or emails. Do **not** ship those. Reuse the `dw-knowledge-skill` scrubber
+hostnames, account IDs, or emails. **Scrub those out** before shipping. Reuse the `dw-knowledge-skill` scrubber
 rather than duplicating redaction logic here — it is the deterministic, `node:`-only backstop:
 
 ```bash
@@ -98,17 +98,17 @@ genericized — remove it by hand and re-run.** Write the scrubbed text as the f
 End the document with a short list of skills the next agent should consider, each one line:
 `- dw-pr-ready-skill — babysit the open PR until it's mergeable.` Pick from what's actually
 installed and relevant to the **Next steps**; if a next-session focus was given, weight toward it.
-Don't invent skill names — list only ones you can confirm exist. For git when wrapping up, a good
+List only skill names you can confirm exist. For git when wrapping up, a good
 one to suggest is **dw-git-ops-skill** — the suite's git owner (worktree-first flow, with
 destructive git judged and run raw rather than blocked).
 
 ## Hard rules
 
-- **Store handoffs dir, never the working tree** - a handoff must not show up in `git status`.
-- **Scrub before finalizing** — run `km-scrub.js`; exit `2` means refuse and fix, never ship.
-- **Reference, don't recreate** — link PRDs/plans/diffs/tickets by path or URL.
+- **Store handoffs dir, kept clear of the working tree** - a handoff stays out of `git status`.
+- **Scrub before finalizing** - run `km-scrub.js`; exit `2` means refuse, fix the secret, and re-run before shipping.
+- **Reference existing artifacts** - link PRDs/plans/diffs/tickets by path or URL.
 - **State first, narrative last** — the first screen must answer "what do I do next?".
-- **Only real skills** — suggest skills you can confirm are installed; never fabricate names.
+- **Only real skills** - suggest skills you can confirm are installed; name only real ones.
 
 ---
 
