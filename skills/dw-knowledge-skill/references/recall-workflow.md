@@ -12,7 +12,7 @@ How saved knowledge surfaces and gets verified on use. **Pure read** — recall 
 
 ## When NOT to recall
 
-Trivial edits: renames, typo fixes, one-line tweaks, formatting-only changes. Don't spam
+Trivial edits: renames, typo fixes, one-line tweaks, formatting-only changes. Skip
 recall on work with no reusable prior art.
 
 ## Run it
@@ -41,9 +41,9 @@ as suspect). Empty query or no overlap → no matches.
 
 1. Present hits as "saved knowledge that may apply — verify before relying."
 2. Resolve `{parameter}` slots from **live context**, not from the stored examples
-   (the examples are just hints). Do not autopilot a stored command.
+   (the examples are just hints). Verify a stored command before running it.
 3. Re-verify anything flagged `[SUSPECT]` before trusting it.
-4. **Empty results → say so plainly. Never invent a memory.**
+4. **Empty results → say so plainly; an empty result is a valid answer.**
 
 ## Verify-on-use (then update counters)
 
@@ -62,5 +62,5 @@ if you touch the body, confirmed). Recall itself stays read-only.
 
 If a recalled memory is incomplete or outdated, enrich it (add the missing
 precondition/parameter/step, refresh `last_verified`) rather than leaving it stale. On a
-contradiction, supersede the old file and write the corrected one. Never let an unverified
-guess overwrite a verified memory.
+contradiction, supersede the old file and write the corrected one. A verified memory takes
+precedence over an unverified guess.

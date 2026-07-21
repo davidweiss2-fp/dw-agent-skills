@@ -20,7 +20,7 @@ prompt matches — no need to remember to run `/dw-recall`. This is **optional**
 
 Either way the exit code is `0`, so the hook never blocks a prompt.
 
-## Settings snippet (APPEND — do not clobber)
+## Settings snippet (APPEND to the existing array)
 
 Add a `UserPromptSubmit` hook that runs the recall script in `--hook` mode. Replace
 `<ABS_PATH>` with the absolute path to this skill's `scripts/` directory (e.g.

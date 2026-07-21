@@ -11,8 +11,8 @@ Save **only** when all three hold:
 - **Recurrence OR high cost saved** — it will likely recur, or it was expensive to derive.
 - **Generalizable** — true beyond this single instance.
 
-If any fails: don't save. A failed attempt is still worth a `gotcha` at `confidence: 0`
-("DON'T do X") so you don't repeat it — but never write a failed path as a callable how-to.
+If any fails, skip the save. A failed attempt is still worth a `gotcha` at `confidence: 0`
+("DON'T do X") so the next run learns from it - captured as a `gotcha`, not a callable how-to.
 
 ## 2. Choose type & scope
 
@@ -26,7 +26,7 @@ If any fails: don't save. A failed attempt is still worth a `gotcha` at `confide
 Replace concrete values with `{parameter}` slots and declare each in `metadata.parameters`
 as `{name, example}`. Use neutral placeholders: `{site}`, `example.com`, `{account_id}`.
 **Genericity test:** would this read true in another repo / account / tenant? If not, keep
-genericizing or don't save it.
+genericizing until it does, or skip the save.
 
 ## 4. Scrub (HARD GATE)
 
@@ -38,10 +38,10 @@ node scripts/km-scrub.js --file <candidate.md> --json   # structured report on s
 - **Exit `0`** — clean, or every match was auto-slotted (e.g. a token → `{api_key}`,
   an internal host → `{host}`). Use the **scrubbed** text that the script emits.
 - **Exit `2`** — REFUSE. At least one secret (e.g. a private key block) could not be
-  safely genericized. **Do not write.** Fix the candidate by hand and re-scrub.
+  safely genericized. Fix the candidate by hand and re-scrub before writing.
 
 The scrubber is deterministic and offline. It is a backstop, not a license to paste
-secrets — store the METHOD, never the data.
+secrets - store the METHOD, leaving the data out.
 
 ## 5. Dedup / supersede (read-before-write)
 
@@ -50,12 +50,12 @@ Read the target store first and decide:
 - **ADD** — nothing similar exists → write a new file.
 - **UPDATE** — a memory already covers this but is thinner → enrich it (add the missing
   precondition/parameter/step), bump `last_verified`.
-- **NOOP** — already fully covered → don't write.
+- **NOOP** - already fully covered → leave the store unchanged.
 - **Contradiction** — the new knowledge contradicts an existing memory → mark the old
   file `status: superseded` and write a corrected memory (invalidate-then-add).
 
-**An unverified candidate NEVER overwrites a verified memory.** A guess does not replace
-known-good knowledge.
+**A verified memory takes precedence over an unverified candidate.** Known-good knowledge
+stands over a guess.
 
 Once the gate passes and scrub succeeds, the write proceeds automatically — no yes/no
 prompt.
