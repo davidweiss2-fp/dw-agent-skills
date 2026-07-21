@@ -52,11 +52,11 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | reason | Action |
 |--------|--------|
 | `new-comment` / `user-directive` | Triage unresolved threads. Fix valid issues. Reply `[DEV-AI]`. Resolve threads when done. |
-| `ci-failure` | Fix scoped CI failures. Never weaken CI. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
+| `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
-| `waiting-review` | Do **not** update branch. Wait for reviewer. |
-| `waiting-draft` | Resolve comments only. Do **not** update branch. Mark ready when user wants. |
+| `waiting-review` | Leave the branch as-is. Wait for reviewer. |
+| `waiting-draft` | Resolve comments only, leaving the branch as-is. Mark ready when user wants. |
 | `waiting-checks` | CI still running. `watch-for-new` keeps polling automatically; with `--run get-all`, re-run when checks finish. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
@@ -86,8 +86,8 @@ next time:
 - **Coverage-ADDING** (map a source file to the test CI ran, broaden a check's scope, add a parser
   rule) — **auto-apply**: append it to the repo's source→test map and note the CI run. These can
   only make local verify catch *more*.
-- **Coverage-REDUCING** (remove a mapping, narrow scope, downgrade a command) — **propose first**,
-  never auto-apply.
+- **Coverage-REDUCING** (remove a mapping, narrow scope, downgrade a command) - **propose first**
+  and apply only after the user approves.
 
 Recall the map before selecting tests; this loop is what grows it.
 
@@ -95,6 +95,6 @@ Recall the map before selecting tests; this loop is what grows it.
 
 - PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, reply `[DEV-AI]`, resolve thread.
 - Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
-- Never edit existing PR comments — create new replies.
-- Never merge the PR unless user explicitly asks.
+- Add new replies rather than editing existing PR comments.
+- Merge the PR only when the user explicitly asks.
 - Fix only failures in this PR's scope.
