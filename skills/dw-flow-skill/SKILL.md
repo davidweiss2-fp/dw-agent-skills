@@ -48,8 +48,10 @@ the mode. Full spec and the mode mapping: `references/communication.md`.
    answers, "go", redirects). On a model-invoke, this gate also carries the engage y/n.
 2. 🚪 **Grill** — **invoke `dw-grilling`** and hand fully into it; let its inline text
    interview run to completion before moving on.
-3. 🚪 **Plan** — approve the resolved-design summary before any code; lock the **success
-   metric** (how we'll know it worked in prod) here too.
+3. 🚪 **Plan** - approve before any code. Approvable only when the plan carries a **traced
+   cause** (bug tasks) and a **placement contract** (both below), plus a clean **design-review**
+   pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. Lock
+   the **success metric** (how we'll know it worked in prod) here too.
 4. 🚪 **Post-PR** — present the draft PR; the dev decides whether to hand off to `dw-pr-ready`.
 
 Between gates the conductor runs autonomously and is interruptible — redirect any time.
@@ -67,12 +69,15 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    inline text interview run uninterrupted to completion.
 3. **Simplify the plan** — `/simplify` the drafted plan before it goes to the gate; cut steps and
    scope the change doesn't need.
-4. 🚪 **Plan** — resolved-design summary → approve; lock the **success metric** (metric/query +
-   expected direction) and write it, with the plan, to the worktree context. Suggest a capture.
+4. 🚪 **Plan** - resolved-design summary → approve; it must carry the **traced cause** (bug
+   tasks) and a **placement contract** (both below), plus a clean **design-review** pass
+   (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
+   write it, the placement contract, and the plan to the worktree context. Suggest a capture.
 5. **Implement**.
 6. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
 7. **Deslop** — `dw-deslop` the diff.
-8. **Review** — `/code-review` (or `fp-cdp-review` in that scope).
+8. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
+   (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean.
 9. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
    folding the `fmt` patch into the commit; the proof of a green preflight is the result
@@ -101,8 +106,21 @@ search live so it stays current as the skill set changes.
 ## Root cause (bug tasks)
 
 No edits before an approved, evidence-backed cause. Search our APM (Coralogix) for the real
-error / stack trace. If no trace is found there, **ask the dev for the specific error trace** —
-do not guess a location. Confirm the cause at the Plan gate.
+error / stack trace; if none is there, **ask the dev for the specific trace** - never guess a
+location. Then go past the error to the **mechanism**: trace the path from the real input to the
+*exact* code that governs the behaviour - the true source of truth, not the first plausible gate
+- and reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies
+on staging. Confirm this traced, reproduced cause at the Plan gate before any code.
+
+## Placement contract (before code)
+
+Approving the plan means approving a one-paragraph placement contract: **which unit owns the
+state, who writes it, who reads it, and its lifecycle.** Architecture is gated here with the dev,
+not deferred to the implement-phase specialist - the specialist advises the mechanism (signal vs
+store, exact match, method names), the gate decides the concern boundaries: one unit owns one
+concern (SRP), no presentation unit coupled to a heavy service just to read state, no state the
+design does not need. Editing this paragraph is free; reverting an implemented design is not.
+What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-specialist`.
 
 ## Product / UX calls
 
@@ -117,6 +135,12 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Recall knowledge before starting any task.
 - Guard the code: push back on hacks and recommend the better approach.
 - Gather context and recommend an approach before asking.
+- Iterate cheap - settle the design on paper (traced cause, placement contract, design review)
+  before code, and hold staging deploys until the design is approved and reviewed: one deploy at
+  the end, never per draft.
+- A fix that guards a symptom is a design smell - question the design instead of bolting on the
+  guard; and label a review idea as a *suggestion* or a *constraint*, since a suggestion that
+  patches a bad design is a reason to redesign, not a spec to build.
 - Only touch files the task names; confirm before expanding scope; preserve TODO/context comments.
 - No product UI/UX change without approval.
 - Auto-fix lint/test failures that do not change behavior.
@@ -139,7 +163,11 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 - At the Grill gate, **invoke `dw-grilling`** and hand fully into it — inline chat text, one
   question at a time, uninterrupted. Never pose grill questions through a picker and never inject
   flow narration, data, or plans between them (`dw-grilling` holds context to the end).
-- Never edit on a guessed cause — prove it (APM or ask the dev) first.
+- Never edit on a guessed cause - prove it (APM or ask the dev) first, tracing to the true
+  source of truth, not the first plausible gate.
+- Review runs **blind to approval** - hand the reviewer the artifact and the method only, never
+  the approved plan or a "treat X as acceptable"; wrong is wrong regardless of sign-off
+  (`references/review.md`).
 - Artifacts (commit / PR / team-communication drafts) are never caveman.
 - Delegate to the skills; never reimplement them.
 - Never silently change scope — restate the intent and confirm.
