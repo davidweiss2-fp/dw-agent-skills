@@ -22,13 +22,13 @@ skills** toward it. No argument: hand off the work as it stands.
    node scripts/dw-handoff-path.js [--focus "next-session focus"]
    ```
 
-   It prints an absolute temp-dir path (never the working tree) and a section skeleton on stderr.
+   It prints an absolute temp-dir path (outside the working tree) and a section skeleton on stderr.
 2. **Fill the document** — state first: Objective, Current state, Next steps (ordered, concrete,
    most-important first), Key decisions & constraints, Gotchas, Pointers, Suggested next skills.
-   Drop empty sections; don't pad.
-3. **Reference, don't recreate** — link PRDs / plans / ADRs / tickets / PRs / diffs by path or URL
+   Drop empty sections; keep it lean.
+3. **Reference existing artifacts** - link PRDs / plans / ADRs / tickets / PRs / diffs by path or URL
    instead of restating them.
-4. **Scrub** (hard gate) — reuse the dw-knowledge-skill scrubber, don't reimplement it:
+4. **Scrub** (hard gate) - reuse the dw-knowledge-skill scrubber as-is:
 
    ```bash
    node ../dw-knowledge-skill/scripts/km-scrub.js --file <handoff.md>
@@ -40,7 +40,7 @@ skills** toward it. No argument: hand off the work as it stands.
 
 ## Hard rules
 
-- Temp dir, never the working tree — a handoff must not appear in `git status`.
-- Scrub before finalizing; exit `2` means fix and re-run, never ship.
-- Reference existing artifacts; don't recreate them.
-- Suggest only skills you can confirm are installed — never fabricate names.
+- Temp dir, kept clear of the working tree - a handoff stays out of `git status`.
+- Scrub before finalizing; exit `2` means refuse, fix, and re-run before shipping.
+- Reference existing artifacts; link to them rather than recreate.
+- Suggest only skills you can confirm are installed - name only real ones.
