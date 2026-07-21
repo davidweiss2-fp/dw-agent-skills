@@ -53,11 +53,11 @@ Rare, but real. Then:
 - **Bare open questions.** "How should we handle errors?" with no options and no lean
   pushes the work back onto the user. Bring options and a recommendation.
 - **Asking what the codebase already answers.** If there's an established pattern, a
-  config value, or a prior decision, resolve it and report — don't ask.
-- **Questions out of dependency order.** Don't ask about the response format before
-  you've settled whether there's a response at all. Re-prune after each answer.
-- **Fake binaries.** Don't force an A/B when the honest answer space is three options or
-  a number. Match the options to the real decision.
+  config value, or a prior decision, resolve it and report rather than ask.
+- **Questions out of dependency order.** Settle whether there's a response at all before
+  asking about its format. Re-prune after each answer.
+- **Fake binaries.** Match the options to the real decision; when the honest answer space
+  is three options or a number, offer that rather than a forced A/B.
 
 ## Closing summary
 

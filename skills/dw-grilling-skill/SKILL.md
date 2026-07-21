@@ -9,7 +9,7 @@ description: >-
   plan", "poke holes in this decision", "interview me before we build", "what haven't
   we decided", or invokes /dw-grill [topic]. Recalls your known preferences (via
   dw-knowledge) to seed each recommendation, persists the decision trail so a grill can
-  pause and resume, and captures new preferences it learns. Asks; never silently assumes.
+  pause and resume, and captures new preferences it learns. Asks; surfaces every assumption.
 ---
 
 # Grilling: One-at-a-Time Decision Interview
@@ -23,8 +23,8 @@ still undecided.
 This is a prompt-driven engine — no scripts to run. The discipline is the value: one
 question, a clear recommendation, wait for the answer, then the next.
 
-Run it **inline, in the chat, as plain text** — never pose grilling questions through a
-picker or structured-question tool; the back-and-forth *is* the method. And **hold any
+Run it **inline, in the chat, as plain text** - pose every grilling question as chat text the
+user reads and answers in line; the back-and-forth *is* the method. And **hold any
 supporting data, context, or plans you want to show until the grill is done** — surfacing
 them between questions breaks the focus. Present all of that once every decision is locked.
 
@@ -51,8 +51,8 @@ the user in one line what they want stress-tested before starting.
    between the above. Seed each decision's default from the preferences you recalled - e.g.
    the abstraction-shape lean comes from `david-working-rules` (prefer a new function over
    adding option-flags to a shared helper; growing a shared helper's flag surface is an
-   explicit question, never a silent default). Order them so a decision never depends on one
-   you haven't asked yet.
+   explicit question, not a silent default). Order them so each decision depends only on ones
+   you have already asked.
 3. **Resolve from the environment first.** Before asking, check whether the answer already
    exists in the codebase, filesystem, or your tools — an established pattern, a config
    value, a prior decision, an existing type. If exploring resolves it, resolve it and
@@ -60,9 +60,9 @@ the user in one line what they want stress-tested before starting.
    judgment call.
 4. **Ask exactly one question - inline, as chat text.** State the decision, give the
    realistic options, and **lead with your recommended default and why.** Make it
-   answerable in a word ("Go with A?", "yes/no"), and never pose it through a
-   picker/question tool. See `references/asking-well.md` for the question shape.
-5. **Wait.** Do not stack questions. Do not start the next question until this one is
+   answerable in a word ("Go with A?", "yes/no"), posed as inline chat text. See
+   `references/asking-well.md` for the question shape.
+5. **Wait.** Ask a single question and hold; start the next only once this one is
    answered. Multiple questions at once defeats the purpose.
 6. **Record, lock, persist, then branch.** Capture the answer - but only advance if it's a
    clean, unconditional pick (see *Locking an answer*). Once locked, **append it to the
@@ -74,7 +74,7 @@ the user in one line what they want stress-tested before starting.
    as a flat list, both inline and to the session state file, so it stands alone as the
    handoff artifact - a single source of truth to build from.
 9. **Wait for confirmation before building.** The summary is a checkpoint, not authorization
-   to proceed - do not start implementing until the user confirms the resolved design matches
+   to proceed - start implementing only once the user confirms the resolved design matches
    their intent.
 10. **Capture what you learned** *(offer, via `dw-knowledge`)*. Two things are worth saving:
     the **decision record** for this topic ("what we decided about {topic} and why"), and any
@@ -108,7 +108,7 @@ user meant is the mechanism working, not a wasted turn.
 
 ## The recommended default is mandatory
 
-Never ask a bare open question. Every question carries your lean: the option you'd pick
+Every question carries your lean: the option you'd pick
 and the one-line trade-off behind it. A good default lets the user reply "yes" and keep
 moving; a bare "what do you want to do?" makes them do the work the interview was meant
 to save. If you genuinely have no lean, say so explicitly and give the smallest set of
@@ -141,25 +141,25 @@ current open question. On resume, read that file first and re-enter at the open 
 ## Hard rules
 
 - **One question per turn, inline.** Ask in chat as plain text and wait for the answer
-  before the next — never through a picker/question tool.
+  before the next; every question stays chat text answered in line.
 - **Recall before you lead.** Seed every recommended default from the user's recalled
   `dw-knowledge` preferences; a lean grounded in `david-working-rules` beats a generic one.
 - **Persist the trail.** After each lock, append to the session state file; on resume, read
   it before asking anything.
 - **Capture on the way out.** Offer to save the decision record and any newly-revealed
-  preference to `dw-knowledge` - never let a learned lean evaporate with the chat.
+  preference to `dw-knowledge` so a learned lean outlives the chat.
 - **Always recommend.** Lead with your default and the trade-off; no bare open questions.
 - **Lock before advancing.** Only a clean, unconditional pick moves on; an off-list answer
   or one with attached conditions gets a revisit or a restate-to-verify first.
-- **Hold context to the end.** Save supporting data/plans for after the grill; don't dump
-  them between questions.
+- **Hold context to the end.** Save supporting data/plans for after the grill; present
+  them once every decision is locked.
 - **Environment before user.** If exploring the codebase, filesystem, or tools answers it,
-  explore — don't ask what you can find.
-- **Order by dependency.** Never ask a question whose answer depends on a later one.
-- **Never silently assume.** An unresolved decision is asked or explicitly deferred in the
-  summary — never quietly guessed.
+  explore, and reserve questions for what it leaves open.
+- **Order by dependency.** Ask each question only after the ones its answer depends on.
+- **Surface every assumption.** An unresolved decision is asked or explicitly deferred in
+  the summary, not quietly guessed.
 - **End with the resolved-design summary** so the work is unambiguous to build from.
-- **Confirm before enacting.** Do not start building until the user confirms the summary -
+- **Confirm before enacting.** Start building only once the user confirms the summary -
   the completion criterion is shared understanding, not just a summary having been posted.
 
 ---
