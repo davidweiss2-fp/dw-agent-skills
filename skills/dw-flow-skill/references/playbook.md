@@ -15,8 +15,11 @@ context; if resuming, read `~/Documents/dw-agent-store/run-notes/<project-slug>/
 approach rather than presenting a blank slate.
 
 For **bug tasks**: search the APM (Coralogix) for the real error / stack trace before forming any
-hypothesis. If no trace is found there, ask the dev for the specific trace. Never reason from a
-guessed location.
+hypothesis; if none is there, ask the dev for the specific trace, never reasoning from a guessed
+location. Then trace past the error to the mechanism - the path from the real input to the exact
+code that governs the behaviour (the true source of truth, not the first plausible gate) - and
+reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies on
+staging.
 
 Surface any clear, non-trivial product/UX call here via `dw-team-communication` (drafts only).
 
@@ -39,12 +42,18 @@ and the trimmed plan is what goes to the gate.
 
 ## 4. 🚪 Plan
 
-Present the resolved-design summary as the plan and get approval before any code. Confirm the
-root cause here for bug tasks. **Lock the success metric** — the metric or query that will show
-the change worked in prod, its expected direction/threshold, and the observation window — so
+Present the resolved-design summary as the plan and get approval before any code. It is
+approvable only when it carries three things, each cheap to fix on paper and ruinous in code: the
+**traced, reproduced root cause** (bug tasks); a **placement contract** - one paragraph naming
+which unit owns the state, who writes it, who reads it, and its lifecycle, with the SRP / coupling
+/ state boundaries gated here with the dev, not deferred (SKILL.md "Placement contract"); and a
+clean **design-review** pass run over that sketch by the review method, blind to the approval
+(`references/review.md`). **Lock the success metric** - the metric or query that will show the
+change worked in prod, its expected direction/threshold, and the observation window - so
 post-merge verification cannot retrofit it later. Suggest a knowledge capture of any durable
-decision. Write the approved plan **and the success metric** to the worktree context dir. *Done
-when:* the dev approves and both the plan and the metric are written to the worktree context dir.
+decision. Write the approved plan, the placement contract, **and the success metric** to the
+worktree context dir. *Done when:* the dev approves and the plan, placement contract, and metric
+are all written to the worktree context dir.
 
 ## 5. Implement
 
@@ -66,10 +75,13 @@ diff still behaves.
 
 ## 8. Review
 
-Run `/code-review` (or `fp-cdp-review` in that scope). Re-check the regressions that bite late:
+Run `/code-review` (or `fp-cdp-review` in that scope) by the **review method**
+(`references/review.md`): design-first and unit-by-unit, run **blind to what was approved**, and
+re-run after every fix until a fresh pass is clean. Recall `dw-knowledge` for the repo's specific
+reviewer patterns and feed them in as things to check. Re-check the regressions that bite late:
 permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface any product/UX
-call that review exposes via `dw-team-communication`. *Done when:* the review's findings are
-posted and triaged, and the blocking ones fixed.
+call that review exposes via `dw-team-communication`. *Done when:* a fresh review pass finds
+nothing new, its findings are triaged, and the blocking ones fixed.
 
 ## 9. Verify *(offered)*
 
