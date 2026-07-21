@@ -46,7 +46,7 @@ the situations that should **trigger** it.
   "why won't my skill trigger" — not abstract categories. The model matches on surface language.
 - **One trigger per distinct path.** Synonyms that rename the same path are **duplication**;
   collapse them and keep only genuinely different reasons to fire.
-- **Front-load the leading word**, and don't restate identity already obvious from the body.
+- **Front-load the leading word**, and leave out identity already obvious from the body.
 
 If a skill should only ever be run by hand, set `disable-model-invocation: true`; the description
 then becomes a human-facing one-liner and stops costing context every turn.
@@ -63,7 +63,7 @@ Rank everything by how immediately the agent needs it, and put it at the matchin
 Push too little down and the body bloats (**sprawl**); push too much down and you hide what the
 agent actually needs. The cleanest test is **branching**: inline what *every* run needs, and move
 behind a pointer what only *some* runs reach. Keep a SKILL.md body under ~200 lines; when it grows
-past that, disclose, don't cram. Keep a concept's definition, rules, and caveats together under one
+past that, disclose rather than cram. Keep a concept's definition, rules, and caveats together under one
 heading so reading one part pulls in its neighbors.
 
 ## Steps and completion criteria
@@ -85,8 +85,8 @@ Put deterministic, repeatable mechanics in a **script**; keep judgment in **pros
   path applies. Prose is where you spend words on *how to think*, not *what to type*.
 
 House rules for any script you ship: Node, CommonJS, `'use strict'`, **only `node:` builtins** (no
-npm deps), and it must pass `node --check`. Never build a shell command out of untrusted input —
-prefer pure parsing over shelling out. Match the style of
+npm deps), and it must pass `node --check`. Prefer pure parsing over shelling out, and build any
+shell command only from trusted, parsed values. Match the style of
 `skills/dw-pr-ready-skill/scripts/utils.js`.
 
 ## Pruning
@@ -138,7 +138,7 @@ When a skill misbehaves, name the failure before fixing it:
 - **Predictability is the goal** — every edit should make the agent's *path* more repeatable.
 - **The description is load-bearing and always-on** — prune it hardest; concrete triggers, no
   duplication.
-- **Length is a cost, not a virtue** — disclose and prune; never pad.
+- **Length is a cost, not a virtue** - disclose and prune; keep it tight.
 - **Zero secrets / company data** — placeholders only in every example.
 
 ---
