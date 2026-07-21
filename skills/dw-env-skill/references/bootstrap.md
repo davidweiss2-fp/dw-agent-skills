@@ -47,7 +47,7 @@ Install Docker Desktop (or colima + the docker CLI) and start the daemon. The pr
 ## 5. AWS credentials - populated BY THE DEV
 
 The dev fills `~/.aws/credentials` **themselves** (`aws configure`, or an editor). Credential
-values are never pasted to an agent and never appear in a session transcript; the agent only
+values stay with the dev - kept out of any agent prompt and any session transcript; the agent only
 ever sees presence/shape via the preflight. The file must end up with at least one profile of
 this shape (placeholders only):
 

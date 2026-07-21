@@ -31,8 +31,8 @@ Four real sessions failed on exactly this: an agent cloned into `{workspace}/<gi
 every downstream path assumption broke, and the rest of the session burned on the fallout. The
 namespace level carries no information locally - the org already lives in the git remote.
 
-The concrete workspace root is machine-specific and personal. It lives in the **dw-knowledge
-store**, never in this repo, this skill, or any script.
+The concrete workspace root is machine-specific and personal. It lives only in the **dw-knowledge
+store** - kept out of this repo, this skill, and any script.
 
 ## Preflight
 
@@ -50,14 +50,14 @@ script prints a compact JSON envelope:
 ```
 
 - **Completion criterion: the envelope says `"status":"pass"`** (exit code 0). On `fail`, apply
-  each check's `remediation` line and re-run until it passes - do not start the env-touching
-  work on a failing preflight.
+  each check's `remediation` line and re-run until it passes - begin the env-touching
+  work only once the preflight passes.
 - `layout` scans the workspace root for nested clones (`{root}/<ns>/<repo>/.git`) and near-empty
   namespace dirs shadowing a flat repo. Standard fix:
   `mv <root>/<ns>/<repo> <root>/<repo> && rmdir <root>/<ns>`.
 - `docker` distinguishes not-installed from daemon-down and says which.
 - `aws` checks `~/.aws/credentials` exists, is non-empty, and has at least one profile with
-  `aws_access_key_id` - shape only, values are never read back or printed.
+  `aws_access_key_id` - shape only, with the values left unread and unprinted.
 
 Workspace-root resolution precedence: `--workspace-root` flag > `DW_ENV_WORKSPACE_ROOT` env var >
 parent dir of the current git root > unset (layout check is skipped with a remediation line).
@@ -68,7 +68,7 @@ parent dir of the current git root > unset (layout check is skipped with a remed
    knowledge store, not here. If no memory exists, ask the user (or take the parent of an
    existing flat repo), then capture it.
 2. Clone **directly under the root**: the target is `{workspace}/{repo}`, one level deep.
-   Never accept a tool's default of an org/namespace subdir.
+   Override any tool default that would nest under an org/namespace subdir.
 3. Verify: `node scripts/env-preflight.js --repo <repo>` reports the repo present at its flat
    path and `"status":"pass"`.
 
@@ -88,8 +88,8 @@ exists yet (a brand-new machine).
 
 ## Hard rules
 
-- **Never clone into a namespace subdir** - flat `{workspace}/{repo}`, always.
-- **Never print credential values** - the preflight reports presence/shape only; the dev
-  populates `~/.aws/credentials` directly, values never pass through an agent.
+- **Clone flat into `{workspace}/{repo}`** - one level under the workspace root, always.
+- **Report credential presence and shape only** - the preflight surfaces presence/shape; the dev
+  populates `~/.aws/credentials` directly, so values stay between the dev and the file.
 - **Preflight before bootstrap/restore work** - envelope `"status":"pass"` is the gate.
-- **The concrete workspace root lives in dw-knowledge** - never hardcoded here.
+- **The concrete workspace root lives in dw-knowledge** - recalled from there each run.

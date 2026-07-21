@@ -32,6 +32,6 @@ Default subcommand is `preflight`.
 
 ## Hard rules
 
-- Flat `{workspace}/{repo}` only - never clone into a namespace subdir.
-- Never echo credential values - presence/shape reporting only.
+- Flat `{workspace}/{repo}` only - clone one level under the workspace root.
+- Report credential presence and shape only - values stay with the dev.
 - The envelope's `"status":"pass"` is the completion gate for every subcommand.
