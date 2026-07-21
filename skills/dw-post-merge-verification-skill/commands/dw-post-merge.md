@@ -19,6 +19,7 @@ the dev a checklist for what it can't reach, then rules confirmed / no-effect / 
 
 ## Hard rules
 
-Prod access is read-only APM / analytics tools only - never browser, terminal, or db routes,
-never a mutation. No verdict without quoted evidence. The metric is fixed before evaluation,
-never retrofitted. Full engine: this skill's `SKILL.md`.
+Prod access is read-only APM / analytics tools only - every prod touch is a read through those
+tools; browser, terminal, db routes, and mutations stay out of scope. Every verdict rests on
+quoted evidence. The metric is fixed before evaluation and held fixed against the data. Full
+engine: this skill's `SKILL.md`.
