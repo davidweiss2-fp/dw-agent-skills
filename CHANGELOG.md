@@ -2,6 +2,18 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.3.2
+
+### Changed
+
+- **Positive-phrasing sweep across the remaining dw-* skills.** Following the 0.3.1 sweep of
+  dw-flow, every other skill (dw-knowledge, dw-runbook, dw-deslop, dw-handoff, dw-env,
+  dw-grilling, dw-team-communication, dw-post-merge-verification, dw-git-ops, dw-pr-ready,
+  dw-skill-authoring) now states its rules as the target behaviour rather than as "do-not"
+  prohibitions, per the rule-authoring standard. Behaviour-preserving, docs-only; definitional
+  contrasts, quoted examples, descriptive tool behaviour, and the negation-failure-mode teaching
+  in dw-skill-authoring were kept intact.
+
 ## 0.3.1
 
 ### Changed
