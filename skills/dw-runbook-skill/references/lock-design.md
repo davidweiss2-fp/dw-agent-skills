@@ -1,7 +1,7 @@
 # Isolation & the single-flight lock
 
 Two isolation modes, one coordinator. The goal: any runbook is safe to fire **without knowing the
-repo's current state**, and parallel agents never corrupt each other's working tree.
+repo's current state**, and parallel agents leave each other's working tree intact.
 
 ## Modes
 
@@ -14,7 +14,7 @@ repo's current state**, and parallel agents never corrupt each other's working t
   must serialize.
   It brackets the run with a **pristine guarantee**: snapshot `HEAD` + `git status --porcelain`
   before; after cleanups, assert both are unchanged. Drift ⇒ `status: "error"` (the cleanups
-  failed to restore). The runner never auto-`reset`s — that would be destructive.
+  failed to restore). The runner reports the drift rather than auto-`reset`ing - that would be destructive.
 
 ## The coordinator (`lock.js`)
 
@@ -31,7 +31,7 @@ One primitive, keyed by mode:
 
 - `leader` — you run, then `writeResultAtomic()` + `release()`.
 - `coalesced` — an identical run was in flight; its result is at `resultPath`.
-- `cached` — a fresh result already existed (within `ttlMs`); never ran.
+- `cached` - a fresh result already existed (within `ttlMs`); served without running.
 
 So N agents asking for the same check pay for **one** run; everyone else reads the result.
 
@@ -45,22 +45,22 @@ So N agents asking for the same check pay for **one** run; everyone else reads t
   is simply claimable by the next exclusive create.
 - **Crash recovery.** A holder whose PID is dead (`process.kill(pid, 0)` throws anything other than
   `EPERM`) is reclaimed immediately — liveness is authoritative, so a slow-but-alive leader is
-  *never* evicted (evicting a live leader would be a correctness violation for a mutex). There is
+  *always* retained (evicting a live leader would be a correctness violation for a mutex). There is
   no time-based staleness ceiling. The cost is the inverse case: a crashed holder whose PID gets
   reused by an unrelated process reads as alive and blocks waiters until `timeoutMs` — a loud
-  error, never silent corruption. Set `timeoutMs` per command above the worst-case run time so a
-  slow-but-live run is never mistaken for a timeout (default 15m).
+  error rather than silent corruption. Set `timeoutMs` per command above the worst-case run time so a
+  slow-but-live run stays within the timeout (default 15m).
 - **No takeover clobber.** A leader only deletes a meta file whose `token` still matches its own —
   so if a dead-holder reclaim already handed ownership to someone else, the original leader won't
   remove the new owner's claim.
-- **No FIFO.** Fairness needs a ticket scheme that lockfiles don't give cheaply; at single-machine
+- **No FIFO.** Fairness needs a ticket scheme that lockfiles make expensive; at single-machine
   low parallelism the ~`pollMs` wait is fine. The whole lock sits behind a narrow interface, so it
   can be swapped for a background-daemon implementation later **without changing any runbook**.
 
 ## Proof
 
 `node scripts/lock.js --self-test` spawns real worker processes and asserts: (A) distinct
-signatures on one resource never overlap in the critical section and all execute; (B) identical
+signatures on one resource stay mutually exclusive in the critical section and all execute; (B) identical
 signatures collapse to exactly one execution, the rest coalesce; (C) a dead holder's lock is
 reclaimed. `node scripts/run.js --self-test` proves both modes end-to-end against a temp git repo,
 including the pristine guarantee and the coalesce cache. Both run in CI.

@@ -6,7 +6,7 @@ description: Run, create, or promote a memoized workflow (a "runbook") — one c
 # /dw-runbook
 
 Turn a recurring multi-step shell workflow into a saved **runbook**: one command any agent runs
-once, cached and queued so parallel agents don't collide, that restores the working tree after.
+once, cached and queued so parallel agents stay isolated, that restores the working tree after.
 
 ## Invocation
 
@@ -32,7 +32,7 @@ engine's only verbs are a bare `<name>`, `scaffold`, and `list`.
 ## Hard rules
 
 - Capture before scripting; promote only on recurrence.
-- A `shared-dir` run must leave the checkout pristine — never weaken the guard.
+- A `shared-dir` run must leave the checkout pristine - keep the guard intact.
 - One command = one reason; compose flows for the rest. Variants = separate runbooks.
 
 Full engine, lifecycle, and references: this skill's `SKILL.md`.

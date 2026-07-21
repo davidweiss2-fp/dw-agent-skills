@@ -2,8 +2,8 @@
 name: dw-runbook-skill
 description: >-
   Memoize a recurring multi-step shell workflow into a saved "runbook" — one
-  command that any agent runs once, cached and queued so parallel agents never
-  collide, that cleans up after itself. Use when a workflow keeps getting
+  command that any agent runs once, cached and queued so parallel agents stay
+  isolated, that cleans up after itself. Use when a workflow keeps getting
   re-derived ("run the ci/lint/test checks", "run lint on the diff vs master",
   "how do we run the tests here", "set up a runbook for X", "promote this to a
   runbook", "cache this workflow as a command", "do we have a runbook for Y"),
@@ -17,7 +17,7 @@ description: >-
 
 A **runbook** turns a recurring shell workflow (CI, tests, typecheck, a deploy check) into a
 single call with a **known compact result** — so agents stop spending tokens re-deriving "how do
-I run X here" every session, and parallel agents never corrupt each other's working tree.
+I run X here" every session, and parallel agents leave each other's working tree intact.
 
 Every runbook is either a **command** (one atomic thing — `lint`, `typecheck`, `test`) or a
 **flow** (a list of commands run in order — `ci = lint + typecheck + test`). Both are built and
@@ -35,7 +35,7 @@ node scripts/run.js <name> [--scope global|project] [--dry-run] [--json]
 Drive recurring workflows through three states. Promotion is **lazy**: only script what recurs.
 
 1. **Cold** (no runbook, maybe no memory) — do the workflow by hand. On success, offer a
-   **`dw-knowledge` capture of the *method*** (prose). Do **not** script a one-off.
+   **`dw-knowledge` capture of the *method*** (prose). Script it only **once it recurs**.
 2. **Warm** (a `dw-knowledge` how-to exists, but no runbook) — this is the promote trigger.
    **Promote** it: `node scripts/run.js scaffold <name>` lays down the folder + manifest + a
    `command.sh` stub with the runner/lock/report already wired; **you fill only the shell body**
@@ -61,10 +61,10 @@ Recall `dw-knowledge` before assuming the state — a method or a runbook may al
 from the CLI, space-joined). It owns the actual tool call — including a `docker exec <container> …`
 when the check runs inside a container. A command may read `RUNBOOK_ARGS` to override its default
 scope — e.g. `run.js lint app/Foo.php` checks one file; the args are folded into the cache
-signature, so a parametrized run never collides with (or is served the cache of) the default-scope
+signature, so a parametrized run gets its own cache slot, distinct from the default-scope
 run. Full manifest reference and the shared-setup model: `references/layout.md`.
 
-## Safety: isolation + the queue (why runs never collide)
+## Safety: isolation + the queue (why runs stay isolated)
 
 Each command declares an **isolation mode**:
 
@@ -75,7 +75,7 @@ Each command declares an **isolation mode**:
   `<your-container>`). The runner can't use a separate path, so these **serialize** through a
   file-based lock and the run is bracketed by a **pristine guarantee**: it snapshots `HEAD` +
   working tree before, and after cleanup asserts they're unchanged — drift is reported as an
-  `error`, never silently left behind.
+  `error` rather than silently left behind.
 - **Mutating ("fixer") commands** (e.g. a formatter) keep that pristine guarantee with **no special
   flag**: the command does its work in the main checkout, captures the resulting diff to a **patch
   artifact**, then restores the checkout to its exact prior bytes — so by the time the runner
@@ -111,20 +111,20 @@ Details: `references/reporting.md`.
 - **Global / user-level / repo-agnostic** → `~/Documents/dw-agent-store/knowledge/runbooks/` (`--scope global`).
 - **Repo-specific** → `~/Documents/dw-agent-store/projects/<slug>/runbooks/` (`--scope project`, the default).
 
-Decide at promote time; default project, go global when the flow doesn't depend on one repo.
+Decide at promote time; default project, go global when the flow is repo-agnostic.
 
 ## Optional hint hook
 
 `scripts/dw-runbook-hint.js` is an **advisory** PreToolUse(Bash) hook: when an agent is about to
 hand-run a command that a runbook's `triggers` cover, it nudges "run the runbook instead." It
-never blocks. Wiring snippet: `references/hook.md`.
+always lets the command through. Wiring snippet: `references/hook.md`.
 
 ## Hard rules
 
 - **Capture before scripting; promote only on recurrence.** No runbook for a one-off.
-- **A `shared-dir` run must leave the checkout pristine** — the runner enforces it; never weaken
-  the check or auto-`reset` to force it.
-- **One command = one reason.** Don't fold unrelated checks into one `command.sh`; compose a flow.
-- **Engine is shared; runbooks are data.** Don't copy `run.js`/`lock.js` into a store.
-- **Memory only via `dw-knowledge`** — store the method, never secrets; the runbook points back.
+- **A `shared-dir` run must leave the checkout pristine** - the runner enforces it; keep that
+  guard intact (fix the cleanups rather than weakening the check or `reset`ing to force it).
+- **One command = one reason.** Keep each `command.sh` to a single check; compose a flow for the rest.
+- **Engine is shared; runbooks are data.** Reference the shared `run.js`/`lock.js`; a store holds only data.
+- **Memory only via `dw-knowledge`** - store the method, scrubbed of secrets; the runbook points back.
 - **Variants are separate runbooks** (params allowed, not the default).

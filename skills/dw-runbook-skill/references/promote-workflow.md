@@ -24,8 +24,8 @@ gates acceptance.
    `working` for "my uncommitted changes" (`shared-dir` only).
 6. **Self-test until pristine.** Run it (`node scripts/run.js <name> --scope …`). Confirm:
    `status` is right, `summary`/`findings` parse, and for `shared-dir` that **`pristine` is
-   `true`**. If a `shared-dir` run reports `error`/`pristine:false`, the cleanups don't restore the
-   tree — fix them; do not weaken the guard. Re-run until clean.
+   `true`**. If a `shared-dir` run reports `error`/`pristine:false`, the cleanups failed to restore
+   the tree - fix them and keep the guard intact. Re-run until clean.
 7. **Link the memory.** Update the `dw-knowledge` how-to (via that skill) with a pointer:
    `Runbook: node scripts/run.js <name> --scope <scope>` so the next agent jumps straight to Hot.
 8. **Verify-on-use thereafter.** Each successful Hot run is a signal to bump the memory's
