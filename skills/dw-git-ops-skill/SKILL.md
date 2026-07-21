@@ -2,7 +2,7 @@
 name: dw-git-ops-skill
 description: >-
   The single git owner for the suite — the one place the commit / push / branch / PR flows
-  live, so agents never hand-roll git or reinvent a "gitflow" script. Use whenever a task
+  live, so agents route all git through it instead of hand-rolling commands or reinventing a "gitflow" script. Use whenever a task
   involves committing, pushing, creating a branch or worktree, opening a PR or flipping it
   draft↔ready, cleaning up finished worktrees, or ANY destructive git (reset, force-push,
   clean, branch delete). Worktree-first: one worktree = one branch = one scope = one PR,
@@ -24,7 +24,7 @@ judgment, so the permission prompt stays the human's gate.
 Routine work happens in a **worktree**, not the root checkout. A worktree's scope must be
 something **deliverable as a single PR** — all the work on it belongs to that one PR, and the
 worktree is **reaped when the PR merges**. This is what makes parallel work safe: each ticket/
-scope is isolated in its own checkout, so concurrent agents never step on each other, and
+scope is isolated in its own checkout, so concurrent agents stay out of each other's way, and
 merged work is cleaned up automatically.
 
 - **Branch from a worktree, not root.** `ops.sh branch` creates the worktree and prints its
@@ -44,7 +44,7 @@ ops.sh branch --scope <s> (--ticket <T> | --unplanned) [--base <ref>]
         new worktree + branch {T}-{s} (or bare {s} when --unplanned); base defaults to the
         current HEAD, override with --base; prints the worktree path + reports the base used;
         opportunistically reaps already-merged worktrees first
-ops.sh add <path>...      stage named paths (never `git add -A`)
+ops.sh add <path>...      stage exactly the named paths
 ops.sh commit <message>   commit staged changes (guarded: not master/main, not detached)
 ops.sh push               push -u the current branch
 ops.sh cap <message> [<path>...]   add (if paths) + commit + push
@@ -80,7 +80,7 @@ three**:
 Then run the **raw git command** directly. It is intentionally un-allowlisted, so the
 permission prompt fires — that prompt is the human's veto, and a feature, not an obstacle. In
 your message, explain *why* this is the right destructive call so the human can decide fast.
-**Never wrap the command to dodge the prompt.**
+**Run the command as-is and let the prompt fire.**
 
 The one scripted deletion is `reap`, and only because a **MERGED** PR proves the work is
 already safe in the base — so removing the worktree and its branch loses nothing.
@@ -100,7 +100,7 @@ already safe in the base — so removing the worktree and its branch loses nothi
 - **One worktree = one scope = one PR**, reaped on merge.
 - **Confirm the context before mutating** - every commit/push/pr prints repo+branch+worktree;
   pass the expected branch when driving multiple worktrees.
-- **Never `git add -A`** — name the paths.
-- **Destructive git is judged, run raw, and never prompt-dodged** — the prompt is the gate.
-- **Don't reinvent the flow** — extend `ops.sh` rather than hand-rolling git sequences.
-- **Commits/PRs are professional prose** — never caveman, no secrets in messages.
+- **Stage explicit paths** - name each path.
+- **Destructive git is judged and run raw so the prompt fires** - the prompt is the gate.
+- **Extend the flow** - add to `ops.sh` rather than hand-rolling git sequences.
+- **Commits/PRs are professional prose** - full sentences, with secrets kept out of messages.

@@ -24,15 +24,15 @@ git is run raw under the judgment rubric in `SKILL.md`.
    - PR → `ops.sh pr --title <t> --body <b> [--ready]`; flip later with `pr-ready` / `pr-draft`.
    - cleanup → `ops.sh worktree-rm <path|branch>` (one) or `ops.sh reap` (all merged).
    - state → `ops.sh status`.
-3. **Destructive request → judge, don't script.** Confirm it's the right call, can't be safely
+3. **Destructive request → judge it, run it raw.** Confirm it's the right call, can't be safely
    avoided, and name what's lost (rubric in `SKILL.md`); then run the raw git command and let the
-   permission prompt be the human's gate. Explain why in your message. Never wrap it to dodge the
-   prompt.
+   permission prompt be the human's gate. Explain why in your message, and run it as-is so the
+   prompt fires.
 4. **Hand off** an ongoing keep-green PR to `dw-pr-ready`; run checks via `dw-runbook`
    (`preflight`/`fmt`) — this skill owns git, not checks.
 
 ## Hard rules
 
 - Worktree-first; root needs `--root`.
-- Destructive git is judged and run raw — the prompt is the gate, never dodged.
-- Don't reinvent the flow — extend `ops.sh`.
+- Destructive git is judged and run raw - the prompt is the gate, left to fire.
+- Extend the flow - add to `ops.sh`.
