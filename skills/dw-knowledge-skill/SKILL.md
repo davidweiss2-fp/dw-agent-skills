@@ -65,7 +65,7 @@ Save **only** when all hold:
 2. **Recurrence OR high cost saved** — likely to recur, or it was expensive to figure out.
 3. **Generalizable** — survives the genericity test (true beyond this one instance).
 
-If any fails, don't save. Failed attempts are still worth a `gotcha` at `confidence: 0`.
+Clear all three before saving; a failed attempt that misses the gate is still worth a `gotcha` at `confidence: 0`.
 
 ## How to SAVE
 
@@ -76,10 +76,10 @@ safeguards, not a prompt-for-yes.
 2. **Genericize** — replace concrete values with `{parameter}` slots (e.g. `{site}`,
    `example.com`). Apply the genericity test: would this read true in another repo/account?
 3. **Scrub** (hard gate) — `node scripts/km-scrub.js --file <candidate.md>`
-   (or pipe on stdin). Exit `0` = clean/auto-slotted; **exit `2` = REFUSE, do not write**.
+   (or pipe on stdin). Exit `0` = clean/auto-slotted; **exit `2` = REFUSE - fix and re-scrub before writing**.
 4. **Dedup / supersede** — read the target store first. ADD (new), UPDATE (enrich existing),
    or NOOP (already covered). On contradiction, mark the old file `status: superseded` and
-   write the corrected one. An **unverified** candidate NEVER overwrites a **verified** one.
+   write the corrected one. A **verified** memory takes precedence over an **unverified** candidate.
 5. **Record** — note the chosen store and that the gate + scrub passed; no user confirmation is
    required (auto-capture).
 6. **Write + index** — write the `*.md` file, then `node scripts/km-index.js --scope <scope>`
@@ -102,8 +102,8 @@ node scripts/km-recall.js <query words…> [--scope global|project|both] [--limi
 
 Results are ranked by relevance × recency × confidence; anything past
 `last_verified + window` (default 90 days) is flagged `[SUSPECT]`. Treat every hit as
-**ADVISORY** ("verify before relying") — resolve `{parameters}` from live context, do not
-autopilot. Empty results: say so plainly; never invent a memory.
+**ADVISORY** ("verify before relying") - resolve `{parameters}` from live context and verify
+before acting. Empty results: say so plainly; an empty result is a valid answer.
 
 **Verify-on-use:** after acting on a memory, check its `success_signal`. On success bump
 `use_count`/`success_count`, refresh `last_verified` (pass today's date from context), and
@@ -117,8 +117,8 @@ When a recalled memory is incomplete or wrong, fix it instead of leaving it stal
 
 - **Enrich** — add the missing precondition/parameter/step; refresh `last_verified`.
 - **Invalidate-then-add** — on a contradiction, set the old file `status: superseded`,
-  then write a corrected memory. Don't silently edit the meaning out from under history.
-- **Never let unverified overwrite verified** — a guess does not replace a known-good memory.
+  then write a corrected memory, preserving history instead of rewriting the meaning in place.
+- **Verified takes precedence over unverified** - a known-good memory stands over a guess.
 
 ## Staleness & pruning
 
@@ -140,14 +140,14 @@ for the two branches and a ready-to-paste, ADDITIVE settings snippet.
 
 ## Hard rules
 
-- **Never store a literal secret** — store the METHOD, not the data. No credentials, API
+- **Store the METHOD, not the data** - keep the procedure, leave secrets out. No credentials, API
   keys, tokens, cookies, connection strings, or org identifiers (account/tenant IDs,
   internal hostnames, customer names, emails, RFC1918 IPs). `km-scrub.js` is the
   deterministic backstop; exit `2` means refuse.
 - **Auto-capture when the gate passes** — no confirmation required; the write-gate (verified ·
   recurrence/cost · generalizable) and `km-scrub` are the safeguards against bad writes.
 - **Advisory, not authority** — recalled knowledge is a hint; verify on use.
-- **Empty means empty** — no match → say so; never fabricate a memory.
+- **Empty means empty** - no match → say so plainly; an empty result is a valid answer.
 
 ---
 

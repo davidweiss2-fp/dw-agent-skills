@@ -26,14 +26,14 @@ about to do?). Default scope is `both`.
 
    Add `--json` if you need to act on the structured results programmatically.
 3. Present the ranked hits as **advisory** — "saved knowledge that may apply, verify
-   before relying." Resolve any `{parameter}` slots from live context; do not autopilot.
+   before relying." Resolve any `{parameter}` slots from live context and verify before acting.
 4. Honor the `[SUSPECT]` flag (past `last_verified + window`): re-verify before trusting it.
-5. If results are empty, say so plainly. **Never invent a memory.**
+5. If results are empty, say so plainly. **An empty result is a valid answer.**
 6. After you act on a memory, do verify-on-use: check its `success_signal`, then update
    counters / `last_verified` / `confidence` (see `references/recall-workflow.md`).
 
 ## Hard rules
 
 - Advisory, not authority — recalled knowledge is a hint; verify on use.
-- Empty means empty — no match → say so; never fabricate.
+- Empty means empty - no match → say so; an empty result is a valid answer.
 - Read-only — `/dw-recall` never writes; use `/dw-remember` to capture.
