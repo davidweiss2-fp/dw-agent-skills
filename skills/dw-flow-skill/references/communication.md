@@ -8,7 +8,7 @@ token use while preserving technical accuracy. Embedded from the `caveman` skill
 
 | Context | Mode |
 |---|---|
-| thinking / model-facing — internal reasoning, subagent prompts, narration the dev does not read | **ultra** |
+| thinking / model-facing - internal reasoning, subagent prompts, model-only narration | **ultra** |
 | talking to the dev — gate questions, progress narration, summaries | **full** |
 | outward artifacts — commit messages, PR title/body, `dw-team-communication` drafts, code comments | **off** (professional prose) |
 
@@ -29,9 +29,9 @@ names, commit keywords (feat/fix).
 
 | Level | Style |
 |---|---|
-| **lite** | no filler; keep articles and full sentences; professional but tight |
+| **lite** | trim filler; keep articles and full sentences; professional but tight |
 | **full** | drop articles, fragments OK, short synonyms (default for dev-facing) |
-| **ultra** | abbreviate prose words only; never abbreviate code symbols or API names (model-facing) |
+| **ultra** | abbreviate prose words only; keep code symbols and API names intact (model-facing) |
 | **wenyan** | classical-Chinese compression (lite/full/ultra) — only on request |
 
 ## Auto-clarity exceptions
@@ -39,4 +39,4 @@ names, commit keywords (feat/fix).
 Resume normal phrasing — regardless of mode — for security warnings, irreversible actions,
 multi-step sequences where fragment ambiguity creates risk, or when the dev asks for clarification.
 
-**Never announce the mode.** No "caveman mode on" meta-commentary.
+**Keep the mode invisible.** The reader sees only the output - the mode itself stays silent.

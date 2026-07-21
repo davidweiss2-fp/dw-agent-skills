@@ -2,6 +2,24 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.3.1
+
+### Changed
+
+- **dw-flow: the Plan gate now settles design on paper before code.** A plan is approvable only
+  once it carries a **traced, reproduced root cause** (bug tasks) - traced past the error to the
+  code that actually governs the behaviour - a **placement contract** (which unit owns the state,
+  who writes it, who reads it, its lifecycle; architecture decided at the gate, the specialist
+  advising the mechanism), and a clean **design-review** pass over the sketch.
+- **dw-flow: added a review method** (`references/review.md`) applied to both the design sketch
+  and the diff - design-first, single-responsibility, visibility-serves-design, injection
+  discipline, delete-the-speculative, iterate-until-clean - run **blind to what was approved** so
+  the reviewer judges correctness fresh rather than deferring to the sign-off.
+- **dw-flow: operating principles** - iterate cheap (one deploy after design sign-off), a
+  symptom-guard is a design smell, and label a review idea as a suggestion or a constraint.
+- **dw-flow: rules restated as positive target behaviour** throughout the skill and its
+  references, dropping "do-not" phrasing per the rule-authoring standard.
+
 ## 0.3.0
 
 ### Changed

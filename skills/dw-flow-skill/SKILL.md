@@ -9,7 +9,7 @@ description: >-
   on this", "ship this end to end", or `/dw-flow [task]`. Engages only on
   multi-phase build/ship tasks — not quick questions, edits, or lookups; on
   self-engage it asks first. When a specific dw-* skill is invoked directly,
-  that skill wins — this one does not wrap it.
+  that skill wins - the conductor yields to it.
 ---
 
 # dw-flow — adaptive workflow conductor
@@ -25,7 +25,7 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 - **Model-invoked** → engage only on clearly-substantial plan→ship tasks. The first thing
   gate 1 does is ask "engage the conductor for this? y/n" before any other work.
 - **Overlap** → when a `dw-*` skill is invoked directly (`/dw-grill`, `/dw-deslop`, …), that
-  skill wins; do not wrap it in the conductor.
+  skill wins; the conductor yields to it.
 
 ## How to talk
 
@@ -37,8 +37,8 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 
 Caveman = compressed: drop articles, filler, hedging, tool-call narration; keep code blocks,
 exact error strings, and function/API names intact; fragment pattern; revert to normal phrasing
-for security warnings, irreversible actions, or ambiguous multi-step sequences; never announce
-the mode. Full spec and the mode mapping: `references/communication.md`.
+for security warnings, irreversible actions, or ambiguous multi-step sequences; the mode itself
+stays invisible. Full spec and the mode mapping: `references/communication.md`.
 
 ## The four gates — the only stops
 
@@ -65,10 +65,10 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 
 1. **Ground** — recall `dw-knowledge`; gather codebase + ticket context (derive the ticket from
    the branch); recommend an approach. Bug tasks: establish root cause (below).
-2. 🚪 **Grill** — **invoke `dw-grilling`** (don't reimplement it); hand fully in and let its
+2. 🚪 **Grill** - **invoke `dw-grilling`** (delegate to it wholesale); hand fully in and let its
    inline text interview run uninterrupted to completion.
 3. **Simplify the plan** — `/simplify` the drafted plan before it goes to the gate; cut steps and
-   scope the change doesn't need.
+   scope beyond what the change needs.
 4. 🚪 **Plan** - resolved-design summary → approve; it must carry the **traced cause** (bug
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
@@ -86,47 +86,48 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 10. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
 11. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
     **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
-    the default, add `--ready` only when shipping ready; worktree-first — never hand-roll git).
+    the default, add `--ready` only when shipping ready; worktree-first - route all git through dw-git-ops).
 12. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
 13. **Post-merge verify** *(offered)* — once the PR merges, delegate to
     `dw-post-merge-verification`; it reads the plan-time success metric from the worktree context
     and rules the fix confirmed / no-effect / inconclusive.
 14. **Capture** *(mandatory)* — `dw-knowledge`; especially the **how-to-git / commands /
     verify-ship flow** you worked out this task (these recur every task and stop the next agent
-    re-deriving or asking). Auto-captured through the write gate, no confirm; never skipped.
+    re-deriving or asking). Auto-captured through the write gate, no confirm; runs every task.
 
 ## Skill discovery (every step)
 
 Survey the skills available in the current scope and pick only the ones that are a genuinely good
 call for the step — judgment, not mere relevance. Use them and **narrate what you use** ("running
 `dw-deslop` on the diff"); no confirmation. Flag a **notable skip** in one line ("skipping
-`verify` — nothing runnable here"); never roll-call the whole survey. No hardcoded skill list —
-search live so it stays current as the skill set changes.
+`verify` - nothing runnable here"); keep it to those. Discover skills live so the set stays
+current as the skill set changes.
 
 ## Root cause (bug tasks)
 
-No edits before an approved, evidence-backed cause. Search our APM (Coralogix) for the real
-error / stack trace; if none is there, **ask the dev for the specific trace** - never guess a
-location. Then go past the error to the **mechanism**: trace the path from the real input to the
-*exact* code that governs the behaviour - the true source of truth, not the first plausible gate
-- and reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies
-on staging. Confirm this traced, reproduced cause at the Plan gate before any code.
+Ground every cause in evidence before editing. Search our APM (Coralogix) for the real error /
+stack trace; if none is there, **ask the dev for the specific trace** so the cause rests on a real
+signal. Then go past the error to the **mechanism**: trace the path from the real input to the
+*exact* code that governs the behaviour - the true source of truth, not the first plausible gate -
+and reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies on
+staging. Confirm this traced, reproduced cause at the Plan gate before any code.
 
 ## Placement contract (before code)
 
 Approving the plan means approving a one-paragraph placement contract: **which unit owns the
-state, who writes it, who reads it, and its lifecycle.** Architecture is gated here with the dev,
-not deferred to the implement-phase specialist - the specialist advises the mechanism (signal vs
-store, exact match, method names), the gate decides the concern boundaries: one unit owns one
-concern (SRP), no presentation unit coupled to a heavy service just to read state, no state the
-design does not need. Editing this paragraph is free; reverting an implemented design is not.
+state, who writes it, who reads it, and its lifecycle.** Architecture is gated here with the dev:
+the specialist advises the mechanism (signal vs store, exact match, method names), and the gate
+decides the concern boundaries - one unit owns one
+concern (SRP), a presentation unit reads state from a light dependency-free holder, and state
+stays limited to what the design needs. Editing this paragraph is free; reverting an implemented
+design is costly.
 What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-specialist`.
 
 ## Product / UX calls
 
 When a clear, non-trivial product or UI/UX decision is missing, surface it via
-`dw-team-communication` (drafts only, never posts) at three points: **Ground**, **after the plan
-during Implement**, and **Review**. Skip the trivial or obvious calls.
+`dw-team-communication` (drafts only) at three points: **Ground**, **after the plan during
+Implement**, and **Review**. Skip the trivial or obvious calls.
 
 ## Operating principles
 
@@ -136,20 +137,20 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Guard the code: push back on hacks and recommend the better approach.
 - Gather context and recommend an approach before asking.
 - Iterate cheap - settle the design on paper (traced cause, placement contract, design review)
-  before code, and hold staging deploys until the design is approved and reviewed: one deploy at
-  the end, never per draft.
-- A fix that guards a symptom is a design smell - question the design instead of bolting on the
-  guard; and label a review idea as a *suggestion* or a *constraint*, since a suggestion that
-  patches a bad design is a reason to redesign, not a spec to build.
+  before code, and hold staging deploys until the design is approved and reviewed: one deploy,
+  after sign-off.
+- A fix that guards a symptom is a design smell - treat it as a signal to redesign, and label a
+  review idea as a *suggestion* or a *constraint* so a symptom-patch suggestion becomes a redesign
+  trigger.
 - Only touch files the task names; confirm before expanding scope; preserve TODO/context comments.
-- No product UI/UX change without approval.
-- Auto-fix lint/test failures that do not change behavior.
+- Get approval before any product UI/UX change.
+- Auto-fix behavior-preserving lint/test failures.
 - Keep PRs small and reviewable; slice by layer (~300 LOC, split beyond ~500).
 - Branch `{ticket}-{context}`; in the plan phase, derive the ticket from the branch.
 - Worktree per ticket: persist to `~/Documents/dw-agent-store/run-notes/<project-slug>/` and read it first.
 - Skill overlap → the `dw-` skill wins.
-- Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`); never native per-project memory.
-- Comments describe what/how, never why.
+- Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`) - the single persistence path.
+- Comments describe what/how; the why lives in the PR or commit.
 
 ## State / resume
 
@@ -161,16 +162,15 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
 - At the Grill gate, **invoke `dw-grilling`** and hand fully into it — inline chat text, one
-  question at a time, uninterrupted. Never pose grill questions through a picker and never inject
-  flow narration, data, or plans between them (`dw-grilling` holds context to the end).
-- Never edit on a guessed cause - prove it (APM or ask the dev) first, tracing to the true
-  source of truth, not the first plausible gate.
-- Review runs **blind to approval** - hand the reviewer the artifact and the method only, never
-  the approved plan or a "treat X as acceptable"; wrong is wrong regardless of sign-off
-  (`references/review.md`).
-- Artifacts (commit / PR / team-communication drafts) are never caveman.
-- Delegate to the skills; never reimplement them.
-- Never silently change scope — restate the intent and confirm.
-- Never claim a phase done without artifact proof - a runbook result envelope (JSON), a PR URL,
-  a file path, or pasted command output. A delegated/background skill returning empty output is
-  a failure to surface, not a pass.
+  question at a time, uninterrupted; hold flow narration, data, and plans until the grill
+  finishes (`dw-grilling` holds context to the end).
+- Edit only on a proven cause - established from a real trace (APM or the dev) and traced to the
+  true source of truth, not the first plausible gate.
+- Review runs **blind to approval** - the reviewer's whole input is the artifact and the method,
+  so it judges correctness fresh; wrong is wrong regardless of sign-off (`references/review.md`).
+- Artifacts (commit / PR / team-communication drafts) are always professional prose.
+- Delegate to the skills; lean on each as-is.
+- Restate the intent and confirm before changing scope.
+- Claim a phase done only with artifact proof - a runbook result envelope (JSON), a PR URL,
+  a file path, or pasted command output. Treat a delegated/background skill's empty output as a
+  failure to surface.
