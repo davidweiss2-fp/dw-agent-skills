@@ -7,8 +7,8 @@ description: >-
   checklist for what it cannot reach, then rules the fix confirmed, no-effect,
   or inconclusive against the metric fixed at plan time. Use after a merge -
   "verify the fix landed", "did the fix actually work in prod", "post-merge
-  check", "check prod impact", or `/dw-post-merge [PR URL]`. Never touches
-  production beyond read-only observability queries.
+  check", "check prod impact", or `/dw-post-merge [PR URL]`. Touches
+  production only through read-only observability queries.
 ---
 
 # dw-post-merge - prove the fix worked in prod
@@ -24,7 +24,7 @@ the change, so the verdict can't be rationalized to whatever the data happens to
 
 Runs after a PR merges. If invoked inside a `dw-flow` run, it is the offered post-merge step.
 
-## The success metric (read first, never retrofit)
+## The success metric (read first, fix before observing)
 
 Read the metric from the flow's plan-time record: `~/Documents/dw-agent-store/run-notes/<project-slug>/`
 (dw-flow's Plan gate writes it there). It states the metric or query, the expected direction
@@ -32,7 +32,8 @@ or threshold, and the observation window.
 
 If no metric is recorded, **define it with the dev before any observation** - what number
 moves, which way, over what window. *Done when:* the metric is stated in the session before a
-single result is fetched. Never read the data first and then name the metric to fit it.
+single result is fetched. Name the metric first, then read the data - judged against the metric
+rather than fitted to it.
 
 ## Phase A - local verification (agent runs)
 
@@ -76,16 +77,17 @@ Compare the evidence (agent-fetched + dev-pasted) to the metric. Rule:
 - **inconclusive** - the window is too short, the signal too noisy, or evidence is missing.
   Name what observation would settle it.
 
-Capture the verdict via `dw-knowledge` (method and outcome, never customer data).
+Capture the verdict via `dw-knowledge` (method and outcome only, kept free of customer data).
 
 *Done when:* a verdict with quoted evidence is posted, and on `no-effect` the hand-back to
 Ground is stated.
 
 ## Hard rules
 
-- Prod access is **read-only APM / analytics tools only** - never browser, terminal, ssh, or
-  db routes, never a mutation.
-- No verdict without evidence - agent-fetched or dev-pasted; never infer success from the merge.
-- The metric is defined before evaluation, never retrofitted to the data observed.
-- Never echo customer PII pulled from a query - aggregate or summarize (counts, rates), and
-  say so.
+- Prod access is **read-only APM / analytics tools only** - every prod touch is a read through
+  those tools; browser, terminal, ssh, db routes, and mutations stay out of scope.
+- Every verdict rests on evidence - agent-fetched or dev-pasted - and reads success from the
+  signal, not the merge.
+- The metric is defined before evaluation and held fixed against whatever the data shows.
+- Aggregate or summarize query results (counts, rates) and say so, keeping customer PII out of
+  the output.
