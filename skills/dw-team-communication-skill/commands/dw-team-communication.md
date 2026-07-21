@@ -1,6 +1,6 @@
 ---
 name: dw-team-communication
-description: Turn a change, decision, or status into copy-ready Slack/JIRA/channel drafts, tone-matched to the audience — drafts only, never posts.
+description: Turn a change, decision, or status into copy-ready Slack/JIRA/channel drafts, tone-matched to the audience - drafts only.
 ---
 
 # /dw-team-communication

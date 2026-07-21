@@ -8,7 +8,7 @@ description: >-
   PM", "status update for X", "get sign-off on", "loop in the eng channel", or invokes
   /dw-team-communication [audience] [intent] [topic]. Same engine every time — context, intent,
   CTA, audience-matched tone — outputs copy-ready Slack-DM / JIRA-comment / channel-post drafts.
-  Drafts only, never posts.
+  Drafts only.
 ---
 
 # Team Communication
@@ -53,7 +53,7 @@ from product" → approval-ask) and state the inferred intent before drafting.
 8. **Required review pass** — run the pass below on the rendered drafts and fold in every finding
    before anything reaches the user. See "Required review pass".
 9. Output drafts in chat, copy-ready, each fenced, with click-to-open link(s) + inline images and
-   their file paths — plus the ask-answerer's note when one ran. Stop — do not post.
+   their file paths - plus the ask-answerer's note when one ran. Stop - the human posts.
 
 ## What makes a good message
 
@@ -67,7 +67,7 @@ A good message gets read, understood, and acted on fast. The marks of one:
   it's coming up now — enough to remove ambiguity, nothing that makes them work to understand it.
 - **Make the stakes clear.** Why it matters / what's at stake / any urgency or deadline, so they
   can prioritize. Omit if there's none.
-- **Recommend, don't just report.** When a decision is needed, state your lean and the trade-off
+- **Recommend, not just report.** When a decision is needed, state your lean and the trade-off
   so they can confirm instead of starting from scratch. Optionally a default — what happens if you
   don't hear back. When it's a status or announcement, state impact, not just activity.
 - **Let them see it.** For UI topics, link the preview/staging view.
@@ -92,7 +92,7 @@ engineers (or vice versa) is the most common failure mode.
 ## How to write it
 
 Write it the way you'd type it yourself: **simple, terse English, like a normal day-to-day
-message.** No section labels or headers — never "Context:", "Scenario:", `h3.`, etc. No corporate
+message.** No section labels or headers - no "Context:", "Scenario:", `h3.`, etc. No corporate
 fluff. Short — a sentence or two up to a short paragraph. Choose whatever natural shape fits the
 message and the channel. Always land **one clear CTA** — a decision, an ack, or "no action
 needed" — stated plainly. Cover only what's relevant; skip points that don't apply. Match the
@@ -101,7 +101,7 @@ asker's own voice.
 ## Required review pass
 
 A draft is going in front of a teammate, a PM, or a channel — so it gets checked before you show
-it, every time. Runs on the rendered drafts, in this order; a draft doesn't reach the user until
+it, every time. Runs on the rendered drafts, in this order; a draft reaches the user only after
 it has been through deslop and both mandatory reviews.
 
 1. **Deslop — inline, in the main agent.** Invoke `dw-deslop` on the draft prose and lean fully
@@ -127,8 +127,8 @@ it has been through deslop and both mandatory reviews.
    hand the **correctness subagent's output** to this subagent and have it try to answer that
    question from the same ground truth. Surface its answer to the dev next to the drafts — e.g.
    "you're asking {question}; from the code the answer looks like {answer} — you may not need to
-   ask, or you can fold it in as context." Never rewrite the ask on your own and never post; the
-   dev decides whether the question still needs sending.
+   ask, or you can fold it in as context." The rewrite and the send both stay with the dev, who
+   decides whether the question still needs sending.
 
 **Done when:** deslop is applied, both mandatory subagents have returned and their findings are
 folded in, and — if the draft contained an ask — the ask-answerer has run and its note is attached.
@@ -142,7 +142,7 @@ Same message, rendered per channel — all terse, natural, **no labels/headers**
   links as bare URLs. End with a low-friction nudge matched to the CTA ("wdyt?", "lmk", "ack when
   seen", no nudge needed for pure FYI).
 - **JIRA comment** — a touch more composed but still terse plain prose. **No `h3.` headers, no
-  labels.** You may `*bold*` the key point. Include the staging link; don't restate the ticket key.
+  labels.** You may `*bold*` the key point. Include the staging link; skip restating the ticket key.
 - **Team channel post** — written for a wider audience reading once, possibly out of thread.
   Slightly more self-contained than a DM (no assumed shared context), still terse. Lead with the
   one-line takeaway; mrkdwn for emphasis is fine.
@@ -163,8 +163,8 @@ whose server isn't connected.
 3. **HR directory (e.g. HiBob)** — `hibob_get_employee_fields` (discover field paths) then
    `hibob_people_search` (filter by email, or empty filters + match the name yourself). Then
    re-run the chat search with the confirmed email.
-4. **Unresolved** — do not invent a person or channel. Frame the message with no name and tell
-   the user: "Couldn't auto-resolve the recipient — pick it when you paste."
+4. **Unresolved** - frame the message with no name rather than inventing a person or channel, and
+   tell the user: "Couldn't auto-resolve the recipient - pick it when you paste."
 
 ## Image flow (UI/UX topics only, after offering)
 
@@ -210,14 +210,14 @@ that don't belong in front of that audience.
 
 ## Hard rules
 
-- **Never auto-post** — drafts + click-to-open links only. The human sends.
-- **Never output an unreviewed draft** — every draft goes through the required review pass (deslop
+- **Drafts only** - hand off the draft plus click-to-open links; the human sends.
+- **Output only reviewed drafts** - every draft goes through the required review pass (deslop
   → cold-reader + correctness subagents → conditional ask-answerer) first.
-- **Never invent a person or channel** — if resolution fails, frame with no name and say so.
+- **Name only a resolved recipient** - if resolution fails, frame with no name and say so.
 - **Match altitude to the audience** — strip internal identifiers (PR numbers, branch names,
   file/class/component/method names, code, flag/config keys, internal acronyms) for non-technical
   audiences; technical detail is fine and often expected for engineering peers.
-- **Write in natural prose — never labeled sections/headers.** Lead with the point, keep it terse
+- **Write in natural prose, not labeled sections/headers.** Lead with the point, keep it terse
   and simple in the asker's own voice, give just enough context, and land one explicit CTA. Cover
   only what's relevant; omit empty points.
 - **Default channel is `both`** (Slack DM + JIRA comment) when no channel is given.
