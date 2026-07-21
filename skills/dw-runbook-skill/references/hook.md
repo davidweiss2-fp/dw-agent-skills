@@ -6,7 +6,7 @@
 
 `scripts/dw-runbook-hint.js` nudges the agent toward a saved runbook when it's about to hand-run a
 command that a runbook's `triggers` cover. It is **advisory**: it always exits 0 and only adds
-context — it never blocks a command. It fails open on any parse/scan error and only reads the
+context - it always lets the command through. It fails open on any parse/scan error and only reads the
 command string (no shelling out).
 
 For each runbook whose `manifest.triggers` (array of regex strings) matches the proposed Bash
@@ -14,10 +14,10 @@ command, it emits a suggestion to run `node scripts/run.js <name> --scope <scope
 
 Verify the matching logic any time: `node scripts/dw-runbook-hint.js --self-test`.
 
-## Wiring — APPEND, do not clobber
+## Wiring - APPEND alongside existing hooks
 
 `hooks.PreToolUse` is an array shared with any other PreToolUse hooks you run.
-Add this as **one more element**; don't overwrite. Prefer the **`update-config`** skill, which
+Add this as **one more element**, keeping the existing ones. Prefer the **`update-config`** skill, which
 merges additively.
 
 Replace `<ABS_PATH>` with the absolute path to this skill's `scripts/` dir.

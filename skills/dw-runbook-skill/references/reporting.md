@@ -1,7 +1,7 @@
 # The result envelope & report parsing
 
 A run prints one compact JSON envelope. Full tool output goes to a **log file** referenced by
-`log` — never inlined. This is the token lever: the agent reads a line of signal, and only opens
+`log` rather than inlined. This is the token lever: the agent reads a line of signal, and only opens
 the log when it needs detail.
 
 ## Envelope
@@ -41,13 +41,13 @@ cached, log}]`.
 |---|---|---|
 | `summary` | regex; first match's group 1 (or whole match) becomes `summary` | `"ok"` on pass, else first finding or `exit <code>` |
 | `summaryFlags` | RegExp flags for `summary` | `""` |
-| `findings` | regex; matching output lines become `findings` | word-bounded `/(?:\berror\b\|\bfail(?:ed\|ure\|s)?\b\|✗\|✖\|\bFAIL\b)/i` (so `terror`/`failsafe` don't match) |
+| `findings` | regex; matching output lines become `findings` | word-bounded `/(?:\berror\b\|\bfail(?:ed\|ure\|s)?\b\|✗\|✖\|\bFAIL\b)/i` (so `terror`/`failsafe` stay unmatched) |
 | `findingsFlags` | RegExp flags for `findings` | `"i"` |
 | `findingsMax` | cap on inlined findings | `10` |
 
 Empty-string `summary`/`findings` mean "use the default" (an empty regex would otherwise match
 every line). A malformed regex falls back to the default rather than throwing. Regexes come from
-your own manifest, not untrusted input; the parser only matches strings, never shells out.
+your own manifest, not untrusted input; the parser only matches strings rather than shelling out.
 
 Example — a PHPUnit-style command:
 
