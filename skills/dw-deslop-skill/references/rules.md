@@ -1,7 +1,7 @@
 # Deterministic deslop rules
 
-The rules pass (`scripts/deslop-rules.js`) applies find/replace rules to the lines this
-branch introduced - never to unchanged code. It is the mechanical half of deslop: the same
+The rules pass (`scripts/deslop-rules.js`) applies find/replace rules only to the lines this
+branch introduced, leaving unchanged code untouched. It is the mechanical half of deslop: the same
 edit every run, no judgment. The judgment half stays in the skill body.
 
 ## Rule schema

@@ -21,8 +21,8 @@ scaffolding — and in prose, filler openers, puffery, reflexive triples, and
 emoji-bulleted everything.
 
 The cardinal rule: **deslop is behavior-preserving and scoped to the diff.** You
-remove slop the branch introduced; you never change what the code does, never
-touch the actual feature or fix, and never reformat lines the diff didn't add.
+remove slop the branch introduced; you keep what the code does unchanged, leave
+the actual feature or fix alone, and reformat only the lines the diff added.
 The bar is the surrounding human code, not a generic ideal.
 
 ## Invocation
@@ -41,12 +41,12 @@ If nothing concrete is in scope, ask in one line what to deslop.
 1. **Scope the diff.** Find the base branch, then look only at lines this branch
    introduced — including uncommitted work, so it catches slop before the commit:
    `git diff --merge-base <base>` (committed + working tree), `git diff --staged`
-   for `--staged`, or the named paths. Never touch code outside that set.
+   for `--staged`, or the named paths. Touch only code inside that set.
 2. **Run the deterministic rules pass first.** Before any judgment, run
    `node scripts/deslop-rules.js` on the same scope — it applies the house's
    find/replace rules (e.g. em/en-dash → hyphen) only to introduced lines. Completion
    criterion: its envelope is posted. Details + custom rules: `references/rules.md`.
-3. **Classify, don't reflex-delete.** For each changed hunk, ask the one question
+3. **Classify before deleting.** For each changed hunk, ask the one question
    that separates slop from substance: *does this earn its keep?* Run it against
    the taxonomy — compact below, full catalog in `references/code-slop.md` and
    `references/prose-slop.md`. Code slop and prose/doc slop both count.
@@ -60,7 +60,7 @@ If nothing concrete is in scope, ask in one line what to deslop.
    wired up and it's cheap, run it. Confirm you changed only slop, behavior intact.
 7. **Summarize tersely** — what you stripped, grouped by kind, plus anything you
    deliberately left for a human. 1-5 sentences, no preamble. (The summary itself
-   must not be slop.)
+   must be slop-free.)
 
 ## Code slop (compact — full catalog in `references/code-slop.md`)
 
@@ -106,12 +106,12 @@ convicts.
   fact ("robust" → "99.9% uptime, retries on 5xx").
 - **Hedging / opinion vacuum** — "both approaches have their merits". Take a
   position and name the condition that decides it.
-- **Reflexive triples & "not just X, it's Y"** — keep one if one is true; don't
-  pad to three or flip for emphasis by reflex.
+- **Reflexive triples & "not just X, it's Y"** - keep one if one is true; add
+  more only as each earns it, and flip for emphasis only on a real contrast.
 - **Em-dash overuse, bold-everything, emoji bullets, Title Case headings, curly
   quotes** in plain-text/Markdown — normalize to the house style.
 
-## KEEP discipline (false positives — do not strip)
+## KEEP discipline (false positives - keep)
 
 The whole skill is separating **boundary code (keep)** from **trusted interior
 (strip)**. Keep, every time:
@@ -124,8 +124,8 @@ The whole skill is separating **boundary code (keep)** from **trusted interior
 - **Calibrated uncertainty** where the evidence really is mixed — hedge honestly,
   but name what would decide it.
 - A **single intentional** triple or bold term. Varied phrasing reads more human,
-  not less. (Punctuation the rules engine normalizes - e.g. em/en-dash - is never a
-  keep; a house rule always wins over generic keep-guidance.)
+  not less. (Punctuation the rules engine normalizes - e.g. em/en-dash - is
+  normalized regardless; a house rule always wins over generic keep-guidance.)
 - **`TODO(ticket)` / `FIXME` markers** - actionable work items, not why-slop;
   dropping one silently loses the planned follow-up.
 - **Ported author-context / config-rationale comments** when code is moved or
@@ -158,14 +158,14 @@ run. Once the rules pass recurs across repos, promote it to a `deslop-rules` run
   isn't deslop; leave it.
 - **Rules pass before judgment** — run `deslop-rules.js` first; it is scoped to introduced
   lines and a house rule wins over generic keep-guidance.
-- **Scope is the diff** — only lines this branch introduced; never reformat or
-  "improve" untouched code.
+- **Scope is the diff** - only lines this branch introduced; reformat or
+  "improve" only those, leaving untouched code as-is.
 - **Codebase-first** — the bar is the surrounding file's conventions.
 - **Keep at the boundary** — strip defensive code only in the trusted interior.
 - **Prose by clusters** — act on density, not a single flagged word.
 - **Comments: what/how, never why.**
-- **Flag, don't guess** — leave genuinely ambiguous calls and name them in the summary.
-- **Terse output** — no filler; the skill must not emit slop.
+- **Flag when unsure** - leave genuinely ambiguous calls and name them in the summary.
+- **Terse output** - no filler; the skill's own output stays slop-free.
 - **Re-check after** — deslop edits the diff, so run `fmt` + the repo's `preflight` runbook
   (`dw-runbook`) before shipping; a stray edit shouldn't reach the PR unchecked.
 

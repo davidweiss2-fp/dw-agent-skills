@@ -25,7 +25,7 @@ attention on what tooling can't catch.
 
 ## Defensive try/catch in trusted paths
 - **Cue:** every function wrapped in try/catch that just logs-and-rethrows or swallows; catch blocks that only `console.error(e)` then return null; try/catch around code that cannot throw. ESLint `no-useless-catch` flags rethrow-only catches.
-- **Fix:** validate and handle errors at **system boundaries** only (request handlers, I/O edges, third-party calls). Let exceptions propagate through the trusted interior to a single handler. Never swallow — a catch that hides an error turns a loud failure into silent corruption.
+- **Fix:** validate and handle errors at **system boundaries** only (request handlers, I/O edges, third-party calls). Let exceptions propagate through the trusted interior to a single handler. Surface every error - a catch that hides an error turns a loud failure into silent corruption.
 - **Keep:** try/catch around `JSON.parse(untrustedInput)`, network/fs calls, and other genuinely fallible I/O.
 - `try { return user.name } catch(e){ console.error(e); return null }` → `return user.name`.
 
@@ -55,13 +55,13 @@ attention on what tooling can't catch.
 
 ## Dead code / unused vars / unused imports
 - **Cue:** declared-but-unused variables and parameters, imported-but-unused modules, unreachable branches, functions defined and never called, commented-out "just in case" blocks. ESLint `no-unused-vars`, `no-unreachable`.
-- **Fix:** delete it. Version control is the "just in case". Run the linter before raising the PR so this never reaches a human.
+- **Fix:** delete it. Version control is the "just in case". Run the linter before raising the PR so it's caught before a human sees it.
 - **Keep:** intentionally-unused params required by an interface signature (prefix `_` per the repo's convention).
 - `import { useMemo } from 'react'` never used → remove.
 
 ## Leftover console.log / print / debug statements
 - **Cue:** `console.log`, `print()`, `fmt.Println`, `dbg!`, `debugger;`, ad-hoc `print("here")` left after the model debugged its own code; `print` where the project has a logger. ESLint `no-console`, `no-debugger`.
-- **Fix:** remove debug output. Where logging is genuinely wanted, route through the project logger at the right level — never log secrets/PII.
+- **Fix:** remove debug output. Where logging is genuinely wanted, route through the project logger at the right level, keeping secrets and PII out of the logs.
 - **Keep:** intentional logging that uses the project's logger and level.
 - `console.log('payload', payload)` → delete, or `logger.debug({ payload })` if intentional.
 
@@ -80,7 +80,7 @@ attention on what tooling can't catch.
 ## Copy-paste proliferation (near-identical blocks)
 - **Cue:** several blocks 90% identical with one or two swapped literals — five API handlers differing only by endpoint string, switch cases varying by a single constant. The variation is data, not logic.
 - **Fix:** extract the shared structure into one parameterized function, a lookup table, or config.
-- **Keep:** blocks that look similar but differ in logic — don't over-correct into a needless abstraction.
+- **Keep:** blocks that look similar but differ in logic - keep them separate rather than forcing a needless abstraction.
 - 5 handlers identical except the URL → one handler taking the URL, or a route table.
 
 ## Inconsistent style vs. the surrounding file

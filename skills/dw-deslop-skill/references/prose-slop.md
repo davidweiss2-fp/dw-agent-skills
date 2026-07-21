@@ -9,7 +9,7 @@ Two rules govern the whole list:
   convicts is density and co-occurrence — Title-Case headings + bold-everything +
   inline-header lists + rule-of-three in the same passage. Set a mental threshold
   ("more than ~3 hedges in one sentence", "a cluster of puffery in one paragraph"),
-  don't ban words outright.
+  flagging by density rather than banning words outright.
 - **The deepest fixes add substance, not just swaps.** The "opinion vacuum" and
   uniform rhythm are tells word-substitution can't fix — add specifics (named
   sources, real numbers, dates), take positions, vary sentence length.
@@ -22,7 +22,7 @@ Two rules govern the whole list:
 ## Chat pleasantries / prompt-acknowledgement
 - **Cue:** "Certainly!", "Great question!", "Sure, I'd be happy to help.", "I hope this helps!" — the chat interface leaking into standalone prose.
 - **Fix:** strip entirely; docs have no interlocutor to thank.
-- **Keep:** a brief acknowledgement only in genuine live conversation — never in committed docs, READMEs, or commit messages.
+- **Keep:** a brief acknowledgement, but only in genuine live conversation; in committed docs, READMEs, and commit messages, strip it.
 
 ## Restating the prompt / self-referential framing
 - **Cue:** "In this article, we will explore…", "This guide aims to…", "This section will discuss…", "As requested, here is…".
@@ -63,7 +63,7 @@ Two rules govern the whole list:
 
 ## Rule of three / parallel-triple overuse
 - **Cue:** reflexive triples manufacturing completeness — "fast, reliable, and scalable", "creativity, innovation, and impact" — appearing as the default rhythm across sentences.
-- **Fix:** keep one item if one is true, two if two are; don't pad to three. Cut adjectives that don't each carry distinct weight.
+- **Fix:** keep one item if one is true, two if two are, three only if three are. Keep only adjectives that each carry distinct weight.
 - **Keep:** one intentional, earned triple for emphasis at a real high point.
 - "A fast, flexible, and powerful framework." → "A framework that renders in <16ms."
 
@@ -76,7 +76,7 @@ Two rules govern the whole list:
 ## Em-dash overuse
 - **Cue:** multiple em-dashes in one paragraph splicing clauses where a comma, period, or parenthesis would do; co-occurs with the triple and the negative-parallelism tics.
 - **Fix:** keep at most one per paragraph; convert the rest, and recast some as separate sentences.
-- **Keep:** an em-dash marking a genuine sharp aside — varied punctuation reads more human, so don't purge them all.
+- **Keep:** an em-dash marking a genuine sharp aside - varied punctuation reads more human, so keep some.
 - "Caching helps — a lot — and it's easy — just add a header." → "Caching helps a lot, and it's easy: just add a header."
 
 ## Redundant transition stacking
