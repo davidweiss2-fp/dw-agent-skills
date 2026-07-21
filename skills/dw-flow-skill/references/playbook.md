@@ -15,8 +15,8 @@ context; if resuming, read `~/Documents/dw-agent-store/run-notes/<project-slug>/
 approach rather than presenting a blank slate.
 
 For **bug tasks**: search the APM (Coralogix) for the real error / stack trace before forming any
-hypothesis; if none is there, ask the dev for the specific trace, never reasoning from a guessed
-location. Then trace past the error to the mechanism - the path from the real input to the exact
+hypothesis; if none is there, ask the dev for the specific trace, so the cause rests on a real
+signal. Then trace past the error to the mechanism - the path from the real input to the exact
 code that governs the behaviour (the true source of truth, not the first plausible gate) - and
 reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies on
 staging.
@@ -28,16 +28,16 @@ Surface any clear, non-trivial product/UX call here via `dw-team-communication` 
 
 ## 2. 🚪 Grill
 
-**Invoke `dw-grilling`** and hand fully into it — don't reimplement its loop in the conductor.
-Its interview runs inline as plain chat text: one question at a time, each led by a recommended
-default, never through a picker/question tool. Let it run uninterrupted — keep flow's own
-narration, data, and plans out until the grill is done (`dw-grilling` holds context to the end).
-*Done when:* the resolved-design summary has no material open decision.
+**Invoke `dw-grilling`** and hand fully into it - delegate its loop wholesale. Its interview runs
+inline as plain chat text: one question at a time, each led by a recommended default. Let it run
+uninterrupted - hold flow's own narration, data, and plans until the grill is done (`dw-grilling`
+holds context to the end). *Done when:* every material decision in the resolved-design summary is
+settled.
 
 ## 3. Simplify the plan
 
-Run `/simplify` on the drafted plan before it reaches the gate — cut steps, files, and scope the
-change does not need; a smaller plan is a smaller diff. *Done when:* the simplify pass is applied
+Run `/simplify` on the drafted plan before it reaches the gate - cut steps, files, and scope
+beyond what the change needs; a smaller plan is a smaller diff. *Done when:* the simplify pass is applied
 and the trimmed plan is what goes to the gate.
 
 ## 4. 🚪 Plan
@@ -46,11 +46,11 @@ Present the resolved-design summary as the plan and get approval before any code
 approvable only when it carries three things, each cheap to fix on paper and ruinous in code: the
 **traced, reproduced root cause** (bug tasks); a **placement contract** - one paragraph naming
 which unit owns the state, who writes it, who reads it, and its lifecycle, with the SRP / coupling
-/ state boundaries gated here with the dev, not deferred (SKILL.md "Placement contract"); and a
+/ state boundaries decided here with the dev (SKILL.md "Placement contract"); and a
 clean **design-review** pass run over that sketch by the review method, blind to the approval
 (`references/review.md`). **Lock the success metric** - the metric or query that will show the
 change worked in prod, its expected direction/threshold, and the observation window - so
-post-merge verification cannot retrofit it later. Suggest a knowledge capture of any durable
+post-merge verification reads a metric fixed here at plan time. Suggest a knowledge capture of any durable
 decision. Write the approved plan, the placement contract, **and the success metric** to the
 worktree context dir. *Done when:* the dev approves and the plan, placement contract, and metric
 are all written to the worktree context dir.
@@ -113,7 +113,7 @@ when:* the dev decides.
 
 ## 13. Post-merge verify *(offered)*
 
-Once the PR merges, offer `dw-post-merge-verification` — delegate to it, never wrap it. It reads
+Once the PR merges, offer `dw-post-merge-verification` - delegate to it wholesale. It reads
 the plan-time success metric from the worktree context, verifies what it can locally, queries the
 real signal through read-only observability tools, and rules the fix confirmed / no-effect /
 inconclusive. *Done when:* the verdict is delivered or the dev declines.
@@ -122,11 +122,11 @@ inconclusive. *Done when:* the verdict is delivered or the dev declines.
 
 Capture the generalizable method via `dw-knowledge` — especially the how-to-git / commands /
 verify-ship flow worked out this task, which recurs every task and otherwise gets re-derived.
-Auto-captured through the write gate, no confirm; never skipped. *Done when:* the capture is
+Auto-captured through the write gate, no confirm; runs every task. *Done when:* the capture is
 written (file path shown) or the write gate's refusal reason is stated.
 
 ## Skill discovery, every step
 
 At each phase, survey the in-scope skills and use the ones that are a genuinely good call —
-narrate what you use, flag a notable skip in one line, never roll-call the survey, never hardcode
-a list. The skill you invoke is itself the evidence the survey happened.
+narrate what you use, flag a notable skip in one line, keep it to those, and discover skills live.
+The skill you invoke is itself the evidence the survey happened.
