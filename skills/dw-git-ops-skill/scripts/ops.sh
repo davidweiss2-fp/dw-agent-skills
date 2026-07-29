@@ -28,7 +28,9 @@
 # Global flags: --root  operate on the main checkout (mutating ops only warn otherwise);
 #      --expect-branch <b>  die before mutating unless the current branch is <b>.
 # Env: OPS_DRY=1 echo mutating git/gh instead of running; OPS_NO_COAUTHOR=1 drop the
-#      Co-Authored-By trailer; OPS_REMOTE=<name> push remote (default origin);
+#      Co-Authored-By trailer; OPS_COAUTHOR="Name <email>" set who it credits
+#      (default "Claude <noreply@anthropic.com>", version-less so it cannot go stale);
+#      OPS_REMOTE=<name> push remote (default origin);
 #      OPS_EXPECT_BRANCH=<b> same as --expect-branch.
 # commit/push/cap/pr print a repo/branch/worktree context block (stderr) before mutating.
 set -uo pipefail
@@ -36,7 +38,9 @@ set -uo pipefail
 PROTECTED_RE='^(master|main)$'
 REMOTE="${OPS_REMOTE:-origin}"
 WT_SUBDIR=".claude/worktrees"
-COAUTHOR_TRAILER="Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+# Co-author trailer. The default carries no model version, so it cannot record a
+# stale model; name one with OPS_COAUTHOR="Claude <Model> <noreply@anthropic.com>".
+COAUTHOR_TRAILER="Co-Authored-By: ${OPS_COAUTHOR:-Claude <noreply@anthropic.com>}"
 ROOT_OK=0
 EXPECT_BRANCH="${OPS_EXPECT_BRANCH:-}"
 CTX_SHOWN=0
