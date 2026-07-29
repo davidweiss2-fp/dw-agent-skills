@@ -61,7 +61,9 @@ wrong checkout. `--expect-branch <b>` (or env `OPS_EXPECT_BRANCH=<b>`) turns it 
 the command dies with `context mismatch` when the current branch differs.
 
 Global `--root` opts into the primary checkout. Env: `OPS_DRY=1` (echo instead of run),
-`OPS_NO_COAUTHOR=1`, `OPS_REMOTE=<name>`.
+`OPS_NO_COAUTHOR=1`, `OPS_COAUTHOR="Name <email>"` (who the trailer credits; defaults to a
+version-less `Claude <noreply@anthropic.com>`, so pass it when you must name a model),
+`OPS_REMOTE=<name>`.
 
 ## Destructive git — judgment, not a script
 
