@@ -3,7 +3,8 @@
 // Path helpers for the knowledge-memory store. Dependency-free; node: builtins only.
 // Storage layout (hybrid), rooted at the dw-agent store:
 //   GLOBAL:        <store>/knowledge/                  (INDEX.md + per-memory *.md)
-//   PROJECT-LOCAL: <store>/projects/<slug>/memory/     (MEMORY.md + per-memory *.md)
+//   PROJECT-LOCAL: <store>/projects/<slug>/memory/     (MEMORY.md + per-memory *.md
+//                                                      + global/ -> the global store)
 // <store> is DW_STORE_ROOT or ~/Documents/dw-agent-store. A legacy ~/.claude
 // location that still exists always wins: pre-`dw migrate` it holds the data,
 // post-migrate it is a symlink into the store, so both resolve correctly.
@@ -12,6 +13,9 @@
 const {mkdirSync, existsSync} = require('node:fs');
 const {join} = require('node:path');
 const os = require('node:os');
+
+// Name of the global-store pointer inside a project memory dir.
+const GLOBAL_LINK_NAME = 'global';
 
 // Store root for all durable dw-* data: DW_STORE_ROOT env override, else
 // ~/Documents/dw-agent-store. (MIRROR: keep storeRoot/preferLegacy byte-identical
@@ -74,6 +78,13 @@ function projectIndexPath(cwd = process.cwd()) {
 	return join(projectStoreDir(cwd), 'MEMORY.md');
 }
 
+// Does the project memory dir carry a resolvable `global/` pointer - the symlink
+// to the global store that lets a native reader reach a cross-repo memory as
+// `global/<name>.md` without duplicating the file?
+function hasGlobalLink(memoryDir) {
+	return existsSync(join(memoryDir, GLOBAL_LINK_NAME));
+}
+
 // Per-project run-notes directory (<store>/run-notes/<slug>) - session logs,
 // flow/gate state, hook dedupe cache. Always under the new root; never legacy.
 function runNotesDir(cwd = process.cwd()) {
@@ -101,6 +112,7 @@ function slugifyName(name) {
 }
 
 module.exports = {
+	GLOBAL_LINK_NAME,
 	storeRoot,
 	preferLegacy,
 	globalStoreDir,
@@ -109,6 +121,7 @@ module.exports = {
 	resolveStoreDir,
 	globalIndexPath,
 	projectIndexPath,
+	hasGlobalLink,
 	runNotesDir,
 	ensureDir,
 	slugifyName,

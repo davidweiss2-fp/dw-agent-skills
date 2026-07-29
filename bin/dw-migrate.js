@@ -13,6 +13,14 @@
 // Only those subdirs move - the rest of ~/.claude/projects/<slug>/ (session
 // transcripts etc.) is Claude Code's own data and is not touched.
 //
+// It then points every project memory dir at the global store:
+//
+//   <store>/projects/<slug>/memory/global -> <store>/knowledge
+//
+// A project memory dir IS Claude's native per-project memory dir, and native
+// memory has no global tier; the pointer lets a native reader reach a cross-repo
+// memory as `global/<name>.md` without copying it into every project.
+//
 // CLI: node dw-migrate.js [--dry-run]
 // Idempotent: a legacy path that is already a symlink is skipped; a non-empty
 // destination that already exists is reported and skipped (merge by hand).
@@ -22,7 +30,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
-const {storeRoot} = require(path.join(__dirname, '..', 'skills', 'dw-knowledge-skill', 'scripts', 'km-paths.js'));
+const km = require(path.join(__dirname, '..', 'skills', 'dw-knowledge-skill', 'scripts', 'km-paths.js'));
+
+const {storeRoot} = km;
 
 function isSymlink(p) {
 	try {
@@ -64,6 +74,26 @@ function moveAndLink(src, dest, dryRun) {
 	}
 	fs.symlinkSync(dest, src);
 	return {status: 'moved', detail: `-> ${dest} (symlink left behind)`};
+}
+
+// Point one project memory dir at the global store: <memoryDir>/global -> globalDir.
+// Idempotent; leaves anything that is already there alone. Returns {status, detail}.
+function linkGlobalPointer(memoryDir, globalDir, dryRun) {
+	if (!isDir(memoryDir)) return {status: 'skipped', detail: 'no memory dir'};
+	const link = path.join(memoryDir, km.GLOBAL_LINK_NAME);
+	if (isSymlink(link)) {
+		const target = fs.readlinkSync(link);
+		if (path.resolve(path.dirname(link), target) === path.resolve(globalDir)) {
+			return {status: 'skipped', detail: 'already pointed at the global store'};
+		}
+		return {status: 'unsafe', detail: `points elsewhere: ${target} - repoint by hand`};
+	}
+	if (fs.existsSync(link)) {
+		return {status: 'unsafe', detail: `${link} exists and is not a symlink - move it aside`};
+	}
+	if (dryRun) return {status: 'would-link', detail: `-> ${globalDir}`};
+	fs.symlinkSync(globalDir, link);
+	return {status: 'linked', detail: `-> ${globalDir}`};
 }
 
 function main() {
@@ -108,6 +138,25 @@ function main() {
 		process.stdout.write(`${r.status.padEnd(10)} ${item.label} ${r.detail}\n`);
 	}
 
+	// Point every project memory dir in the store at the global store. Covers
+	// dirs that were just migrated AND dirs a fresh machine created directly.
+	const globalDir = path.join(root, 'knowledge');
+	if (!dryRun) fs.mkdirSync(globalDir, {recursive: true});
+	const storeProjects = path.join(root, 'projects');
+	let storeSlugs = [];
+	try {
+		storeSlugs = fs.readdirSync(storeProjects).filter((s) => isDir(path.join(storeProjects, s)));
+	} catch {
+		// no project stores yet
+	}
+	for (const slug of storeSlugs) {
+		const memoryDir = path.join(storeProjects, slug, 'memory');
+		const r = linkGlobalPointer(memoryDir, globalDir, dryRun);
+		if (r.status === 'skipped' && r.detail === 'no memory dir') continue;
+		if (r.status === 'unsafe') unsafe++;
+		process.stdout.write(`${r.status.padEnd(10)} projects/${slug}/memory/${km.GLOBAL_LINK_NAME} ${r.detail}\n`);
+	}
+
 	if (!dryRun) {
 		for (const sub of ['handoffs', 'run-notes']) {
 			fs.mkdirSync(path.join(root, sub), {recursive: true});
@@ -121,4 +170,4 @@ if (require.main === module) {
 	main();
 }
 
-module.exports = {moveAndLink};
+module.exports = {moveAndLink, linkGlobalPointer};

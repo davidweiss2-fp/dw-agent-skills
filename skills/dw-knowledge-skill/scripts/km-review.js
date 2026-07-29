@@ -104,20 +104,19 @@ function parseDateOnly(value) {
 
 // --- store reading ---------------------------------------------------------
 
-// Index filename for a scope (INDEX.md global, MEMORY.md project).
-function indexFileName(scope) {
-	return scope === 'global' ? 'INDEX.md' : 'MEMORY.md';
-}
+// Index filenames, excluded from every store scan (see listMemoryFiles).
+const INDEX_FILENAMES_LC = new Set(['index.md', 'memory.md']);
 
 // Resolve the absolute index path for a scope.
 function indexPathFor(scope) {
 	return scope === 'global' ? paths.globalIndexPath() : paths.projectIndexPath();
 }
 
-// List the per-memory *.md files in a store dir, excluding the index file.
+// List the per-memory *.md files in a store dir, excluding BOTH index filenames
+// in both scopes (matching km-index/km-recall), so an index file that ends up in
+// the other scope's store is never reviewed as if it were a memory.
 // Returns absolute paths; empty when the dir is missing/unreadable.
-function listMemoryFiles(dir, scope) {
-	const skip = indexFileName(scope).toLowerCase();
+function listMemoryFiles(dir) {
 	let entries;
 	try {
 		entries = readdirSync(dir);
@@ -128,7 +127,7 @@ function listMemoryFiles(dir, scope) {
 	const out = [];
 	for (const name of entries) {
 		if (!name.toLowerCase().endsWith('.md')) continue;
-		if (name.toLowerCase() === skip) continue;
+		if (INDEX_FILENAMES_LC.has(name.toLowerCase())) continue;
 		const full = join(dir, name);
 		let st;
 		try {
@@ -196,7 +195,7 @@ function richnessOf(data, body) {
 // Load every memory for a scope. Returns [] when the store doesn't exist.
 function loadScope(scope) {
 	const dir = paths.resolveStoreDir(scope);
-	const files = listMemoryFiles(dir, scope);
+	const files = listMemoryFiles(dir);
 	const records = [];
 	for (const file of files) {
 		const rec = loadMemory(file, scope);

@@ -3,11 +3,14 @@
 // INDEX regenerator for the knowledge-memory store. Idempotent: running twice
 // yields byte-identical output. Dependency-free; node: builtins only.
 //
-// GLOBAL store:  regenerate <globalStoreDir>/INDEX.md ENTIRELY from the
-//                frontmatter of every *.md memory file (one line each).
-// PROJECT store: regenerate ONLY a fenced block inside MEMORY.md, delimited by
-//                '<!-- dw-knowledge:start -->' / '<!-- dw-knowledge:end -->',
-//                leaving all other MEMORY.md content intact (create if absent).
+// Both indexes are regenerated ENTIRELY from the frontmatter of every *.md
+// memory file in the store dir (one line each), so an index is DERIVED - it
+// cannot drift, duplicate an entry, or point at a file that no longer exists.
+//   GLOBAL store:  <globalStoreDir>/INDEX.md
+//   PROJECT store: <projectStoreDir>/MEMORY.md, Claude's native per-project
+//                  memory index; gains a `global/INDEX.md` pointer line when
+//                  the `global/` store pointer resolves.
+// Writing the whole project file (not a fenced block) is what makes it derived.
 //
 // CLI: km-index.js [--scope global|project|both]   (default: both)
 //      [--now YYYY-MM-DD]   override "today" for suspect detection (else runtime date)
@@ -17,16 +20,22 @@
 // (github.com/hilash/cabinet, MIT); recall protocol + invalidate-then-add
 // adapted from MemPalace (github.com/MemPalace/mempalace, MIT).
 
-const {readdirSync, readFileSync, writeFileSync, existsSync} = require('node:fs');
+const {readdirSync, readFileSync, writeFileSync} = require('node:fs');
 const {join, basename} = require('node:path');
 
 const km = require('./km-paths.js');
 const fm = require('./km-frontmatter.js');
 
-const BLOCK_START = '<!-- dw-knowledge:start -->';
-const BLOCK_END = '<!-- dw-knowledge:end -->';
+// Index filenames (lowercased for comparison), excluded from every store scan.
+const INDEX_FILENAMES_LC = new Set(['index.md', 'memory.md']);
 const DEFAULT_WINDOW_DAYS = 90;
 const DESC_MAX = 80;
+
+// Pointer line appended to a project MEMORY.md when `global/` resolves. Carries
+// no entry count, so a global write never churns every project index.
+const GLOBAL_POINTER_LINE =
+	`- [global knowledge index](${km.GLOBAL_LINK_NAME}/INDEX.md) - cross-repo memories, ` +
+	'one file each under `global/`; search them with `dw recall <query>`';
 
 // --- arg parsing (matches dw-pr-ready-skill/scripts/utils.js style) --------
 
@@ -57,9 +66,12 @@ function parseArgs(argv) {
 
 // --- entry collection ------------------------------------------------------
 
-// List *.md memory files in a store dir, excluding the index file itself.
-// Returns absolute paths; tolerates a missing directory (-> []).
-function listMemoryFiles(dir, indexFileName) {
+// List *.md memory files in a store dir. Excludes BOTH index filenames in both
+// scopes (matching km-recall), so an index file that ends up in the other
+// scope's store is never indexed as if it were a memory. Returns absolute
+// paths; tolerates a missing directory (-> []). A `global/` store pointer is a
+// directory and drops out on the *.md filter.
+function listMemoryFiles(dir) {
 	let names;
 	try {
 		names = readdirSync(dir);
@@ -69,7 +81,7 @@ function listMemoryFiles(dir, indexFileName) {
 	}
 	return names
 		.filter((n) => n.toLowerCase().endsWith('.md'))
-		.filter((n) => n !== indexFileName)
+		.filter((n) => !INDEX_FILENAMES_LC.has(n.toLowerCase()))
 		.map((n) => join(dir, n));
 }
 
@@ -138,16 +150,20 @@ function parseDateMs(s) {
 	return ms;
 }
 
-// Render a single index line for an entry. Format:
-// - [<name>](<file>) — <desc> · type:<type> · conf:<confidence> · verified:<date> [· SUSPECT] [· SUPERSEDED]
+// Render a single index line for an entry. The leading
+// `- [<name>](<file>) - <desc>` is exactly a native memory index line; the
+// trailing ` · key:value` facets extend it. Format:
+// - [<name>](<file>) - <desc> · type:<type> [· conf:<n>] [· verified:<date>] [· SUSPECT] [· SUPERSEDED]
+// Unknown confidence / last_verified are omitted rather than rendered as '?'.
 function renderLine(entry, todayMs, windowDays) {
 	const desc = shortDesc(entry.description);
-	const conf = entry.confidence === undefined || entry.confidence === null ?
-		'?' :
-		String(entry.confidence);
-	const verified = entry.lastVerified || '?';
-	let line = `- [${entry.name}](${entry.file}) — ${desc} · type:${entry.type}` +
-		` · conf:${conf} · verified:${verified}`;
+	let line = `- [${entry.name}](${entry.file}) - ${desc} · type:${entry.type}`;
+	if (entry.confidence !== undefined && entry.confidence !== null) {
+		line += ` · conf:${entry.confidence}`;
+	}
+	if (entry.lastVerified) {
+		line += ` · verified:${entry.lastVerified}`;
+	}
 	if (entry.status === 'superseded') {
 		line += ' · SUPERSEDED';
 	} else if (isSuspect(entry, todayMs, windowDays)) {
@@ -178,7 +194,7 @@ function renderLines(files, todayMs, windowDays) {
 function regenerateGlobal(todayMs, windowDays) {
 	const dir = km.globalStoreDir();
 	const indexPath = km.globalIndexPath();
-	const files = listMemoryFiles(dir, basename(indexPath));
+	const files = listMemoryFiles(dir);
 	const lines = renderLines(files, todayMs, windowDays);
 	const body = lines.length ?
 		lines.join('\n') :
@@ -191,53 +207,24 @@ function regenerateGlobal(todayMs, windowDays) {
 
 // --- project store ---------------------------------------------------------
 
-// Regenerate ONLY the fenced knowledge block inside MEMORY.md, preserving the
-// rest of the file. Creates MEMORY.md (and the block) when absent.
+// Regenerate <projectStoreDir>/MEMORY.md entirely - it is Claude's native
+// per-project memory index, so one derived list replaces it wholesale. Appends
+// the `global/` pointer line when that store pointer resolves. Returns the path.
 function regenerateProject(todayMs, windowDays, cwd) {
 	const dir = km.projectStoreDir(cwd);
 	const indexPath = km.projectIndexPath(cwd);
-	const files = listMemoryFiles(dir, basename(indexPath));
+	const files = listMemoryFiles(dir);
 	const lines = renderLines(files, todayMs, windowDays);
-	const blockInner = lines.length ?
+	const body = lines.length ?
 		lines.join('\n') :
 		'_No project memories yet._';
-	const block = `${BLOCK_START}\n${blockInner}\n${BLOCK_END}`;
-
-	let existing = null;
-	try {
-		existing = readFileSync(indexPath, 'utf8');
-	} catch (err) {
-		if (!(err && err.code === 'ENOENT')) throw err;
-	}
-
-	let content;
-	if (existing === null) {
-		// Fresh MEMORY.md with the managed block.
-		content = `# Project Memory\n\n${block}\n`;
-	} else {
-		content = replaceBlock(existing, block);
+	const sections = [`# Project Memory\n\n${body}\n`];
+	if (km.hasGlobalLink(dir)) {
+		sections.push(`${GLOBAL_POINTER_LINE}\n`);
 	}
 	km.ensureDir(dir);
-	writeOnChange(indexPath, content);
+	writeOnChange(indexPath, sections.join('\n'));
 	return indexPath;
-}
-
-// Replace the fenced block in `text` with `block`, leaving the rest intact.
-// If no block exists, append one (separated by a blank line). Idempotent.
-function replaceBlock(text, block) {
-	const src = String(text).replace(/\r\n/g, '\n');
-	const startIdx = src.indexOf(BLOCK_START);
-	const endIdx = src.indexOf(BLOCK_END);
-	if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-		const before = src.slice(0, startIdx);
-		const after = src.slice(endIdx + BLOCK_END.length);
-		return `${before}${block}${after}`;
-	}
-	// No (valid) block: append one. Ensure exactly one blank line before it
-	// and a single trailing newline after.
-	const trimmed = src.replace(/\s+$/, '');
-	if (trimmed === '') return `${block}\n`;
-	return `${trimmed}\n\n${block}\n`;
 }
 
 // --- io --------------------------------------------------------------------
@@ -316,8 +303,6 @@ module.exports = {
 	renderLines,
 	regenerateGlobal,
 	regenerateProject,
-	replaceBlock,
 	main,
-	BLOCK_START,
-	BLOCK_END,
+	GLOBAL_POINTER_LINE,
 };
