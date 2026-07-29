@@ -1,7 +1,7 @@
 import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -379,6 +379,160 @@ describe('km-index', () => {
 		assert.equal(second.status, 0, second.stderr);
 		const b = readFileSync(indexPath, 'utf8');
 		assert.equal(a, b, 'two runs must produce a byte-identical index');
+	});
+
+	it('never indexes the other scope\'s index file as a memory', () => {
+		const mixed = mkdtempSync(join(tmpdir(), 'km-index-mixed-'));
+		const dir = join(mixed, '.claude', 'knowledge');
+		mkdirSync(dir, {recursive: true});
+		writeFileSync(join(dir, 'real.md'), memory({name: 'Real memory', description: 'A memory'}));
+		// A project-style index that ended up in the global store: frontmatter-less,
+		// so indexing it would yield a bogus '[MEMORY](MEMORY.md) - · type:unknown' line.
+		writeFileSync(join(dir, 'MEMORY.md'), '- [Real memory](real.md) - a stray index\n');
+		// Lowercased too: the *.md filter is case-insensitive, so the exclusion must be.
+		writeFileSync(join(dir, 'memory.md'), '- [Real memory](real.md) - a stray index\n');
+		const r = run(KM_INDEX, ['--scope', 'global', '--now', '2026-06-18'], {
+			env: {HOME: mixed, USERPROFILE: mixed},
+		});
+		assert.equal(r.status, 0, r.stderr);
+		const body = readFileSync(join(dir, 'INDEX.md'), 'utf8');
+		assert.ok(!body.includes('type:unknown'), `stray index must not become an entry:\n${body}`);
+		assert.ok(!body.includes('(MEMORY.md)'), 'stray index must not be linked as a memory');
+		assert.match(body, /\[Real memory\]\(real\.md\)/, 'the real memory is still indexed');
+		rmSync(mixed, {recursive: true, force: true});
+	});
+
+	it('omits conf/verified facets when the frontmatter has neither', () => {
+		const bare = mkdtempSync(join(tmpdir(), 'km-index-bare-'));
+		const dir = join(bare, '.claude', 'knowledge');
+		mkdirSync(dir, {recursive: true});
+		writeFileSync(
+			join(dir, 'bare.md'),
+			['---', 'name: Bare memory', 'description: No counters', 'metadata:', '  node_type: memory', '  type: domain', '---', '', 'body', ''].join('\n'),
+		);
+		const r = run(KM_INDEX, ['--scope', 'global', '--now', '2026-06-18'], {
+			env: {HOME: bare, USERPROFILE: bare},
+		});
+		assert.equal(r.status, 0, r.stderr);
+		const body = readFileSync(join(dir, 'INDEX.md'), 'utf8');
+		assert.match(body, /- \[Bare memory\]\(bare\.md\) - No counters · type:domain$/m);
+		assert.ok(!body.includes('conf:?'), 'unknown confidence must be omitted, not rendered as ?');
+		assert.ok(!body.includes('verified:?'), 'unknown last_verified must be omitted');
+		rmSync(bare, {recursive: true, force: true});
+	});
+});
+
+describe('km-index (project scope = native MEMORY.md)', () => {
+	let root;
+	let projectCwd;
+	let memoryDir;
+	let globalDir;
+	let indexPath;
+	let env;
+
+	before(() => {
+		// realpath the temp root: on macOS $TMPDIR is a symlink, and the child's
+		// process.cwd() reports the resolved path - so the slug must be derived
+		// from the resolved path too, or it addresses a different store dir.
+		root = realpathSync(mkdtempSync(join(tmpdir(), 'km-index-project-')));
+		// A cwd outside the store, so the slug is derived the way it is in real use.
+		projectCwd = join(root, 'repo');
+		mkdirSync(projectCwd, {recursive: true});
+
+		const kmPaths = require(join(SCRIPTS, 'km-paths.js'));
+		const storeRoot = join(root, 'store');
+		env = {HOME: root, USERPROFILE: root, DW_STORE_ROOT: storeRoot};
+		const slug = kmPaths.projectSlug(projectCwd);
+		memoryDir = join(storeRoot, 'projects', slug, 'memory');
+		globalDir = join(storeRoot, 'knowledge');
+		indexPath = join(memoryDir, 'MEMORY.md');
+		mkdirSync(memoryDir, {recursive: true});
+		mkdirSync(globalDir, {recursive: true});
+
+		writeFileSync(
+			join(memoryDir, 'local-thing.md'),
+			memory({name: 'Local thing', description: 'A repo-specific memory'}),
+		);
+		// A memory that lives in the GLOBAL store only - it must never be indexed
+		// into the project index, even once `global/` points at that store.
+		writeFileSync(
+			join(globalDir, 'cross-repo-thing.md'),
+			memory({name: 'Cross repo thing', description: 'A global memory'}),
+		);
+	});
+
+	after(() => {
+		rmSync(root, {recursive: true, force: true});
+	});
+
+	it('replaces a drifted MEMORY.md wholesale - dangling lines, dupes and the old fenced block all go', () => {
+		writeFileSync(
+			indexPath,
+			[
+				'# Project Memory',
+				'',
+				'- [Local thing](local-thing.md) - hand-written, stale wording · type:reference',
+				'- [Gone away](gone-away.md) - points at a file that does not exist · type:reference',
+				'- [Cross repo thing](cross-repo-thing.md) - lives in the global store · type:reference',
+				'',
+				'<!-- dw-knowledge:start -->',
+				'- [Local thing](local-thing.md) - the duplicate the fenced block used to add · type:how-to',
+				'<!-- dw-knowledge:end -->',
+				'- [Local thing](local-thing.md) - a second stray duplicate · type:reference',
+				'',
+			].join('\n'),
+		);
+		const r = run(KM_INDEX, ['--scope', 'project', '--now', '2026-06-18'], {cwd: projectCwd, env});
+		assert.equal(r.status, 0, r.stderr);
+		const body = readFileSync(indexPath, 'utf8');
+
+		const localLines = body.split('\n').filter((l) => l.includes('local-thing.md'));
+		assert.equal(localLines.length, 1, `the real memory must appear exactly once, got:\n${body}`);
+		assert.ok(!body.includes('gone-away.md'), 'a line whose file is gone must be dropped');
+		assert.ok(
+			!body.includes('cross-repo-thing.md'),
+			'a global memory must not be indexed into the project index',
+		);
+		assert.ok(!body.includes('dw-knowledge:start'), 'the fenced block markers must be gone');
+		assert.match(body, /^# Project Memory$/m);
+	});
+
+	it('is idempotent (run twice -> byte-identical file)', () => {
+		const first = run(KM_INDEX, ['--scope', 'project', '--now', '2026-06-18'], {cwd: projectCwd, env});
+		assert.equal(first.status, 0, first.stderr);
+		const a = readFileSync(indexPath, 'utf8');
+		const second = run(KM_INDEX, ['--scope', 'project', '--now', '2026-06-18'], {cwd: projectCwd, env});
+		assert.equal(second.status, 0, second.stderr);
+		assert.equal(readFileSync(indexPath, 'utf8'), a, 'two runs must produce a byte-identical index');
+	});
+
+	it('adds the global pointer line only once `global/` resolves', () => {
+		const before = readFileSync(indexPath, 'utf8');
+		assert.ok(
+			!before.includes('global/INDEX.md'),
+			'no pointer line while the project memory dir has no global/ link',
+		);
+
+		const migrate = require(join(HERE, '..', 'bin', 'dw-migrate.js'));
+		const linked = migrate.linkGlobalPointer(memoryDir, globalDir, false);
+		assert.equal(linked.status, 'linked', linked.detail);
+		assert.equal(
+			migrate.linkGlobalPointer(memoryDir, globalDir, false).status,
+			'skipped',
+			're-linking an existing pointer must be a no-op',
+		);
+
+		const r = run(KM_INDEX, ['--scope', 'project', '--now', '2026-06-18'], {cwd: projectCwd, env});
+		assert.equal(r.status, 0, r.stderr);
+		const body = readFileSync(indexPath, 'utf8');
+		assert.match(body, /\[global knowledge index\]\(global\/INDEX\.md\)/);
+		// The pointer replaces per-entry duplication: global memories stay unlisted,
+		// and the global store is reachable through the link.
+		assert.ok(!body.includes('cross-repo-thing.md'), 'the pointer must not inline global entries');
+		assert.ok(
+			existsSync(join(memoryDir, 'global', 'cross-repo-thing.md')),
+			'a global memory must be readable as global/<name>.md from the project memory dir',
+		);
 	});
 });
 

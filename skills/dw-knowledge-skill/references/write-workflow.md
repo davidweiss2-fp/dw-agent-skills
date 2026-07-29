@@ -69,8 +69,14 @@ prompt.
   node scripts/km-index.js --scope <global|project|both> [--now YYYY-MM-DD] [--window N]
   ```
 
-  Pass `--now` with today's date from context for a stable, reproducible run. Global
-  rewrites `INDEX.md`; project rewrites only the managed block in `MEMORY.md`.
+  Pass `--now` with today's date from context for a stable, reproducible run. Both indexes
+  are regenerated in full from the files on disk (global `INDEX.md`, project `MEMORY.md`),
+  so writing the `*.md` file is the whole job - the line follows, and a line added by hand
+  is re-derived rather than duplicated.
+
+  One consequence at write time: a `MEMORY.md` line pointing at a memory that lives in the
+  **global** store does not survive, since that file is not in the project dir. Pin
+  cross-repo knowledge to a project by linking it `[[name]]` from a project memory body.
 
 ## Counters at write time
 

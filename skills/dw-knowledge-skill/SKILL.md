@@ -50,12 +50,23 @@ next git/checks/ship step instead of asking.
   the store root honors `DW_STORE_ROOT`, and a pre-`dw migrate` install falls back to the
   legacy `~/.claude` layout).
   Use for knowledge that travels across repos.
-- **PROJECT-LOCAL** - `~/Documents/dw-agent-store/projects/<slug>/memory/` (managed block inside `MEMORY.md`
+- **PROJECT-LOCAL** - `~/Documents/dw-agent-store/projects/<slug>/memory/` (`MEMORY.md`
   + one `*.md` per memory). Use **only** when the memory references repo paths, branch
   names, or build commands. The `<slug>` is the project cwd with every non-alphanumeric
   char replaced by `-`.
 
 Decide at save time, default global; go project-local only when it's repo-specific.
+
+**This store IS Claude's native memory**, so there is one set of files, not two:
+
+- `~/.claude/projects/<slug>/memory` - the native per-project memory dir - is a symlink
+  into the project store, so a native write and a `km-*` write land on the same file.
+- Native memory has no global tier, so every project memory dir carries `global/` → the
+  global store: read a cross-repo memory as `global/<name>.md`.
+- `MEMORY.md` is the native index, regenerated in full from the files on disk, so writing
+  the memory file is the whole job and a hand-added line is normalized, not duplicated.
+
+`node bin/dw-migrate.js` (re)creates that wiring and is idempotent. Format: `references/schema.md`.
 
 ## When to SAVE (the write gate)
 
