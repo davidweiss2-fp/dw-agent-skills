@@ -2,6 +2,33 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.3.6
+
+### Changed
+
+- **dw-flow: the review-fix loop has a ceiling.** The Review step said to iterate "until a fresh
+  pass is clean", with rounds 1-3 named as a deepening ladder and rounds 4+ unbounded - so a loop
+  where each fix provoked the next finding had no exit except the dev noticing. Five rounds is now
+  the ceiling: still blocking on round five escalates to the dev with a brief (recurring findings,
+  fixes tried, the call needed) instead of opening round six. Two earlier escalation signals are
+  named - a fix that creates the next finding (the existing symptom-guard smell; reopen the
+  placement contract) and the same finding surviving two fixes. Adapted from obra/superpowers
+  (PR #1998, 2026-07-19, shipped v6.2.0); its fix-scoped re-review is deliberately not adopted,
+  since the deepening ladder is what surfaces findings a fix-scoped pass would never reach.
+- **dw-flow: the review method now judges tests by falsifiability.** The deepening ladder named
+  round 3 "tests" without saying what to look for, so a test that cannot fail passed that round.
+  Each new or changed test now needs the production change that would fail it named, its
+  expectation derived from the requirement rather than read off the implementation, and a closing
+  mutation check against the most plausible bug. Names the two traps that look like coverage: the
+  **string-presence trap** (asserting text appears in a script, prompt, config, or markdown - the
+  observable is behaviour, never text) and the **change-detector trap** (pinning a constant fails
+  on every edit and protects nothing). Adapted from obra/superpowers `writing-good-tests.md`
+  (PR #1935, 2026-07-13, shipped v6.2.0).
+
+### Housekeeping
+
+- `THIRD_PARTY_NOTICES.md` attributes obra/superpowers for `dw-flow-skill`.
+
 ## 0.3.5
 
 ### Changed
