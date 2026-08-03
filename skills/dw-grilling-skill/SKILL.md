@@ -53,11 +53,12 @@ the user in one line what they want stress-tested before starting.
    adding option-flags to a shared helper; growing a shared helper's flag surface is an
    explicit question, not a silent default). Order them so each decision depends only on ones
    you have already asked.
-3. **Resolve from the environment first.** Before asking, check whether the answer already
-   exists in the codebase, filesystem, or your tools — an established pattern, a config
-   value, a prior decision, an existing type. If exploring resolves it, resolve it and
-   tell the user what you found instead of asking. Only ask what genuinely needs a human
-   judgment call.
+3. **Look up the facts; put the decisions to the user.** Finding *facts* is your job, never
+   the user's. Before asking, check whether the answer already exists in the codebase,
+   filesystem, or your tools — an established pattern, a config value, a prior decision, an
+   existing type — and report what you found instead of asking about it. A *decision* stays
+   the user's even when the environment points at an answer: an existing pattern is evidence
+   for your recommended default, not a resolved question.
 4. **Ask exactly one question - inline, as chat text.** State the decision, give the
    realistic options, and **lead with your recommended default and why.** Make it
    answerable in a word ("Go with A?", "yes/no"), posed as inline chat text. See
@@ -116,7 +117,8 @@ real options — but that should be rare. See `references/asking-well.md`.
 
 ## When to stop
 
-- Every decision on the tree is resolved (by the user or by the codebase).
+- Every decision on the tree is resolved by the user, and every fact they turned on is
+  settled from the environment.
 - Remaining unknowns are immaterial to building, or are reversible one-liners you can
   flag in the summary rather than block on.
 - The user calls it — "good enough, let's build." Honor that, but name any decision still
@@ -153,8 +155,9 @@ current open question. On resume, read that file first and re-enter at the open 
   or one with attached conditions gets a revisit or a restate-to-verify first.
 - **Hold context to the end.** Save supporting data/plans for after the grill; present
   them once every decision is locked.
-- **Environment before user.** If exploring the codebase, filesystem, or tools answers it,
-  explore, and reserve questions for what it leaves open.
+- **Facts from the environment, decisions from the user.** Look up every fact the codebase,
+  filesystem, or tools can settle, and reserve the questions for judgment calls — which stay
+  the user's even where an existing pattern suggests the answer.
 - **Order by dependency.** Ask each question only after the ones its answer depends on.
 - **Surface every assumption.** An unresolved decision is asked or explicitly deferred in
   the summary, not quietly guessed.
@@ -170,7 +173,10 @@ recommended default per question, and a closing resolved-design summary. The con
 enacting gate follows upstream's confirmation-gate addition (mattpocock/skills PR #433,
 2026-07-03). The primitive is framed for general use — any task acted on, facts resolved
 from the whole environment (not just the codebase) — following upstream's reword
-(mattpocock/skills commit 170ad486, 2026-07-13). Where upstream's `grill-with-docs` bolts
+(mattpocock/skills commit 170ad486, 2026-07-13). The **fact-versus-decision split** —
+looking a fact up is the agent's job, while a decision stays the user's even when the
+environment hints at an answer — follows upstream's sharpening of the same rule
+(mattpocock/skills PR #461, 2026-07-06, carried further in PR #586, 2026-07-16). Where upstream's `grill-with-docs` bolts
 on `domain-modeling` to persist decisions
 as in-repo ADRs and a glossary, this version makes the grill **stateful and personalized through
 the suite's own primitives** instead - a resumable session-state trail, defaults seeded from the
