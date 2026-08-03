@@ -28,10 +28,32 @@ Applied at two points in the flow, same method both times, run as a strict senio
 - **Directive findings.** Each finding is one concrete instruction with the target named
   ("rename X → Y", "inject Z", "make W private and test through V").
 
+## Tests: does each one rule anything out?
+
+A test that cannot fail is not coverage. Review every new or changed test for **falsifiability**:
+
+- **Name the production change that would fail it.** If you can't name one, the test asserts
+  nothing. Say so as a finding.
+- **Derive the expectation from the requirement, not the code.** An expectation read off the
+  implementation and restated as an assertion passes by construction and locks in today's bug.
+  Work out what the behaviour *should* be from the ticket or the design, then assert that.
+- **The string-presence trap.** Asserting that some text appears in a script, prompt, config, or
+  markdown file counterfeits falsifiability — the observable is *behaviour*, never text. A test
+  that greps for a phrase passes when the phrase is copied into a comment and fails when the same
+  behaviour is spelled differently. Assert what the thing does.
+- **The change-detector trap.** A test that pins a constant or a serialised blob fails on every
+  edit and protects nothing. Ask what defect it would catch; if the answer is "someone changed
+  this line", it is a maintenance cost, not a test.
+- **Close with a mutation check.** Pick the most plausible bug in the changed code, ask whether at
+  least one test would fail on it, and name the test. If nothing catches it, that is the gap.
+
+Trivial code and prose earn no test — a test with nothing to rule out is sediment.
+
 ## Iterate until a fresh pass finds nothing — for at most five rounds
 
 Re-run the method after every fix and after every push, a level deeper each round (round 1: naming
-and structure; round 2: injection and visibility; round 3: tests and naming again). A real reviewer
+and structure; round 2: injection and visibility; round 3: tests — by the falsifiability pass above
+— and naming again). A real reviewer
 re-reviews every push, so close that loop before they do.
 
 **Five rounds is the ceiling.** A loop still producing blocking findings on round five has stopped
@@ -63,3 +85,8 @@ subagent-driven-development loop installs a five-round circuit breaker with cont
 when it trips (PR #1998, 2026-07-19, shipped in v6.2.0). Upstream also scopes its re-review to the
 fixes; this method keeps re-reviewing the whole artifact a level deeper each round instead, because
 the deepening ladder is what surfaces findings a fix-scoped pass would never reach.
+
+The **falsifiability pass** — name the production change that would fail the test, derive the
+expectation independently of the code under test, and close on a mutation check — is adapted from
+the same project's `writing-good-tests.md` (PR #1935, 2026-07-13, also v6.2.0), including the
+**string-presence** and **change-detector** traps it names.
