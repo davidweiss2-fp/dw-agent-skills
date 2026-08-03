@@ -80,8 +80,11 @@ Run `/code-review` (or `fp-cdp-review` in that scope) by the **review method**
 re-run after every fix until a fresh pass is clean. Recall `dw-knowledge` for the repo's specific
 reviewer patterns and feed them in as things to check. Re-check the regressions that bite late:
 permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface any product/UX
-call that review exposes via `dw-team-communication`. *Done when:* a fresh review pass finds
-nothing new, its findings are triaged, and the blocking ones fixed.
+call that review exposes via `dw-team-communication`. Iterate for **at most five rounds** — a loop
+still blocking on round five escalates to the dev with a brief (recurring findings, fixes tried,
+the call needed) rather than opening round six. *Done when:* a fresh review pass finds nothing new,
+its findings are triaged, and the blocking ones fixed — **or** the ceiling was hit and the dev has
+made the call.
 
 ## 9. Verify *(offered)*
 

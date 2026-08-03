@@ -77,7 +77,8 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 6. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
 7. **Deslop** — `dw-deslop` the diff.
 8. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
-   (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean.
+   (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
+   for at most five rounds, then escalate to the dev with a brief.
 9. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
    folding the `fmt` patch into the commit; the proof of a green preflight is the result
