@@ -2,6 +2,70 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.3.5
+
+### Changed
+
+- **dw-grilling: facts are the agent's to look up, decisions stay the user's.** Step 3 used to
+  say to resolve a question from "an established pattern, a config value, a prior decision, an
+  existing type", which read as licence to settle a *decision* from the codebase. Facts are now
+  looked up and reported; a decision stays the user's even when the environment points at an
+  answer, with the existing pattern demoted to evidence for the recommended default. Applied to
+  step 3, the hard rule, the stop condition, and the `asking-well` anti-patterns - which gained
+  the counterpart, *Deciding from a pattern the user never picked*. Follows upstream
+  (mattpocock/skills PR #461, 2026-07-06; carried further in PR #586, 2026-07-16).
+- **dw-skill-authoring: the rationalization-table form for load-bearing guards.** The
+  positive-phrasing sweep (0.3.1-0.3.2) and the Pruning passes both push toward deleting
+  "never do X" guards, while the **negation** failure mode said to keep a prohibition where the
+  target can't be phrased positively - without saying what shape the survivor takes. It is now
+  an *Excuse / Reality* table placed where the agent would argue past the rule, plus two failure
+  modes (**rationalized guard**, **over-pruned guard**) and a pruning caveat that an argument
+  behind a rule reads as padding and often isn't. Adapted from obra/superpowers (PR #1934,
+  2026-07-14, shipped v6.2.0), whose evals measured the failure this guards against: deleting a
+  guard's rebuttal prose degraded behaviour 8/10 -> 5/10 under pressure, while the same
+  arguments kept as table rows held.
+
+### Housekeeping
+
+- `THIRD_PARTY_NOTICES.md` now attributes obra/superpowers (MIT).
+- Backfilled the missing 0.3.3 and 0.3.4 entries below - both shipped as version bumps without
+  a changelog record.
+
+## 0.3.4
+
+### Fixed
+
+- **dw-git-ops: the co-author trailer no longer pins a model version.** `ops.sh` hardcoded
+  `Co-Authored-By: Claude Opus 4.8` into every commit it created; the name went stale as soon as
+  a newer model was in use, and recording the right one meant suppressing the trailer with
+  `OPS_NO_COAUTHOR=1` and hand-writing it. The identity is now overridable via `OPS_COAUTHOR`
+  and the default drops the model version entirely, so an unset override cannot record a wrong
+  model. `OPS_NO_COAUTHOR` still suppresses the trailer outright.
+
+## 0.3.3
+
+### Changed
+
+- **dw-knowledge: the knowledge store converges on Claude native memory.** `km-index` owned only
+  a fenced block inside `MEMORY.md`, so native writes and km writes accumulated side by side -
+  one project index had three competing lists, four links pointing at files in the global store,
+  and two duplicate lines. `km-index` now regenerates the whole project `MEMORY.md` from the
+  files on disk, so the index is derived and cannot drift, duplicate an entry, or point at a
+  missing file; a hand-added line is re-derived rather than duplicated.
+- **A global tier over native memory, which has none.** `dw-migrate` points every project memory
+  dir at the global store (`memory/global` -> `knowledge/`), and `km-index` appends a pointer
+  line to `global/INDEX.md` when that link resolves - so a cross-repo memory is readable as
+  `global/<name>.md` without being copied into each project.
+- Index lines drop the `conf:? verified:?` placeholders when the frontmatter carries neither,
+  leaving the native `- [name](file.md) - description` prefix intact.
+
+### Fixed
+
+- `km-index` and `km-review` each skipped only their own scope's index filename, so a `MEMORY.md`
+  sitting in the global store was indexed and reviewed as if it were a memory (producing a bogus
+  `[MEMORY](MEMORY.md) type:unknown` entry). Both now exclude both index filenames,
+  case-insensitively, matching `km-recall`.
+
 ## 0.3.2
 
 ### Changed
