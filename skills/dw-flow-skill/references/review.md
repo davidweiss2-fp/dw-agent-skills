@@ -28,11 +28,24 @@ Applied at two points in the flow, same method both times, run as a strict senio
 - **Directive findings.** Each finding is one concrete instruction with the target named
   ("rename X → Y", "inject Z", "make W private and test through V").
 
-## Iterate until a fresh pass finds nothing
+## Iterate until a fresh pass finds nothing — for at most five rounds
 
 Re-run the method after every fix and after every push, a level deeper each round (round 1: naming
 and structure; round 2: injection and visibility; round 3: tests and naming again). A real reviewer
 re-reviews every push, so close that loop before they do.
+
+**Five rounds is the ceiling.** A loop still producing blocking findings on round five has stopped
+being a review problem, so escalate to the dev instead of opening round six. Hand over a brief:
+the findings that keep recurring, the fixes already tried, and the specific call you need. Iterating
+past that burns the dev's turnaround on a disagreement only they can settle.
+
+Two signals to escalate **before** the ceiling:
+
+- **A fix creates the next finding.** When round N's findings trace back to round N−1's fixes, the
+  design is wrong, not the code — that is the symptom-guard smell in the operating principles.
+  Escalate and reopen the placement contract rather than iterating.
+- **The same finding survives two fixes.** Either the finding is misstated or the fix cannot land
+  where it is being attempted. Say which you think it is and ask.
 
 ## Run it blind to what was approved
 
@@ -42,3 +55,11 @@ signed off / treat X as acceptable" framing) makes a reviewer rationalise a real
 non-finding, and hearing that defect is the whole point of the pass. A wrong thing is wrong
 regardless of what was approved. Recall `dw-knowledge` for the repo's specific reviewer patterns
 and hand those in too, as things to check.
+
+---
+
+The **five-round ceiling with escalation** is adapted from obra/superpowers (MIT), whose
+subagent-driven-development loop installs a five-round circuit breaker with controller adjudication
+when it trips (PR #1998, 2026-07-19, shipped in v6.2.0). Upstream also scopes its re-review to the
+fixes; this method keeps re-reviewing the whole artifact a level deeper each round instead, because
+the deepening ladder is what surfaces findings a fix-scoped pass would never reach.
