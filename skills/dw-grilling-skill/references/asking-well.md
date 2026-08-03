@@ -52,8 +52,10 @@ Rare, but real. Then:
 - **Stacking questions.** Two "?" in one turn is two turns. Split them.
 - **Bare open questions.** "How should we handle errors?" with no options and no lean
   pushes the work back onto the user. Bring options and a recommendation.
-- **Asking what the codebase already answers.** If there's an established pattern, a
-  config value, or a prior decision, resolve it and report rather than ask.
+- **Asking what the environment already answers.** A config value, an existing type, or a
+  prior decision is a *fact* — look it up and report it rather than spending a question on it.
+- **Deciding from a pattern the user never picked.** An established pattern is evidence for
+  your recommended default, not a substitute for the user's call. Lead with it, and still ask.
 - **Questions out of dependency order.** Settle whether there's a response at all before
   asking about its format. Re-prune after each answer.
 - **Fake binaries.** Match the options to the real decision; when the honest answer space
