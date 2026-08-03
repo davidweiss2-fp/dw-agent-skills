@@ -103,6 +103,27 @@ A long skill is not a thorough skill. Three passes:
    the whole sentence rather than trim it, or replace a weak instruction with a stronger leading
    word ("relentless", not "be careful").
 
+Test a cut by behavior, not by reading: prose that argues *why* a rule holds looks like padding
+and often isn't. When the cut is an argument behind a guard, see *Rationalizations* below.
+
+## Rationalizations (for the guard you can't phrase positively)
+
+Pruning and positive phrasing both push toward deleting "never do X" guards. Some of those
+guards are load-bearing: they exist because an agent mid-task talks itself out of the rule,
+and the prose that rebuts the excuse is what makes the rule stick. Delete the argument and
+the behavior regresses, even though the rule is still stated.
+
+When a guard is load-bearing, keep the argument and drop the prose — fold each excuse into a
+two-column table at the point the agent would hit it:
+
+| Excuse | Reality |
+|---|---|
+| "This diff is one line — the checks can wait" | A one-line diff fails CI the same way. Running them costs a minute; a red PR costs a round-trip. |
+
+This keeps a rule the agent can rationalize past **and** the reason it can't, without a
+"Never:" list. Reach for it when a prohibition survives the positive-phrasing pass; a rule
+nobody argues with just needs stating once.
+
 ## Authoring checklist
 
 Run this before calling a skill done — for a new skill or a review:
@@ -131,7 +152,9 @@ When a skill misbehaves, name the failure before fixing it:
 | Skill is just too long | **sprawl** | Disclose reference behind pointers; split by branch or sequence. |
 | A line the model already obeys | **no-op** | Delete it, or swap a weak phrase for a strong leading word. |
 | Skill doesn't fire when it should | weak description | Add the concrete trigger phrasing the user actually types; front-load the leading word. |
-| A "never do X" rule reads back as an instruction to do X | **negation** | Rephrase as the positive target behavior; keep the prohibition only where you can't phrase the target positively, and even then pair it with what to do instead. |
+| A "never do X" rule reads back as an instruction to do X | **negation** | Rephrase as the positive target behavior; keep the prohibition only where you can't phrase the target positively, and even then pair it with what to do instead — as a *Rationalizations* row where the agent argues past it. |
+| A rule the agent states, then talks itself out of | **rationalized guard** | Keep the rebuttal, not just the rule: move the argument into a *Rationalizations* row at the point of temptation. |
+| Behavior regressed after a pruning pass | **over-pruned guard** | The deleted prose was load-bearing. Restore it as a *Rationalizations* row rather than the original section. |
 
 ## Hard rules
 
@@ -147,3 +170,10 @@ Adapted from mattpocock/skills (skills/productivity/writing-great-skills), MIT L
 for this repo's conventions; vocabulary and failure-mode taxonomy credit the original. The
 **negation** failure mode follows upstream's addition of the same concept (mattpocock/skills
 PR #463, 2026-07-06).
+
+The **Rationalizations** technique — an excuse/reality table at the point of temptation,
+preserving a guard's argument once its prose is pruned — is adapted from obra/superpowers
+(MIT), which converted its skills' "Red Flags" and "Common Mistakes" sections to that form
+(PR #1934, 2026-07-14, shipped in v6.2.0). Upstream reports the eval result that motivates
+it: deleting a guard's rebuttal prose outright measurably degraded behavior under pressure
+(8/10 → 5/10), while the same arguments kept as table rows held.
