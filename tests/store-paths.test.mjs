@@ -43,12 +43,13 @@ describe('store root resolution', () => {
 		rmSync(base, {recursive: true});
 	});
 
-	it('mirrored storeRoot/preferLegacy stay byte-identical across the four owners', () => {
+	it('mirrored storeRoot/preferLegacy stay byte-identical across the five owners', () => {
 		const OWNERS = [
 			'skills/dw-knowledge-skill/scripts/km-paths.js',
 			'skills/dw-runbook-skill/scripts/runbook-paths.js',
 			'skills/dw-deslop-skill/scripts/deslop-rules.js',
 			'skills/dw-handoff-skill/scripts/dw-handoff-path.js',
+			'skills/dw-review-prs-skill/scripts/review-prs-paths.js',
 		];
 		const extract = (file, fn) => {
 			const src = readFileSync(join(ROOT, file), 'utf8');
@@ -61,7 +62,7 @@ describe('store root resolution', () => {
 			return fn;
 		});
 		for (const r of roots.slice(1)) assert.equal(r, roots[0]);
-		// dw-handoff-path only needs storeRoot; the other three also mirror preferLegacy.
+		// dw-handoff-path and review-prs-paths only need storeRoot; the other three also mirror preferLegacy.
 		const prefers = OWNERS.slice(0, 3).map((f) => {
 			const fn = extract(f, 'preferLegacy');
 			assert.ok(fn, `preferLegacy found in ${f}`);
