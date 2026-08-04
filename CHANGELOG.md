@@ -2,6 +2,24 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.0
+
+### Added
+
+- **`dw-review-prs-skill` — the reviews waiting on you, drafted but never sent.** Works the queue of
+  PRs where review is requested of the user and leaves each finding as an **unsubmitted (pending)**
+  `[dev-ai]` review, so the user reads the drafts in the GitHub UI and submits them. Every run starts
+  by reading what it already drafted, what the user already published, and what every other reviewer
+  and bot said, so a finding is never delivered twice; `state.md` keyed on head SHA keeps an unchanged
+  PR out of scope, and `comments.md` is the ledger of everything ever drafted. `scripts/review-prs.js`
+  owns the mechanics that are easy to get wrong by hand: one pending review per user per PR (an open
+  one makes REST comment posting fail 422, so drafts go through GraphQL `addPullRequestReviewThread`),
+  draft comment bodies that REST cannot edit (404, so edits use `updatePullRequestReviewComment`),
+  replies that must carry both the review and thread ids, and a search index that lags live PR state
+  (every hit is re-resolved through the PR endpoint). The script refuses a comment body without the
+  `[dev-ai]` tag and refuses to submit without an explicit `--event`, so the only irreversible step
+  stays a deliberate one. Slash command: `/dw-review-prs`.
+
 ## 0.3.6
 
 ### Changed
