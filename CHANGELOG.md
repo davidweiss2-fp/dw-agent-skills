@@ -2,6 +2,21 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.1
+
+### Fixed
+
+- **dw-knowledge: memories written with a native type were indexed but never recallable.**
+  `km-recall.js` filtered candidates to `VALID_TYPES = ['how-to', 'domain', 'task', 'gotcha']`,
+  dropping the four native-memory types before scoring. `references/schema.md` promises the native
+  types (`user`, `feedback`, `project`, `reference`) are "read and indexed as-is", and
+  `km-index.js` honours that — so such a memory appeared in `INDEX.md` with its description and
+  facets intact while every query silently excluded it, including a query for its own name. The
+  failure is invisible from the index side, which is the only side a human looks at. 33 memories
+  typed `feedback` and 6 typed `reference` in the author's own store were unreadable this way.
+  `VALID_TYPES` now carries the native types alongside the dw four; the capture guidance is
+  unchanged, since preferring the dw values is still right for the distinction they carry.
+
 ## 0.4.0
 
 ### Added

@@ -326,6 +326,15 @@ describe('km-recall', () => {
 				trigger: 'coffee brewing kitchen beans',
 			}),
 		);
+		writeFileSync(
+			join(dir, 'native.md'),
+			memory({
+				name: 'Always squash before merging',
+				description: 'A preference written by native memory, typed feedback rather than a dw type',
+				type: 'feedback',
+				trigger: 'squash merge preference',
+			}),
+		);
 		env = {HOME: store, USERPROFILE: store};
 	});
 
@@ -343,6 +352,18 @@ describe('km-recall', () => {
 		assert.ok(
 			!items.some((it) => it.title === 'Brew office coffee'),
 			'non-matching memory must be excluded',
+		);
+	});
+
+	// schema.md: native-memory types are "read and indexed as-is". km-index.js lists them,
+	// so recall must return them too — otherwise they sit in INDEX.md permanently unreadable.
+	it('returns a memory written with a native type', () => {
+		const r = run(KM_RECALL, ['--scope', 'global', '--json', 'squash', 'merge', 'preference'], {env});
+		assert.equal(r.status, 0);
+		const items = JSON.parse(r.stdout);
+		assert.ok(
+			items.some((it) => it.title === 'Always squash before merging'),
+			`native-typed memory must be recallable, got: ${items.map((it) => it.title).join(', ')}`,
 		);
 	});
 });
