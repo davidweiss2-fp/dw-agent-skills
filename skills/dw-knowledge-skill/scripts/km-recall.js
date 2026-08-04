@@ -2,7 +2,7 @@
 
 // km-recall.js — RECALL search + rank over the knowledge-memory store. PURE READ.
 // Never writes. Reads *.md from the chosen store(s), parses frontmatter, filters to
-// real memories (metadata.type in the taxonomy, status !== 'superseded'), scores each
+// real memories (metadata.type in the taxonomy — dw or native — status !== 'superseded'), scores each
 // against the query, ranks by relevance * recency * confidence, and emits an ADVISORY
 // block (default), a JSON array (--json), or a hook block (--hook, stdin {prompt}).
 //
@@ -26,7 +26,10 @@ const path = require('node:path');
 const km = require('./km-frontmatter.js');
 const paths = require('./km-paths.js');
 
-const VALID_TYPES = ['how-to', 'domain', 'task', 'gotcha'];
+// The four dw types plus the native-memory types. schema.md promises native types are
+// "read and indexed as-is"; km-index.js honours that, so recall must too or a memory
+// written by native memory is listed in INDEX.md and never returned by a query.
+const VALID_TYPES = ['how-to', 'domain', 'task', 'gotcha', 'user', 'feedback', 'project', 'reference'];
 const DEFAULT_LIMIT = 5;
 const DEFAULT_WINDOW_DAYS = 90;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
