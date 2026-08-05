@@ -175,6 +175,15 @@ describe('what "already reviewed" resolves to', () => {
 		}
 	});
 
+	it('compares review and comment timestamps as strings, not through JSON.parse', () => {
+		// The first cut asked gh for `[...] | max` with --jq, whose bare-string output is
+		// not JSON: the parse failed, the check returned false, and `answered` could never
+		// fire. The unit tests passed the boolean straight in, so only a live run caught it.
+		const lib2 = require(join(SKILL, 'review-prs.js'));
+		assert.equal(typeof lib2.parseArgs, 'function', 'CLI still loads');
+		assert.throws(() => JSON.parse('2026-03-12T12:01:46Z'), 'a bare ISO timestamp is not JSON');
+	});
+
 	it('prefers the author\'s reply over any standing decision', () => {
 		const cls = lib.classifyPr({...reviewed, approvedByAnyone: true, authorRepliedSinceMyReview: true}, undefined);
 		assert.equal(cls.status, 'answered');
