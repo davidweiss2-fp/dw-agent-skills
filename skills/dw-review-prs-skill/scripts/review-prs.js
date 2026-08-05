@@ -15,7 +15,9 @@ const dash = require('./review-prs-dashboard.js');
 
 const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted review
 
-  queue [--json] [--participation]   PRs requested of you or reviewed by you, classified
+  queue [--json] [--participation] [--days N] [--all-time]
+                                     PRs requested of you or your teams, reviewed by
+                                     you, or mentioning you - classified
   surfaces <pr>                      every comment surface + your own pending drafts
   threads <pr>                       review threads with node ids (for reply)
   draft <pr> --path P --line N [--side RIGHT|LEFT] --body-file F
@@ -138,36 +140,129 @@ function pendingReviewFor(r, login) {
 // A review request is not the only reason a PR belongs on this list. Once a review is
 // submitted the request is gone, so `--review-requested` alone drops the PR the moment
 // the reviewer is waiting on an answer - which is exactly when they still need to see it.
+//
+// `windowed` sources are pruned by --days, because "I reviewed this once" reaches back
+// years. A request aimed at the reviewer or their team never is: an unanswered request
+// is work no matter how long it has been sitting.
 const QUEUE_SEARCHES = [
-	{source: 'requested', arg: '--review-requested=@me'},
-	{source: 'reviewed', arg: '--reviewed-by=@me'},
-	{source: 'commented', arg: '--commenter=@me', optIn: true},
+	{source: 'requested', args: ['--review-requested=@me'], windowed: false},
+	{source: 'reviewed', args: ['--reviewed-by=@me'], windowed: true},
+	{source: 'mentioned', args: ['--mentions=@me'], windowed: true},
+	{source: 'commented', args: ['--commenter=@me'], windowed: true, optIn: true},
 ];
 
+// Resolved per run rather than configured, so the skill carries no one's team names.
+// A token without the org scope simply returns nothing, which costs a source, not a run.
+function myTeams() {
+	const res = ghJsonSoft(['api', '/user/teams', '--paginate']);
+	if (!res.ok || !Array.isArray(res.data)) return [];
+	return res.data
+		.map((t) => (t && t.organization && t.slug ? `${t.organization.login}/${t.slug}` : null))
+		.filter(Boolean);
+}
+
+// YYYY-MM-DD, `days` before today, for the --updated qualifier.
+function sinceDate(days) {
+	const d = new Date();
+	d.setUTCDate(d.getUTCDate() - days);
+	return d.toISOString().slice(0, 10);
+}
+
 function queueHits(flags) {
+	const days = Number(flags.days) > 0 ? Number(flags.days) : 14;
+	const since = flags['all-time'] ? null : sinceDate(days);
 	const searches = QUEUE_SEARCHES.filter((q) => (q.optIn ? Boolean(flags.participation) : true));
+	for (const team of myTeams()) {
+		searches.push({source: 'team', args: [`--review-requested=${team}`], windowed: false, team});
+	}
+
 	const byKey = new Map();
-	for (const search of searches) {
-		const hits =
-			ghJson([
-				'search',
-				'prs',
-				search.arg,
-				'--state=open',
-				'--limit',
-				'100',
-				'--json',
-				'number,repository,url,title,updatedAt',
-			]) || [];
-		for (const hit of hits) {
-			const nameWithOwner = hit.repository && (hit.repository.nameWithOwner || hit.repository.name);
-			const key = `${nameWithOwner}#${hit.number}`;
-			const seen = byKey.get(key);
-			if (seen) seen.sources.push(search.source);
-			else byKey.set(key, {...hit, nameWithOwner, sources: [search.source]});
+	const add = (hit, source) => {
+		const nameWithOwner = hit.repository && (hit.repository.nameWithOwner || hit.repository.name);
+		const key = `${nameWithOwner}#${hit.number}`;
+		const seen = byKey.get(key);
+		if (seen) {
+			if (!seen.sources.includes(source)) seen.sources.push(source);
+			return;
 		}
+		byKey.set(key, {...hit, nameWithOwner, sources: [source]});
+	};
+
+	for (const search of searches) {
+		const args = [
+			'search',
+			'prs',
+			...search.args,
+			'--state=open',
+			'--archived=false',
+			'--sort',
+			'updated',
+			'--order',
+			'desc',
+			'--limit',
+			'100',
+			'--json',
+			'number,repository,url,title,updatedAt',
+		];
+		if (since && search.windowed) args.push(`--updated=>${since}`);
+		const res = ghJsonSoft(args);
+		if (!res.ok) {
+			process.stderr.write(`warning: ${search.source} search failed, continuing: ${res.error}\n`);
+			continue;
+		}
+		for (const hit of res.data || []) add(hit, search.source);
+	}
+
+	// Retention, so the window can prune discovery without hiding work in flight. Only
+	// PRs the store records as `drafted` qualify: those carry unsubmitted drafts and must
+	// never age out. A submitted or declined one needs no rescue - if it is still open and
+	// still moving, the windowed searches find it, and if it merged it is history.
+	const stateFile = paths.statePath();
+	const tracked = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
+	for (const key of Object.keys(tracked)) {
+		if (tracked[key].status !== 'drafted') continue;
+		const r = lib.parsePrRef(key);
+		if (!r || byKey.has(key)) continue;
+		byKey.set(key, {number: r.number, repository: {nameWithOwner: `${r.owner}/${r.repo}`}, nameWithOwner: `${r.owner}/${r.repo}`, url: '', title: '', sources: ['tracked']});
 	}
 	return [...byKey.values()];
+}
+
+// Only asked for PRs already reviewed at this head, so the extra call is not paid on
+// every hit: did anyone comment after this reviewer's last submitted review?
+function authorRepliedSinceMyReview(r, login) {
+	const mine = ghJsonSoft([
+		'api',
+		`repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews`,
+		'--paginate',
+		'--jq',
+		`[.[] | select(.user.login == "${login}" and .state != "PENDING") | .submitted_at] | max`,
+	]);
+	if (!mine.ok || !mine.data) return false;
+	const theirs = ghJsonSoft([
+		'api',
+		`repos/${r.owner}/${r.repo}/pulls/${r.number}/comments`,
+		'--paginate',
+		'--jq',
+		`[.[] | select(.user.login != "${login}") | .created_at] | max`,
+	]);
+	if (!theirs.ok || !theirs.data) return false;
+	return String(theirs.data) > String(mine.data);
+}
+
+// Others' standing review states, from the reviews this run already fetched.
+function othersDecisions(reviews, login) {
+	const latest = new Map();
+	for (const v of reviews) {
+		const who = v.user && v.user.login;
+		if (!who || who === login || v.state === 'PENDING' || v.state === 'COMMENTED') continue;
+		latest.set(who, v.state);
+	}
+	const states = [...latest.values()];
+	return {
+		approvedByAnyone: states.includes('APPROVED'),
+		changesRequestedStands: states.includes('CHANGES_REQUESTED'),
+	};
 }
 
 function cmdQueue(flags) {
@@ -183,18 +278,28 @@ function cmdQueue(flags) {
 		if (!r) continue;
 		const pr = prMeta(r);
 		const {pending, submittedShas} = pendingReviewFor(r, login);
+		const headSha = pr.head && pr.head.sha;
+		const stored = state[r.key];
+		// The reply check costs an API call, so it is asked only where the answer can
+		// change the status: a head this reviewer has already reviewed.
+		const reviewedThisHead =
+			Boolean(headSha) &&
+			(submittedShas.includes(headSha) || (stored && stored.sha === headSha && stored.status === 'submitted'));
+		const decisions = reviewedThisHead ? othersDecisions(reviewsFor(r), login) : {};
 		const cls = lib.classifyPr(
 			{
 				key: r.key,
-				headSha: pr.head && pr.head.sha,
+				headSha,
 				isDraft: Boolean(pr.draft),
 				isOpen: pr.state === 'open',
 				authoredByMe: Boolean(pr.user && pr.user.login === login),
 				pendingReview: pending ? {id: pending.id, draftCount: pending.draftCount} : null,
 				submittedShas,
 				sources: hit.sources,
+				...decisions,
+				authorRepliedSinceMyReview: reviewedThisHead && authorRepliedSinceMyReview(r, login),
 			},
-			state[r.key],
+			stored,
 		);
 		rows.push({
 			key: r.key,

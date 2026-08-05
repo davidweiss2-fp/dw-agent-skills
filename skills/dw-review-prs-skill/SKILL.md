@@ -22,7 +22,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 
 | Command | Does |
 |---|---|
-| `node scripts/review-prs.js queue` | PRs requested of you **or already reviewed by you**, classified against the store (`--json`; `--participation` also pulls PRs you only commented on) |
+| `node scripts/review-prs.js queue` | PRs requested of you or your teams, reviewed by you, or mentioning you — classified against the store (`--json`, `--days N`, `--all-time`, `--participation`) |
 | `… surfaces <pr>` | Your pending drafts, your submitted reviews, and every published comment (human and bot) |
 | `… threads <pr>` | Review threads with node ids, for replying into an existing thread |
 | `… draft <pr> --path P --line N --body-file F` | New draft comment on a diff line; opens the pending review if needed |
@@ -41,10 +41,10 @@ Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-a
 
 ## Step 1 — Read the queue
 
-`queue` searches `review-requested:@me` **and** `reviewed-by:@me`, then re-resolves every hit through
-the PR endpoint so closed and merged PRs drop out. Both searches matter: GitHub clears the review
-request the moment a review is submitted, so a request-only queue loses the PR exactly when the
-reviewer is waiting on the author's answer. `--participation` adds `commenter:@me`.
+`queue` unions review requests aimed at you or your teams with `reviewed-by:@me` and `mentions:@me`,
+then re-resolves every hit through the PR endpoint. A request is never aged out; the broad sources are
+pruned by `--days` (14 by default), and anything the store records as `drafted` is retained whatever
+its age. Which source is windowed and why: `references/queue.md`.
 
 Statuses:
 
@@ -53,8 +53,13 @@ Statuses:
 | `draft-waiting` | Unsubmitted drafts already sit on the PR | Report the link; the user submits or asks for edits |
 | `needs-draft` | No review from you, or pushed to since your last one | Full review, Steps 2-4 |
 | `draft-empty` | An empty pending review holds the one-per-PR slot | Draft into it, or `drop` its remnants |
-| `reviewed` / `skip` / `closed` | Handled at this head, own PR, or gone | One line, no work |
+| `answered` | The author replied after your review — it is back with you | Read the reply, Steps 2-4 |
+| `reviewed` | You reviewed it and it is approved | One line, no work |
+| `undecided` | You reviewed it and nobody has approved it | One line; chase or approve |
+| `changes-requested` | Changes requested and not yet resolved | One line, waiting on the author |
+| `not-ready` | The author has it back in draft | One line; reviewing a WIP is wasted |
 | `watching` | You took part in a thread, but review was never requested of you | One line, no work |
+| `skip` / `closed` | Own PR, declined at this head, or gone | One line, no work |
 
 **Done when** every open request is classified and the actionable ones are reported to the user as
 links, newest work first.

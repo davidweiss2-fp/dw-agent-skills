@@ -87,14 +87,16 @@ describe('classifyPr', () => {
 	});
 
 	it('treats a submitted review at the current head as done, and an older one as new work', () => {
-		assert.equal(lib.classifyPr({...base, submittedShas: ['head1']}).status, 'reviewed');
+		// The exact label now depends on whether anyone approved; the contract under test
+		// is that a head you have reviewed is not work.
+		assert.equal(lib.isActionable(lib.classifyPr({...base, submittedShas: ['head1']}).status), false);
 		const stale = lib.classifyPr({...base, submittedShas: ['head0']});
 		assert.equal(stale.status, 'needs-draft');
 		assert.match(stale.reason, /pushed to/);
 	});
 
 	it('falls back to the store when the API shows no review, and skips a declined head', () => {
-		assert.equal(lib.classifyPr(base, {sha: 'head1', status: 'submitted'}).status, 'reviewed');
+		assert.equal(lib.isActionable(lib.classifyPr(base, {sha: 'head1', status: 'submitted'}).status), false);
 		assert.equal(lib.classifyPr(base, {sha: 'head1', status: 'declined'}).status, 'skip');
 		assert.equal(lib.classifyPr(base, {sha: 'head0', status: 'submitted'}).status, 'needs-draft');
 	});
@@ -117,7 +119,7 @@ describe('queue coverage beyond review requests', () => {
 		// The request disappears once the review is submitted, which is exactly when the
 		// reviewer is waiting on an answer and still needs to see it.
 		const cls = lib.classifyPr({...base, sources: ['reviewed'], submittedShas: ['aaa']}, undefined);
-		assert.equal(cls.status, 'reviewed');
+		assert.equal(cls.status, 'undecided', 'reviewed with no approval is undecided, still listed');
 		assert.equal(lib.isActionable(cls.status), false);
 	});
 
@@ -144,7 +146,52 @@ describe('queue coverage beyond review requests', () => {
 			{...base, headSha: 'ccc', sources: ['reviewed'], submittedShas: ['aaa']},
 			{sha: 'ccc', status: 'submitted'},
 		);
-		assert.equal(cls.status, 'reviewed');
+		assert.equal(lib.isActionable(cls.status), false, 'the store settles this head, so it is not work');
+	});
+});
+
+describe('what "already reviewed" resolves to', () => {
+	const reviewed = {
+		headSha: 'aaa',
+		isOpen: true,
+		authoredByMe: false,
+		pendingReview: null,
+		submittedShas: ['aaa'],
+		sources: ['reviewed'],
+	};
+
+	it('calls it answered when the author replied after the review, and treats that as work', () => {
+		const cls = lib.classifyPr({...reviewed, authorRepliedSinceMyReview: true}, undefined);
+		assert.equal(cls.status, 'answered');
+		assert.equal(lib.isActionable('answered'), true);
+	});
+
+	it('separates approved, changes-requested and nobody-decided', () => {
+		assert.equal(lib.classifyPr({...reviewed, approvedByAnyone: true}, undefined).status, 'reviewed');
+		assert.equal(lib.classifyPr({...reviewed, changesRequestedStands: true}, undefined).status, 'changes-requested');
+		assert.equal(lib.classifyPr(reviewed, undefined).status, 'undecided');
+		for (const s of ['reviewed', 'changes-requested', 'undecided']) {
+			assert.equal(lib.isActionable(s), false, `${s} is not work on its own`);
+		}
+	});
+
+	it('prefers the author\'s reply over any standing decision', () => {
+		const cls = lib.classifyPr({...reviewed, approvedByAnyone: true, authorRepliedSinceMyReview: true}, undefined);
+		assert.equal(cls.status, 'answered');
+	});
+
+	it('reads a WIP as not-ready, but unsubmitted drafts still come first', () => {
+		const wip = {...reviewed, isDraft: true, submittedShas: []};
+		assert.equal(lib.classifyPr(wip, undefined).status, 'not-ready');
+		assert.equal(lib.isActionable('not-ready'), false);
+		const wipWithDrafts = {...wip, pendingReview: {id: 1, draftCount: 2}};
+		assert.equal(lib.classifyPr(wipWithDrafts, undefined).status, 'draft-waiting');
+	});
+
+	it('tells a retained-but-closed PR how to clear itself', () => {
+		const cls = lib.classifyPr({...reviewed, isOpen: false, sources: ['tracked']}, undefined);
+		assert.equal(cls.status, 'closed');
+		assert.match(cls.reason, /state-set/);
 	});
 });
 
@@ -444,11 +491,14 @@ describe('cli store writes', () => {
 		const entry = lib.parseStateMd(readFileSync(file, 'utf8'))['acme/widget#42'];
 		assert.equal(entry.sha, 'head1');
 		assert.equal(
-			lib.classifyPr(
-				{key: 'acme/widget#42', headSha: 'head1', isOpen: true, authoredByMe: false, pendingReview: null, submittedShas: []},
-				entry,
-			).status,
-			'reviewed',
+			lib.isActionable(
+				lib.classifyPr(
+					{key: 'acme/widget#42', headSha: 'head1', isOpen: true, authoredByMe: false, pendingReview: null, submittedShas: []},
+					entry,
+				).status,
+			),
+			false,
+			'the recorded head reads back as handled, whatever the settled label is',
 		);
 		assert.equal(runCli(['state-set', 'acme/widget#42', '--sha', 'x', '--status', 'bogus'], {DW_STORE_ROOT: store}).status, 1);
 		rmSync(store, {recursive: true, force: true});
