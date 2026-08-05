@@ -1,0 +1,94 @@
+# The status page
+
+One published page per reviewer, re-published to the same URL every run. `dashboard` builds the
+HTML; the Artifact tool publishes it.
+
+## Who owns what
+
+`scripts/review-prs-dashboard.js` owns the page: markup, both colour themes, and the client
+behaviour (select-to-comment, the per-PR button, the copy handoff). Never hand-write the HTML — the
+whole point is that every reviewer on this skill gets the same interface, and the only thing that
+varies per run is the data below.
+
+## The actions file
+
+`--actions` takes JSON. One entry per PR key, all fields optional:
+
+```json
+{
+  "prs": {
+    "acme/widget#42": {
+      "lane": "needs-you",
+      "cta": "Approve the PR",
+      "next": "Approve - all three asks are answered and the delta since your review is one line.",
+      "notes": ["Approving also accepts the perf handoff to TICKET-1234."]
+    }
+  }
+}
+```
+
+| Field | Does |
+|---|---|
+| `next` | The free-text next step, the one thing the reviewer reads per card. Written by the agent, not derived. |
+| `cta` | Short imperative for the button inside the next-step box: "Approve the PR", "Submit the draft", "Resolve the mentioned comments". |
+| `lane` | `needs-you` / `waiting-author` / `delegated` / `done`. Omit to let the rule below decide. |
+| `notes` | Extra lines under the next step, for a caveat the decision depends on. |
+
+Lane when omitted: an unsubmitted draft means `needs-you`, a `declined` store status means
+`delegated`, a merged or closed PR means `done`, anything else is `waiting-author`.
+
+The build reports any PR with no `next` and any with no `cta`, because a card missing either is one
+the reviewer cannot act on.
+
+## Publishing
+
+The build prints the exact identity to publish with — `title`, `description`, `favicon`, and the
+stored `url`. Pass them verbatim: a title or favicon that moves between runs reads as a different
+page in the browser tab and the artifact gallery. On the first publish there is no stored URL, so
+record the one you get:
+
+```bash
+node scripts/review-prs.js dashboard-url --set https://claude.ai/code/artifact/<id>
+```
+
+Every later run reads it back and publishes over the same link, so the reviewer's bookmark holds.
+The URL lives in `dashboard.json` beside the rest of the store.
+
+## Across runs, sessions, and users
+
+- **Every run against the same store updates the same page** — a later session, another terminal, or
+  the scheduled hourly task all read the URL out of `dashboard.json` and publish over it. Passing
+  that URL is what makes it an update; a run that omits it mints a second page and the reviewer's
+  bookmark goes stale.
+- **One page per reviewer, not one page globally.** Another person installing this skill starts with
+  no `dashboard.json`, so their first run publishes their own page under their own account, and their
+  runs update that. Artifacts can only be updated by the account that owns them, so this is the only
+  shape available — and the right one, since the queue is per-reviewer. The interface is identical
+  because the renderer ships with the skill.
+- **A run that cannot publish still builds.** The HTML is written by the script; only the publish
+  step needs the Artifact tool. In a headless or unauthenticated run, keep the built file, say
+  plainly that the page was not refreshed, and report in chat instead.
+- **A publish conflict is safe to overwrite.** The page is derived from the store every time and is
+  never hand-edited, so if a concurrent run published first, rebuild and publish again rather than
+  merging.
+
+## The way feedback comes back
+
+The page cannot reach GitHub, so its buttons record instructions rather than performing them. The
+reviewer selects text on any card, comments on it, clicks the per-PR button, then **Copy comments**
+and pastes the result into the run:
+
+```
+## Review queue feedback - <timestamp>
+
+### Do these
+- acme/widget#42 -> Approve the PR
+
+### Comments
+- acme/widget#42 - on "the quoted text"
+  what they want done about it
+```
+
+Each pasted comment re-enters the skill at Step 2: read the thread, check the claim against the
+code, draft the reply. A `Do these` line is an instruction from the reviewer — including `submit`,
+which is the one case where publishing a review is authorized without them naming the event in chat.

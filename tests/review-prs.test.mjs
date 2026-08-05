@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 
 const SKILL = join(ROOT, 'skills', 'dw-review-prs-skill', 'scripts');
 const lib = require(join(SKILL, 'review-prs-lib.js'));
+const dashboard = require(join(SKILL, 'review-prs-dashboard.js'));
 const CLI = join(SKILL, 'review-prs.js');
 
 function runCli(args, env = {}) {
@@ -196,6 +197,112 @@ describe('watch bookkeeping', () => {
 		assert.equal(lib.isFirstWatch(undefined), true);
 		assert.equal(lib.isFirstWatch({}), true);
 		assert.equal(lib.isFirstWatch({'review-comment': 1}), false);
+	});
+});
+
+describe('dashboard model', () => {
+	const ledger = [
+		'| when | pr | status | weight | finding | url |',
+		'| --- | --- | --- | --- | --- | --- |',
+		'| 2026-08-05T08:00:00Z | a/b#1 | drafted | please fix | the AC contradicts the code |  |',
+		'| 2026-08-05T08:01:00Z | a/b#1 | drafted | none | withdrawn after the author answered |  |',
+		'| 2026-08-05T08:02:00Z | a/b#2 | declined | none | owned by another routine |  |',
+		'| not a row at all |',
+	].join('\n');
+
+	it('reads back the ledger and skips the header, rule, and junk lines', () => {
+		const rows = lib.parseLedger(ledger);
+		assert.deepEqual(rows.map((r) => r.key), ['a/b#1', 'a/b#1', 'a/b#2']);
+		assert.equal(rows[0].weight, 'please fix');
+	});
+
+	it('lands each PR in a lane, with an unsubmitted draft outranking everything', () => {
+		assert.equal(lib.defaultLane({pendingDrafts: 2, storeStatus: 'submitted', prState: 'open'}), 'needs-you');
+		assert.equal(lib.defaultLane({pendingDrafts: 0, storeStatus: 'declined', prState: 'open'}), 'delegated');
+		assert.equal(lib.defaultLane({pendingDrafts: 0, storeStatus: 'submitted', prState: 'merged'}), 'done');
+		assert.equal(lib.defaultLane({pendingDrafts: 0, storeStatus: 'submitted', prState: 'open'}), 'waiting-author');
+	});
+
+	it('orders lanes by urgency, carries the next step, and names PRs missing one', () => {
+		const model = lib.dashboardModel({
+			prs: [
+				{key: 'a/b#2', storeStatus: 'declined', prState: 'open', pendingDrafts: 0},
+				{key: 'a/b#1', storeStatus: 'submitted', prState: 'open', pendingDrafts: 1},
+			],
+			ledger,
+			actions: {prs: {'a/b#1': {next: 'Read the draft, then submit as COMMENT.'}}},
+			generatedAt: 'stamp',
+		});
+		assert.deepEqual(model.cards.map((c) => c.key), ['a/b#1', 'a/b#2']);
+		assert.equal(model.cards[0].lane, 'needs-you');
+		assert.equal(model.cards[0].next, 'Read the draft, then submit as COMMENT.');
+		assert.equal(model.counts['needs-you'], 1);
+		assert.deepEqual(model.missingNext, ['a/b#2']);
+		// A weight of none is bookkeeping, not a finding worth a row on the page.
+		assert.deepEqual(model.cards[0].comments.map((c) => c.weight), ['please fix']);
+	});
+
+	it('lets the reviewer override the derived lane', () => {
+		const model = lib.dashboardModel({
+			prs: [{key: 'a/b#1', storeStatus: 'submitted', prState: 'open', pendingDrafts: 1}],
+			actions: {prs: {'a/b#1': {lane: 'waiting-author', next: 'nothing for now'}}},
+		});
+		assert.equal(model.cards[0].lane, 'waiting-author');
+	});
+});
+
+describe('dashboard rendering', () => {
+	const model = lib.dashboardModel({
+		prs: [{
+			key: 'a/b#1',
+			filesUrl: 'https://github.com/a/b/pull/1/files',
+			title: 'Title with <script>alert(1)</script> & an ampersand',
+			author: 'someone',
+			headSha: 'abcdef1234567',
+			prState: 'open',
+			pendingDrafts: 2,
+			storeStatus: 'drafted',
+		}],
+		ledger: '| 2026-08-05T08:00:00Z | a/b#1 | drafted | blocker | quote " and <b>tags</b> |  |',
+		actions: {prs: {'a/b#1': {next: 'Review 2 drafts, then approve.'}}},
+		generatedAt: '2026-08-05T00:00:00Z',
+	});
+	const html = dashboard.renderDashboard(model, {title: 'Review queue', reviewer: 'me'});
+
+	it('escapes titles and findings instead of letting markup through', () => {
+		assert.ok(!html.includes('<script>alert(1)</script>'));
+		assert.ok(html.includes('&lt;script&gt;'));
+		assert.ok(html.includes('&lt;b&gt;tags&lt;/b&gt;'));
+		assert.ok(html.includes('&amp;'));
+	});
+
+	it('carries the next step, the link, the short sha and the draft count', () => {
+		assert.ok(html.includes('Review 2 drafts, then approve.'));
+		assert.ok(html.includes('https://github.com/a/b/pull/1/files'));
+		assert.ok(html.includes('abcdef1'));
+		assert.ok(!html.includes('abcdef1234567'));
+		assert.ok(html.includes('2 unsubmitted drafts'));
+	});
+
+	it('keeps [hidden] effective on every element it sets display on', () => {
+		// A class that sets display beats the UA's [hidden] rule, so each toggled
+		// element needs its own [hidden] restatement or the attribute hides nothing.
+		const setsDisplay = [...html.matchAll(/^(\.[\w-]+|#[\w-]+)(?:,\s*(?:\.[\w-]+|#[\w-]+))*\s*\{[^}]*\bdisplay:/gm)]
+			.flatMap((m) => m[0].split('{')[0].split(',').map((s) => s.trim()));
+		for (const sel of ['.annopop', '.selpill', '#payload']) {
+			if (!setsDisplay.includes(sel)) continue;
+			assert.match(html, new RegExp(sel.replace('.', '\\.').replace('#', '#') + '\\[hidden\\]'),
+				`${sel} sets display, so it needs a ${sel}[hidden] rule`);
+		}
+	});
+
+	it('renders both themes through tokens, not one theme with an inverted copy', () => {
+		assert.ok(html.includes('@media (prefers-color-scheme: dark)'));
+		assert.ok(html.includes(':root[data-theme="dark"]'));
+		assert.ok(html.includes(':root[data-theme="light"]'));
+		// The page is embedded in a document shell, so it must not ship its own.
+		assert.ok(!/<!doctype/i.test(html));
+		assert.ok(!/<body[\s>]/i.test(html));
 	});
 });
 

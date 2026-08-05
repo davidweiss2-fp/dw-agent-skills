@@ -2,6 +2,33 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.3
+
+### Added
+
+- **dw-review-prs: a published status page, and a way to talk back to the run.** The queue reported
+  its state into a chat message that scrolled away, and there was no route from "I disagree with this
+  draft" to the run except retyping it. `dashboard` now builds one self-contained page - every PR the
+  store records, grouped into waiting-on-you / waiting-on-the-author / delegated / closed-out, each
+  card carrying its `/files` link, live state chips, the drafted findings from the ledger, and one
+  free-text next step with a single labelled button inside it ("Approve the PR", "Submit the draft").
+  Selecting text on a card opens a comment popup the way a document editor does; **Copy comments**
+  hands every comment and button click back as one pasteable block, which re-enters the skill at
+  Step 2. The page's markup, both colour themes and all of its behaviour live in
+  `scripts/review-prs-dashboard.js`, so the interface is identical for every reviewer on this skill
+  and only the data varies - `--actions` carries the per-PR text, and the build reports any card left
+  without a next step or a button. `dashboard-url` persists the artifact URL in the store, so every
+  later run and the scheduled task publish over the same link instead of minting one the reviewer has
+  to re-find. Rules and field reference: `references/dashboard.md`.
+
+  Three things the page needed to actually be usable, each found by driving it rather than reading it:
+  the comment popup set `display: flex`, which outranks the browser's `[hidden]` rule and left Cancel
+  with nothing to do; the copy button treated a denied async-clipboard permission as terminal instead
+  of falling back to `execCommand`, which is the path that works in a sandboxed frame; and a selection
+  crossing two elements carried a newline into the payload and broke its one-entry-per-line shape.
+  Output is also pure ASCII now - the page is published into a document shell this repo does not
+  control, and an em dash in a PR title should not depend on it.
+
 ## 0.4.2
 
 ### Added

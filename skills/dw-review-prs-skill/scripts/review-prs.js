@@ -11,6 +11,7 @@ const {spawnSync} = require('node:child_process');
 const {readFileSync, writeFileSync, existsSync, appendFileSync} = require('node:fs');
 const lib = require('./review-prs-lib.js');
 const paths = require('./review-prs-paths.js');
+const dash = require('./review-prs-dashboard.js');
 
 const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted review
 
@@ -26,6 +27,8 @@ const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted 
   log <pr> --status S --weight W --finding TEXT [--url URL]
   watch [--once] [--poll-ms N] [--include-bots] [--open-only]
                                      new comments on every PR the store records
+  dashboard --out FILE [--actions FILE] [--title T]   build the status page
+  dashboard-url [--set URL]          the artifact url the page is published to
 
 <pr> is a PR URL, owner/repo#123, or owner/repo/123.`;
 
@@ -543,6 +546,105 @@ async function cmdWatch(flags) {
 	}
 }
 
+// Live facts for one recorded PR. A PR that cannot be read still gets a card, so a
+// revoked token on one repo does not quietly drop it off the reviewer's list.
+function dashboardFacts(key, login) {
+	const r = lib.parsePrRef(key);
+	if (!r) return null;
+	const base = {
+		key,
+		filesUrl: `https://github.com/${r.owner}/${r.repo}/pull/${r.number}/files`,
+	};
+	const meta = ghJsonSoft([
+		'pr', 'view', String(r.number), '--repo', `${r.owner}/${r.repo}`,
+		'--json', 'title,author,headRefOid,state,mergeable,reviewDecision,statusCheckRollup',
+	]);
+	if (!meta.ok || !meta.data) return {...base, title: '(unreadable)', unreadable: meta.error || 'no data'};
+	const d = meta.data;
+	const rollup = Array.isArray(d.statusCheckRollup) ? d.statusCheckRollup : [];
+	let pendingDrafts = 0;
+	try {
+		pendingDrafts = (pendingReviewFor(r, login).pending || {drafts: []}).drafts.length;
+	} catch {
+		pendingDrafts = 0;
+	}
+	return {
+		...base,
+		title: d.title,
+		author: d.author && d.author.login,
+		headSha: d.headRefOid,
+		prState: String(d.state || '').toLowerCase(),
+		mergeable: d.mergeable,
+		reviewDecision: d.reviewDecision,
+		checksFailing: rollup.filter((c) => c && c.conclusion === 'FAILURE').length,
+		pendingDrafts,
+	};
+}
+
+function readJsonOr(file, fallback) {
+	if (!file || !existsSync(file)) return fallback;
+	try {
+		return JSON.parse(readFileSync(file, 'utf8'));
+	} catch (err) {
+		fail(`could not parse ${file}: ${err.message}`);
+	}
+}
+
+function cmdDashboard(flags) {
+	const out = flags.out;
+	if (typeof out !== 'string') fail('--out FILE is required (where to write the dashboard HTML)');
+	const login = me();
+	const stateFile = paths.statePath();
+	const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
+	const ledger = existsSync(paths.commentsLogPath())
+		? lib.parseLedger(readFileSync(paths.commentsLogPath(), 'utf8'))
+		: [];
+	const actions = readJsonOr(flags.actions, {prs: {}});
+
+	const prs = [];
+	for (const key of Object.keys(entries).sort()) {
+		const facts = dashboardFacts(key, login);
+		if (facts) prs.push({...facts, storeStatus: entries[key].status});
+	}
+	const model = lib.dashboardModel({prs, ledger, actions, generatedAt: new Date().toISOString()});
+	const html = dash.renderDashboard(model, {title: flags.title || 'Review queue', reviewer: login});
+	writeFileSync(out, html);
+
+	const stored = readJsonOr(paths.dashboardStatePath(), {});
+	process.stdout.write(`dashboard: ${out} (${model.cards.length} PRs, ${model.needsYou} waiting on you)\n`);
+	if (model.missingNext.length) {
+		process.stdout.write(`dashboard: no next step written for ${model.missingNext.join(', ')}\n`);
+	}
+	if (model.missingCta.length) {
+		process.stdout.write(`dashboard: no cta button for ${model.missingCta.join(', ')}\n`);
+	}
+	// Printed rather than left to the agent's judgment: the identity of this page has
+	// to be the same for every user on every run, or the tab and the gallery card move.
+	process.stdout.write('\npublish with exactly:\n');
+	process.stdout.write(`  file_path:   ${out}\n`);
+	process.stdout.write(`  title:       ${dash.ARTIFACT.title}\n`);
+	process.stdout.write(`  description: ${dash.ARTIFACT.description}\n`);
+	process.stdout.write(`  favicon:     ${dash.ARTIFACT.favicon}\n`);
+	process.stdout.write(
+		stored.url
+			? `  url:         ${stored.url}\n`
+			: '  url:         (none yet - after publishing, run: dashboard-url --set <url>)\n',
+	);
+}
+
+function cmdDashboardUrl(flags) {
+	const file = paths.dashboardStatePath();
+	if (typeof flags.set === 'string') {
+		if (!/^https:\/\/\S+$/.test(flags.set)) fail('--set expects the published artifact https URL');
+		paths.ensureDir(paths.reviewNotesDir());
+		writeFileSync(file, JSON.stringify({url: flags.set, at: new Date().toISOString()}, null, '\t') + '\n');
+		process.stdout.write(`dashboard url recorded: ${flags.set}\n`);
+		return;
+	}
+	const stored = readJsonOr(file, {});
+	process.stdout.write(stored.url ? `${stored.url}\n` : '(none recorded)\n');
+}
+
 function cmdLog(arg, flags) {
 	const r = ref(arg);
 	const finding = flags.finding;
@@ -593,6 +695,10 @@ function main() {
 			return cmdStateSet(positional[1], flags);
 		case 'log':
 			return cmdLog(positional[1], flags);
+		case 'dashboard':
+			return cmdDashboard(flags);
+		case 'dashboard-url':
+			return cmdDashboardUrl(flags);
 		case 'watch':
 			return cmdWatch(flags).catch((err) => fail(`watch: ${err instanceof Error ? err.message : String(err)}`));
 		default:

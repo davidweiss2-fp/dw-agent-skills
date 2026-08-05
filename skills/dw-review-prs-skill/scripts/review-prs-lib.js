@@ -193,6 +193,79 @@ function watchPass(targets, pollOne, onResult) {
 	};
 }
 
+// The ledger is append-only markdown; read it back so the dashboard can show what
+// was drafted per PR without re-deriving it from GitHub.
+function parseLedger(text) {
+	const rows = [];
+	for (const line of String(text || '').split('\n')) {
+		if (!line.trim().startsWith('|')) continue;
+		const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+		if (cells.length < 5) continue;
+		const [at, key, status, weight, finding, url] = cells;
+		if (at === 'when' || /^-+$/.test(at)) continue;
+		if (!parsePrRef(key || '')) continue;
+		rows.push({at, key, status, weight, finding, url: url || ''});
+	}
+	return rows;
+}
+
+const LANES = ['needs-you', 'waiting-author', 'delegated', 'done'];
+
+// Which lane a PR sits in when the reviewer has not named one: an unsubmitted draft
+// is the only thing that strictly needs a human click, a declined PR belongs to
+// someone else's routine, and a merged or closed PR is history.
+function defaultLane(pr) {
+	if (Number(pr.pendingDrafts) > 0) return 'needs-you';
+	if (pr.storeStatus === 'declined') return 'delegated';
+	if (pr.prState && pr.prState !== 'open') return 'done';
+	return 'waiting-author';
+}
+
+// Live PR facts + the ledger + the reviewer's own "next step" prose, merged into what
+// the dashboard renders. Pure, so the shape is testable without gh or a browser.
+function dashboardModel({prs, ledger, actions, generatedAt} = {}) {
+	const byKey = {};
+	for (const row of parseLedger_(ledger)) {
+		(byKey[row.key] = byKey[row.key] || []).push(row);
+	}
+	const acts = (actions && actions.prs) || {};
+	const cards = (prs || []).map((pr) => {
+		const act = acts[pr.key] || {};
+		const comments = (byKey[pr.key] || []).filter((r) => r.weight !== 'none' || r.status === 'dropped');
+		return {
+			...pr,
+			lane: LANES.includes(act.lane) ? act.lane : defaultLane(pr),
+			next: typeof act.next === 'string' && act.next.trim() ? act.next.trim() : '',
+			// Short imperative for the one button in the next-step box ("Approve the PR").
+			cta: typeof act.cta === 'string' ? act.cta.trim() : '',
+			notes: Array.isArray(act.notes) ? act.notes.filter((n) => typeof n === 'string') : [],
+			comments,
+			ledgerCount: (byKey[pr.key] || []).length,
+		};
+	});
+	const rank = Object.fromEntries(LANES.map((l, i) => [l, i]));
+	cards.sort((a, b) => (rank[a.lane] - rank[b.lane]) || a.key.localeCompare(b.key));
+	const counts = Object.fromEntries(LANES.map((l) => [l, cards.filter((c) => c.lane === l).length]));
+	return {
+		generatedAt: generatedAt || '',
+		cards,
+		counts,
+		lanes: LANES,
+		needsYou: cards.filter((c) => c.lane === 'needs-you').length,
+		missingNext: cards.filter((c) => !c.next).map((c) => c.key),
+		// A card with no CTA has no button, so the reviewer cannot hand that decision
+		// back. Reported so a run cannot leave one silently blank.
+		missingCta: cards.filter((c) => c.next && !c.cta).map((c) => c.key),
+	};
+}
+
+// parseLedger accepts either raw text or already-parsed rows, so a caller that
+// already read the file does not parse it twice.
+function parseLedger_(ledger) {
+	if (Array.isArray(ledger)) return ledger;
+	return parseLedger(ledger);
+}
+
 function ledgerLine({at, key, url, status, weight, finding}) {
 	const cells = [at || '', key || '', status || '', weight || '', (finding || '').replace(/\s+/g, ' ').trim(), url || ''];
 	return `| ${cells.join(' | ')} |`;
@@ -215,5 +288,9 @@ module.exports = {
 	unseenComments,
 	isFirstWatch,
 	watchPass,
+	parseLedger,
+	defaultLane,
+	dashboardModel,
+	LANES,
 	ledgerLine,
 };

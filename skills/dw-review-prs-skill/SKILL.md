@@ -32,6 +32,8 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
 | `… watch [--once] [--poll-ms N] [--include-bots] [--open-only]` | New comments on every PR the store records (Step 7) |
+| `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
+| `… dashboard-url [--set URL]` | The artifact URL that page is published to |
 
 Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-agent-store>/run-notes/dw-review-prs/`
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
@@ -113,11 +115,31 @@ and ask it to restate the claim; if it cannot, the draft is not ready.
 **Done when** every surviving finding is drafted on the PR, every body's first line after `[dev-ai]`
 is its `Ask:` line, and nothing is submitted.
 
-## Step 5 — Hand over
+## Step 5 — Hand over: refresh the status page, then report
 
-Report per PR: the link (the `/files` view), what was drafted with one line each, what was dropped
-and why, and anything for the user that does not belong on a PR. Say explicitly that the review is
+The reviewer's own surface is one published page, re-published to the same URL every run — every PR
+the store records, its state, and the single next step waiting on them. Full field reference and the
+publishing rules: `references/dashboard.md`.
+
+```bash
+node scripts/review-prs.js dashboard --out queue.html --actions actions.json
+```
+
+Write `actions.json` yourself — per PR a `next` (the free-text next step), a short `cta` for the
+button inside it ("Approve the PR", "Submit the draft"), and a `lane` when the derived one is wrong.
+The build prints the exact `title` / `description` / `favicon` / `url` to publish with; pass them
+verbatim, and on a first publish record the URL with `dashboard-url --set`.
+
+Then report in chat as well: per PR the `/files` link, what was drafted with one line each, what was
+dropped and why, and anything that does not belong on a PR at all. Say explicitly that the review is
 unsubmitted and how to submit it.
+
+The page hands feedback back as a pasted block of comments and decisions. Each comment re-enters at
+Step 2; a `Do these` line is the reviewer's instruction, and it is the one route by which `submit` is
+authorized without them naming the event in chat.
+
+**Done when** the page is republished to its recorded URL, every card carries a next step and a
+button, and the chat report says the review is unsubmitted.
 
 ## Step 6 — Close out
 
@@ -161,6 +183,7 @@ and it's fine" is evidence to confirm, not a finding to drop on trust.
 | "I read the diff and know what's wrong — surfaces can wait" | Bots and other reviewers have usually said it already. A duplicate finding wastes the author's time and costs the review its credibility. Read the surfaces first, every run. |
 | "The PR is unchanged since the last run, but another look can't hurt" | A matching head SHA in `state.md` means handled. Re-reviewing it re-delivers findings the author already has. |
 | "No findings — I should write something so the run isn't empty" | An empty queue or a clean PR is a real result. Say so in one line. |
+| "I'll write the status page HTML myself, it's just one page" | The page's markup, themes and behaviour live in `scripts/review-prs-dashboard.js` so every reviewer on this skill gets the same interface and the same fixes. Hand-written HTML is a private one-off that drifts on the next run. Pass data through `--actions`; change the renderer if the page itself is wrong. |
 | "It's a nit — the ask is obvious from the label, an `Ask:` line is overhead" | Obvious to you, inferred by the author. "Worth restoring the clause" reads as an observation to file away; `Ask: restore the when-clause` reads as a thread to close. The smaller the finding, the cheaper its ask is to state. |
 
 ## Hard rules
