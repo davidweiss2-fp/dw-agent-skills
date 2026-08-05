@@ -137,6 +137,68 @@ describe('queue presentation', () => {
 	});
 });
 
+describe('watch bookkeeping', () => {
+	it('orders targets so drafted PRs are polled before declined ones', () => {
+		const entries = {
+			'a/b#3': {key: 'a/b#3', status: 'declined'},
+			'a/b#1': {key: 'a/b#1', status: 'submitted'},
+			'a/b#2': {key: 'a/b#2', status: 'drafted'},
+		};
+		assert.deepEqual(lib.watchTargets(entries), ['a/b#2', 'a/b#1', 'a/b#3']);
+	});
+
+	it('reports only comments above the mark, and advances past ones it filters out', () => {
+		const comments = [
+			{id: 10, user: 'someone', body: 'old'},
+			{id: 20, user: 'me', body: 'my own reply'},
+			{id: 30, user: 'bugbot', isBot: true, body: 'bot noise'},
+			{id: 40, user: 'colleague', body: 'answered your ask'},
+		];
+		const seen = lib.unseenComments(comments, 10, {myLogin: 'me', includeBots: false});
+		assert.deepEqual(seen.fresh.map((c) => c.id), [40]);
+		// 30 was filtered, not skipped over: the next pass must not re-examine it.
+		assert.equal(seen.watermark, 40);
+		assert.deepEqual(lib.unseenComments(comments, seen.watermark, {myLogin: 'me'}).fresh, []);
+	});
+
+	it('treats a bot comment as reportable only when asked', () => {
+		const comments = [{id: 5, user: 'bugbot', isBot: true, body: 'high severity'}];
+		assert.deepEqual(lib.unseenComments(comments, 0, {includeBots: true}).fresh.map((c) => c.id), [5]);
+		assert.deepEqual(lib.unseenComments(comments, 0, {includeBots: false}).fresh, []);
+	});
+
+	it('keeps polling the rest of the queue when one PR throws', () => {
+		const polled = [];
+		const pass = lib.watchPass(['a/b#1', 'a/b#2', 'a/b#3'], (key) => {
+			polled.push(key);
+			if (key === 'a/b#2') throw new Error('gh: Not Found (HTTP 404)');
+			return {key, fresh: [{id: 1, body: 'new'}]};
+		});
+		assert.deepEqual(polled, ['a/b#1', 'a/b#2', 'a/b#3']);
+		assert.equal(pass.failed, 1);
+		assert.equal(pass.fresh, 2);
+		assert.match(pass.results[1].error, /404/);
+	});
+
+	it('survives a reporting failure without losing the remaining PRs', () => {
+		const pass = lib.watchPass(
+			['a/b#1', 'a/b#2'],
+			(key) => ({key, fresh: []}),
+			(res) => {
+				if (res.key === 'a/b#1') throw new Error('stdout exploded');
+			},
+		);
+		assert.equal(pass.results.length, 2);
+		assert.match(pass.results[0].reportError, /stdout exploded/);
+	});
+
+	it('calls a PR with no marks a first watch, so history is seeded not surfaced', () => {
+		assert.equal(lib.isFirstWatch(undefined), true);
+		assert.equal(lib.isFirstWatch({}), true);
+		assert.equal(lib.isFirstWatch({'review-comment': 1}), false);
+	});
+});
+
 describe('cli guards (no network)', () => {
 	it('prints usage with no arguments and fails on an unknown subcommand', () => {
 		const help = runCli([]);

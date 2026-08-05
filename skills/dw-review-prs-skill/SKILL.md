@@ -31,6 +31,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… submit <pr> --event COMMENT\|APPROVE\|REQUEST_CHANGES` | Publish the pending review — only on explicit instruction |
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
+| `… watch [--once] [--poll-ms N] [--include-bots] [--open-only]` | New comments on every PR the store records (Step 7) |
 
 Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-agent-store>/run-notes/dw-review-prs/`
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
@@ -125,6 +126,31 @@ a correction to these steps — through `dw-knowledge`.
 
 **Done when** `state.md` carries the head SHA for every PR reviewed this run and `comments.md` has a
 row per draft.
+
+## Step 7 — Listen for the replies
+
+A drafted review is half a conversation. `watch` polls **every PR `state.md` has ever recorded** —
+across repos, including merged and closed ones, since a thread outlives its merge — and reports the
+comments that landed since the last pass.
+
+```bash
+node scripts/review-prs.js watch --once          # one pass, for a scheduled run
+node scripts/review-prs.js watch --poll-ms 60000 # keep listening
+```
+
+- **Its own comments and bots stay out of the report** (`--include-bots` opts them back in), so what
+  surfaces is a person waiting on a reply.
+- **A high-water mark per PR per surface** lives in `watch-state.json`; the first pass on a PR seeds
+  those marks and reports nothing, rather than replaying the whole history.
+- **One unreachable PR is a line of output, not the end of the pass** — a deleted PR or a revoked
+  token on one repo leaves the others reporting.
+
+Each reported comment re-enters this skill at Step 2: read the thread, check the claims against the
+code, and draft the reply through `reply`. An answer that closes a thread is worth saying so in one
+line; an answer that resolves nothing needs the verification pass first — a colleague's "I checked
+and it's fine" is evidence to confirm, not a finding to drop on trust.
+
+**Done when** every reported comment is either answered with a draft or named as needing nothing.
 
 ## Rationalizations
 
