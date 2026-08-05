@@ -2,6 +2,30 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.6
+
+### Added
+
+- **dw-review-prs: `reviewed` split into what it was actually hiding, and the queue looks in more
+  places.** One bucket covered three unrelated situations, so a PR the author had answered read the
+  same as one nobody had touched. Now: **`answered`** (the author replied after your review - the only
+  one of the four that is work, and it outranks any standing decision), **`undecided`** (you reviewed
+  it, nobody approved it), **`changes-requested`** (a standing CHANGES_REQUESTED), and **`not-ready`**
+  (the author put it back in draft, which previously read as reviewed-and-done). On the author's queue
+  the old single bucket held ten PRs; the split turned them into one approved, one undecided, one
+  blocked on its author and one WIP, with the rest pruned by the new window. The reply check costs an
+  API call, so it is only asked for a head already reviewed, and standing decisions are derived from
+  the reviews the run had already fetched.
+- **The search now unions review-requested, team-review-requested, reviewed-by and mentions.** Teams
+  come from `/user/teams` per run, so the skill carries no one's team names and a token without that
+  scope simply loses the source. Requests aimed at the reviewer or their team are never aged out - an
+  unanswered request is work however long it has sat - while the broad sources are pruned by
+  `--days` (14 by default, `--all-time` to disable), which is what cleared five months of archaeology
+  off the list. `commenter:@me` stays behind `--participation`; `assignee:@me` was measured and
+  rejected, being entirely the reviewer's own PRs and dependabot chores. Every PR the store records as
+  `drafted` is retained whatever its age, so pruning discovery cannot hide unsubmitted drafts, and a
+  retained PR that has since closed says how to clear itself instead of repeating a dead line.
+
 ## 0.4.5
 
 ### Fixed

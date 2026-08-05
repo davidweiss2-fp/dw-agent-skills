@@ -64,8 +64,32 @@ function hasSource(pr, source) {
 	return Array.isArray(pr.sources) && pr.sources.includes(source);
 }
 
+// What "I already reviewed this head" resolves to. `reviewed` on its own hid three
+// different situations: the author answered and it is back with me, nobody ever
+// decided, and someone's CHANGES_REQUESTED still stands.
+function settledStatus(pr) {
+	if (pr.authorRepliedSinceMyReview) {
+		return {status: 'answered', reason: 'the author replied after your review'};
+	}
+	if (pr.approvedByAnyone) {
+		return {status: 'reviewed', reason: 'reviewed and approved'};
+	}
+	if (pr.changesRequestedStands) {
+		return {status: 'changes-requested', reason: 'changes requested and not yet resolved'};
+	}
+	return {status: 'undecided', reason: 'you reviewed it and nobody has approved it'};
+}
+
 function classifyPr(pr, state) {
-	if (!pr.isOpen) return {status: 'closed', reason: 'PR is no longer open'};
+	if (!pr.isOpen) {
+		// Only reachable for a PR the store still records as carrying drafts: those are
+		// retained past the search window, so say what clears it rather than repeating
+		// the same dead line every run.
+		if (hasSource(pr, 'tracked')) {
+			return {status: 'closed', reason: 'closed while the store still records drafts - clear it with state-set'};
+		}
+		return {status: 'closed', reason: 'PR is no longer open'};
+	}
 	if (pr.authoredByMe) return {status: 'skip', reason: 'own PR'};
 
 	const pending = pr.pendingReview;
@@ -79,16 +103,21 @@ function classifyPr(pr, state) {
 		// An empty pending review still blocks REST comment posting on this PR.
 		return {status: 'draft-empty', reason: 'empty pending review holds the one-per-PR slot'};
 	}
+	// Checked after the drafts: an author who reopens a PR as WIP does not release the
+	// pending-review slot, so submitting or dropping those drafts still comes first.
+	if (pr.isDraft) {
+		return {status: 'not-ready', reason: 'the author has it back in draft'};
+	}
 
 	const submitted = Array.isArray(pr.submittedShas) ? pr.submittedShas : [];
 	if (pr.headSha && submitted.includes(pr.headSha)) {
-		return {status: 'reviewed', reason: 'review submitted at current head'};
+		return settledStatus(pr);
 	}
 	// The store is consulted before the older submitted SHAs: a run that reviewed this
 	// exact head and found nothing new records it here without publishing a review, and
 	// treating that as "pushed to since your last review" re-delivers work already done.
 	if (state && pr.headSha && state.sha === pr.headSha && state.status === 'submitted') {
-		return {status: 'reviewed', reason: 'state records this head as handled'};
+		return settledStatus(pr);
 	}
 	if (state && pr.headSha && state.sha === pr.headSha && state.status === 'declined') {
 		return {status: 'skip', reason: 'declined at this head'};
@@ -105,7 +134,7 @@ function classifyPr(pr, state) {
 }
 
 // Statuses the reviewer has to act on, in the order they should be reported.
-const ACTIONABLE = ['draft-waiting', 'needs-draft', 'draft-empty'];
+const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
 function isActionable(status) {
 	return ACTIONABLE.includes(status);
@@ -288,6 +317,7 @@ function ledgerLine({at, key, url, status, weight, finding}) {
 
 module.exports = {
 	DRAFT_TAG,
+	settledStatus,
 	hasSource,
 	ACTIONABLE,
 	parsePrRef,
