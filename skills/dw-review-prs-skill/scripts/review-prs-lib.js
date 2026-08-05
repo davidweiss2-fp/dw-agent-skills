@@ -254,8 +254,9 @@ function dashboardModel({prs, ledger, actions, generatedAt} = {}) {
 		needsYou: cards.filter((c) => c.lane === 'needs-you').length,
 		missingNext: cards.filter((c) => !c.next).map((c) => c.key),
 		// A card with no CTA has no button, so the reviewer cannot hand that decision
-		// back. Reported so a run cannot leave one silently blank.
-		missingCta: cards.filter((c) => c.next && !c.cta).map((c) => c.key),
+		// back. Reported so a run cannot leave one silently blank. A card with drafts
+		// waiting gets the submit-resolution buttons instead, so it needs no `cta`.
+		missingCta: cards.filter((c) => c.next && !c.cta && !(Number(c.pendingDrafts) > 0)).map((c) => c.key),
 	};
 }
 
