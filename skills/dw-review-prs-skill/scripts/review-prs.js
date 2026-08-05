@@ -92,6 +92,7 @@ function bodyFile(flags) {
 	const body = readFileSync(f, 'utf8');
 	if (!body.trim()) fail('--body-file is empty');
 	if (!lib.hasDraftTag(body)) fail(`comment body must carry the ${lib.DRAFT_TAG} tag`);
+	if (!lib.hasAskLine(body)) fail(`comment body must open on an "Ask: <closeable action>" line after the ${lib.DRAFT_TAG} tag`);
 	return {file: f, body};
 }
 

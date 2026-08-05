@@ -2,6 +2,23 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.2
+
+### Changed
+
+- **dw-review-prs: every drafted comment now leads with its ask.** Step 4 said "finding and ask in
+  the first two lines", which permits an ask anywhere in the opening and does not require one at
+  all — so a comment could state a finding and leave the author to infer what closes the thread,
+  which is the failure a nit invites most ("worth restoring the clause" instead of "restore the
+  clause"). The step now fixes the body shape: `[dev-ai]`, then `Ask:` on the next line, then the
+  weight label on the line stating the finding, then evidence. `review-prs-lib.js` gained
+  `hasAskLine()` and `bodyFile()` rejects a body that opens any other way, so the rule is enforced
+  where the `[dev-ai]` tag already was rather than left to prose. A `Rationalizations` row carries
+  the excuse it has to survive ("it's a nit, the ask is obvious from the label"). Also new: a
+  one-line code change ships as a ` ```suggestion ` block in the evidence slot, matching the
+  anchored line verbatim, so the author closes it in one click — `draft` anchors a single line, so
+  anything longer stays prose.
+
 ## 0.4.1
 
 ### Fixed
