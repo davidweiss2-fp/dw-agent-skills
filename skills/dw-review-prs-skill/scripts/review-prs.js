@@ -24,6 +24,8 @@ const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted 
   submit <pr> --event COMMENT|APPROVE|REQUEST_CHANGES
   state-set <pr> --sha SHA --status STATUS    STATUS: drafted|submitted|declined
   log <pr> --status S --weight W --finding TEXT [--url URL]
+  watch [--once] [--poll-ms N] [--include-bots] [--open-only]
+                                     new comments on every PR the store records
 
 <pr> is a PR URL, owner/repo#123, or owner/repo/123.`;
 
@@ -384,6 +386,163 @@ function cmdStateSet(arg, flags) {
 	process.stdout.write(`state: ${r.key} sha=${sha} status=${status}\n`);
 }
 
+// gh, but a failure is data rather than an exit: one unreachable PR must not end
+// a watch that is covering the rest of the queue.
+function ghJsonSoft(args) {
+	const res = spawnSync('gh', args, {
+		encoding: 'utf8',
+		env: {...process.env, GH_PAGER: 'cat', PAGER: 'cat', GH_NO_TTY: '1'},
+	});
+	if (res.error) return {ok: false, error: `gh not runnable: ${res.error.message}`};
+	if (res.status !== 0) return {ok: false, error: (res.stderr || `gh exited ${res.status}`).trim()};
+	const out = (res.stdout || '').trim();
+	if (!out) return {ok: true, data: null};
+	try {
+		return {ok: true, data: JSON.parse(out)};
+	} catch (err) {
+		return {ok: false, error: `unparseable gh output: ${err.message}`};
+	}
+}
+
+function loadWatchState() {
+	const file = paths.watchStatePath();
+	if (!existsSync(file)) return {};
+	try {
+		const parsed = JSON.parse(readFileSync(file, 'utf8'));
+		return parsed && typeof parsed === 'object' ? parsed : {};
+	} catch {
+		// A corrupt watermark file re-seeds instead of ending the watch.
+		return {};
+	}
+}
+
+function saveWatchState(state) {
+	paths.ensureDir(paths.reviewNotesDir());
+	writeFileSync(paths.watchStatePath(), JSON.stringify(state, null, '\t') + '\n');
+}
+
+// The three surfaces a reply can land on, each normalized to {id, user, isBot, body, url, ...}.
+function watchSurfaces(r) {
+	const base = `repos/${r.owner}/${r.repo}`;
+	return [
+		{
+			name: 'review-comment',
+			args: ['api', '--paginate', `${base}/pulls/${r.number}/comments`],
+			map: (c) => ({
+				id: c.id,
+				user: c.user && c.user.login,
+				isBot: Boolean(c.user && c.user.type === 'Bot'),
+				where: `${c.path}:${c.line || c.original_line || '?'}`,
+				body: c.body || '',
+				url: c.html_url,
+			}),
+		},
+		{
+			name: 'pr-comment',
+			args: ['api', '--paginate', `${base}/issues/${r.number}/comments`],
+			map: (c) => ({
+				id: c.id,
+				user: c.user && c.user.login,
+				isBot: Boolean(c.user && c.user.type === 'Bot'),
+				where: '(conversation)',
+				body: c.body || '',
+				url: c.html_url,
+			}),
+		},
+		{
+			name: 'review',
+			args: ['api', '--paginate', `${base}/pulls/${r.number}/reviews`],
+			map: (v) => ({
+				id: v.id,
+				user: v.user && v.user.login,
+				isBot: Boolean(v.user && v.user.type === 'Bot'),
+				where: `(review ${v.state})`,
+				body: v.body || '',
+				url: v.html_url,
+			}),
+		},
+	];
+}
+
+function watchOnePr(key, watchState, opts) {
+	const r = lib.parsePrRef(key);
+	if (!r) return {key, error: 'unparseable PR ref in state.md'};
+	const meta = ghJsonSoft(['api', `repos/${r.owner}/${r.repo}/pulls/${r.number}`]);
+	if (!meta.ok) return {key, error: meta.error};
+	const prState = meta.data && (meta.data.merged_at ? 'merged' : meta.data.state);
+	if (opts.openOnly && prState !== 'open') return {key, prState, skipped: true, fresh: []};
+
+	const entry = watchState[key] || {};
+	const seeding = lib.isFirstWatch(entry);
+	const next = {...entry};
+	const fresh = [];
+	for (const surface of watchSurfaces(r)) {
+		const res = ghJsonSoft(surface.args);
+		if (!res.ok) return {key, prState, error: `${surface.name}: ${res.error}`};
+		const rows = (res.data || []).map(surface.map).filter((c) => String(c.body || '').trim() !== '');
+		const seen = lib.unseenComments(rows, entry[surface.name], {
+			myLogin: opts.myLogin,
+			includeBots: opts.includeBots,
+		});
+		next[surface.name] = seen.watermark;
+		if (!seeding) for (const c of seen.fresh) fresh.push({...c, surface: surface.name});
+	}
+	watchState[key] = next;
+	return {key, prState, seeding, fresh};
+}
+
+function printWatchResult(res) {
+	if (res.error) {
+		process.stdout.write(`[watch] ${res.key} error (continuing): ${res.error}\n`);
+		return;
+	}
+	if (res.seeding) {
+		process.stdout.write(`[watch] ${res.key} (${res.prState}) first pass - marks seeded, nothing reported\n`);
+		return;
+	}
+	if (!res.fresh.length) return;
+	process.stdout.write(`[watch] ${res.key} (${res.prState}) ${res.fresh.length} new\n`);
+	for (const c of res.fresh) {
+		const excerpt = String(c.body).replace(/\s+/g, ' ').trim().slice(0, 240);
+		process.stdout.write(`  - ${c.surface} ${c.user} ${c.where}\n    ${excerpt}\n    ${c.url}\n`);
+	}
+}
+
+async function cmdWatch(flags) {
+	const pollMs = Number(flags['poll-ms']) > 0 ? Number(flags['poll-ms']) : 120_000;
+	const opts = {
+		includeBots: Boolean(flags['include-bots']),
+		openOnly: Boolean(flags['open-only']),
+		myLogin: me(),
+	};
+	const stateFile = paths.statePath();
+	process.stdout.write(`[watch] store=${stateFile} me=${opts.myLogin} mode=${flags.once ? 'once' : 'loop'}\n`);
+
+	for (;;) {
+		const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
+		const targets = lib.watchTargets(entries);
+		const watchState = loadWatchState();
+		// Re-read state.md every pass, so a PR reviewed by another run joins the
+		// watch without a restart.
+		process.stdout.write(`[watch] pass ${new Date().toISOString()} prs=${targets.length}\n`);
+		const pass = lib.watchPass(
+			targets,
+			(key) => watchOnePr(key, watchState, opts),
+			(res) => {
+				printWatchResult(res);
+				// Saved per result: a crash mid-pass cannot replay comments already shown.
+				saveWatchState(watchState);
+			},
+		);
+
+		if (!pass.fresh) {
+			process.stdout.write(`[watch] quiet - ${targets.length - pass.failed}/${targets.length} PRs reachable\n`);
+		}
+		if (flags.once) return;
+		await new Promise((resolve) => setTimeout(resolve, pollMs));
+	}
+}
+
 function cmdLog(arg, flags) {
 	const r = ref(arg);
 	const finding = flags.finding;
@@ -434,6 +593,8 @@ function main() {
 			return cmdStateSet(positional[1], flags);
 		case 'log':
 			return cmdLog(positional[1], flags);
+		case 'watch':
+			return cmdWatch(flags).catch((err) => fail(`watch: ${err instanceof Error ? err.message : String(err)}`));
 		default:
 			process.stdout.write(USAGE + '\n');
 			process.exit(cmd ? 1 : 0);

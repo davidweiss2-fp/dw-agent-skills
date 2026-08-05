@@ -34,6 +34,12 @@ function commentsLogPath(env = process.env) {
 	return join(reviewNotesDir(env), 'comments.md');
 }
 
+// High-water mark per PR per comment surface, so `watch` can tell a new comment
+// from one an earlier pass already surfaced.
+function watchStatePath(env = process.env) {
+	return join(reviewNotesDir(env), 'watch-state.json');
+}
+
 // Create a directory (recursive); ignore EEXIST.
 function ensureDir(dir) {
 	try {
@@ -48,5 +54,6 @@ module.exports = {
 	reviewNotesDir,
 	statePath,
 	commentsLogPath,
+	watchStatePath,
 	ensureDir,
 };

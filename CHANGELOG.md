@@ -4,6 +4,20 @@ All notable changes to dw-agent-skills. This project follows semantic versioning
 
 ## 0.4.2
 
+### Added
+
+- **dw-review-prs: `watch` — the replies to reviews you already left.** A drafted review is half a
+  conversation, and the other half arrived on a PR the queue had already stopped listing: `queue`
+  only reports PRs where review is *requested*, so once a review is submitted the answer to it was
+  invisible. `watch` polls every PR `state.md` has ever recorded — across repos, including merged and
+  closed ones, since a thread outlives its merge — and reports what landed since the last pass. Own
+  comments and bots stay out of the report (`--include-bots` opts them in), so what surfaces is a
+  person waiting on a reply. A high-water mark per PR per surface lives in `watch-state.json`, and
+  the first pass on a PR seeds those marks rather than replaying its history. Failure is per PR, not
+  per pass: `watchPass()` turns a throwing PR into a result carrying the error, so a deleted PR or a
+  revoked token on one repo leaves the other PRs reporting — with tests for both that and a
+  reporting failure. `--once` for a scheduled run, `--poll-ms` to keep listening.
+
 ### Changed
 
 - **dw-review-prs: every drafted comment now leads with its ask.** Step 4 said "finding and ask in

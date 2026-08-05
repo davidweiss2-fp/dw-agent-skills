@@ -125,6 +125,74 @@ function hasAskLine(body) {
 	return first !== -1 && /^Ask:\s*\S/.test(lines[first].trim());
 }
 
+// Every PR the store has ever recorded, in the order `watch` should poll them:
+// the ones this reviewer drafted on first, since those are the threads someone is
+// most likely answering.
+function watchTargets(entries) {
+	const rows = Array.isArray(entries) ? entries : Object.values(entries || {});
+	const order = {drafted: 0, submitted: 1, declined: 2};
+	return rows
+		.filter((r) => r && r.key)
+		.slice()
+		.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3))
+		.map((r) => r.key);
+}
+
+// GitHub's comment ids climb, so one high-water mark per surface separates a new
+// comment from a seen one without storing every id. The mark advances past
+// filtered-out comments too - a bot or self comment is seen, just not surfaced -
+// so a later pass does not re-examine it.
+function unseenComments(comments, watermark, {myLogin, includeBots} = {}) {
+	const mark = Number(watermark) || 0;
+	const fresh = [];
+	let next = mark;
+	for (const c of comments || []) {
+		const id = Number(c && c.id) || 0;
+		if (id > next) next = id;
+		if (id <= mark) continue;
+		if (c.isBot && !includeBots) continue;
+		if (myLogin && c.user === myLogin) continue;
+		fresh.push(c);
+	}
+	fresh.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+	return {fresh, watermark: next};
+}
+
+// A first pass has no marks, so surfacing months of history would bury the new
+// comment the watch exists to catch. Seed the marks instead and report nothing.
+function isFirstWatch(entry) {
+	return !entry || Object.keys(entry).length === 0;
+}
+
+// One pass over the watched PRs. A PR that throws becomes a result carrying the
+// error, never an end to the pass - the whole point of a watch is that the PR
+// nobody can reach does not silence the five that can be. Reporting is wrapped
+// for the same reason: a formatting bug must not cost the remaining PRs.
+function watchPass(targets, pollOne, onResult) {
+	const results = [];
+	for (const key of targets || []) {
+		let res;
+		try {
+			res = pollOne(key);
+		} catch (err) {
+			res = {key, error: err instanceof Error ? err.message : String(err)};
+		}
+		results.push(res);
+		if (onResult) {
+			try {
+				onResult(res);
+			} catch (err) {
+				results[results.length - 1] = {...res, reportError: String(err)};
+			}
+		}
+	}
+	return {
+		results,
+		failed: results.filter((r) => r && r.error).length,
+		fresh: results.reduce((n, r) => n + ((r && r.fresh) || []).length, 0),
+	};
+}
+
 function ledgerLine({at, key, url, status, weight, finding}) {
 	const cells = [at || '', key || '', status || '', weight || '', (finding || '').replace(/\s+/g, ' ').trim(), url || ''];
 	return `| ${cells.join(' | ')} |`;
@@ -143,5 +211,9 @@ module.exports = {
 	summarize,
 	hasDraftTag,
 	hasAskLine,
+	watchTargets,
+	unseenComments,
+	isFirstWatch,
+	watchPass,
 	ledgerLine,
 };
