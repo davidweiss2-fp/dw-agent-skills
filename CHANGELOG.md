@@ -2,6 +2,23 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.5
+
+### Fixed
+
+- **dw-review-prs: the queue lost every PR the moment its review was submitted.** `queue` searched
+  `review-requested:@me` only, and GitHub clears that request as soon as a review lands - so a PR
+  disappeared from the list at precisely the point the reviewer was waiting on the author's answer,
+  and the run had to be told about it by hand. It now unions `review-requested:@me` with
+  `reviewed-by:@me`, deduplicated by PR, and each hit carries why it is listed. On the author's own
+  queue this surfaced ten already-reviewed PRs and two that had been pushed to since their review,
+  none of which the old search returned. `--participation` widens it further to `commenter:@me`;
+  those arrive as a new non-actionable `watching` status, because taking part in someone's thread is
+  not a request to write a review.
+- **A head the store already recorded no longer reads as unreviewed.** `classifyPr` checked older
+  submitted SHAs before the store, so a run that reviewed a delta and correctly found nothing - which
+  records the head without publishing a review - came back as "pushed to since your last submitted
+  review" on every later run. The store's record of the current head is now consulted first.
 ## 0.4.4
 
 ### Fixed

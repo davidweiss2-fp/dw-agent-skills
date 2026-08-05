@@ -58,6 +58,12 @@ function upsertState(entries, key, {sha, status, at}) {
 //      pendingReview: {id, draftCount} | null,
 //      submittedShas: [sha, ...]}   // head SHAs this reviewer already submitted against
 // state: the parsed state.md entry for this PR, or undefined.
+// `sources` says why a PR is in the queue: 'requested' (review requested of me),
+// 'reviewed' (I have a review on it), 'commented' (I only took part in a thread).
+function hasSource(pr, source) {
+	return Array.isArray(pr.sources) && pr.sources.includes(source);
+}
+
 function classifyPr(pr, state) {
 	if (!pr.isOpen) return {status: 'closed', reason: 'PR is no longer open'};
 	if (pr.authoredByMe) return {status: 'skip', reason: 'own PR'};
@@ -78,14 +84,22 @@ function classifyPr(pr, state) {
 	if (pr.headSha && submitted.includes(pr.headSha)) {
 		return {status: 'reviewed', reason: 'review submitted at current head'};
 	}
-	if (submitted.length > 0) {
-		return {status: 'needs-draft', reason: 'pushed to since your last submitted review'};
-	}
+	// The store is consulted before the older submitted SHAs: a run that reviewed this
+	// exact head and found nothing new records it here without publishing a review, and
+	// treating that as "pushed to since your last review" re-delivers work already done.
 	if (state && pr.headSha && state.sha === pr.headSha && state.status === 'submitted') {
-		return {status: 'reviewed', reason: 'state records a submitted review at this head'};
+		return {status: 'reviewed', reason: 'state records this head as handled'};
 	}
 	if (state && pr.headSha && state.sha === pr.headSha && state.status === 'declined') {
 		return {status: 'skip', reason: 'declined at this head'};
+	}
+	if (submitted.length > 0) {
+		return {status: 'needs-draft', reason: 'pushed to since your last submitted review'};
+	}
+	// Taking part in someone's thread is not a review request. Such a PR stays visible
+	// so a reply to it can still be noticed, but it never becomes work on its own.
+	if (Array.isArray(pr.sources) && pr.sources.length > 0 && !hasSource(pr, 'requested')) {
+		return {status: 'watching', reason: 'you took part, but review was never requested of you'};
 	}
 	return {status: 'needs-draft', reason: 'no review from you yet'};
 }
@@ -274,6 +288,7 @@ function ledgerLine({at, key, url, status, weight, finding}) {
 
 module.exports = {
 	DRAFT_TAG,
+	hasSource,
 	ACTIONABLE,
 	parsePrRef,
 	parseStateMd,

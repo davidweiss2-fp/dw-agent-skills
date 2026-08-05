@@ -15,7 +15,7 @@ const dash = require('./review-prs-dashboard.js');
 
 const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted review
 
-  queue [--json]                     PRs where review is requested of you, classified
+  queue [--json] [--participation]   PRs requested of you or reviewed by you, classified
   surfaces <pr>                      every comment surface + your own pending drafts
   threads <pr>                       review threads with node ids (for reply)
   draft <pr> --path P --line N [--side RIGHT|LEFT] --body-file F
@@ -135,27 +135,51 @@ function pendingReviewFor(r, login) {
 
 // The search index lags live PR state, so every hit is re-resolved through the
 // PR endpoint and anything not open is dropped.
+// A review request is not the only reason a PR belongs on this list. Once a review is
+// submitted the request is gone, so `--review-requested` alone drops the PR the moment
+// the reviewer is waiting on an answer - which is exactly when they still need to see it.
+const QUEUE_SEARCHES = [
+	{source: 'requested', arg: '--review-requested=@me'},
+	{source: 'reviewed', arg: '--reviewed-by=@me'},
+	{source: 'commented', arg: '--commenter=@me', optIn: true},
+];
+
+function queueHits(flags) {
+	const searches = QUEUE_SEARCHES.filter((q) => (q.optIn ? Boolean(flags.participation) : true));
+	const byKey = new Map();
+	for (const search of searches) {
+		const hits =
+			ghJson([
+				'search',
+				'prs',
+				search.arg,
+				'--state=open',
+				'--limit',
+				'100',
+				'--json',
+				'number,repository,url,title,updatedAt',
+			]) || [];
+		for (const hit of hits) {
+			const nameWithOwner = hit.repository && (hit.repository.nameWithOwner || hit.repository.name);
+			const key = `${nameWithOwner}#${hit.number}`;
+			const seen = byKey.get(key);
+			if (seen) seen.sources.push(search.source);
+			else byKey.set(key, {...hit, nameWithOwner, sources: [search.source]});
+		}
+	}
+	return [...byKey.values()];
+}
+
 function cmdQueue(flags) {
 	const login = me();
-	const hits =
-		ghJson([
-			'search',
-			'prs',
-			'--review-requested=@me',
-			'--state=open',
-			'--limit',
-			'100',
-			'--json',
-			'number,repository,url,title,updatedAt',
-		]) || [];
+	const hits = queueHits(flags);
 	const state = existsSync(paths.statePath())
 		? lib.parseStateMd(readFileSync(paths.statePath(), 'utf8'))
 		: {};
 
 	const rows = [];
 	for (const hit of hits) {
-		const nameWithOwner = hit.repository && (hit.repository.nameWithOwner || hit.repository.name);
-		const r = lib.parsePrRef(`${nameWithOwner}#${hit.number}`);
+		const r = lib.parsePrRef(`${hit.nameWithOwner}#${hit.number}`);
 		if (!r) continue;
 		const pr = prMeta(r);
 		const {pending, submittedShas} = pendingReviewFor(r, login);
@@ -168,6 +192,7 @@ function cmdQueue(flags) {
 				authoredByMe: Boolean(pr.user && pr.user.login === login),
 				pendingReview: pending ? {id: pending.id, draftCount: pending.draftCount} : null,
 				submittedShas,
+				sources: hit.sources,
 			},
 			state[r.key],
 		);
@@ -182,6 +207,7 @@ function cmdQueue(flags) {
 			updatedAt: hit.updatedAt,
 			status: cls.status,
 			reason: cls.reason,
+			sources: hit.sources,
 		});
 	}
 
