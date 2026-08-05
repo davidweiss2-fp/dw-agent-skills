@@ -60,18 +60,38 @@ function stateChip(card) {
 	return bits;
 }
 
-// The next-step box holds the one CTA for this PR. The page cannot reach GitHub, so
-// the button's honest job is to tell the agent what was decided - the label says the
-// action, the confirmed state says who does it.
+// A card with unsubmitted drafts needs a resolution, not an instruction. "Read the
+// drafts, then submit" is addressed to the reviewer, so it comes back to the agent
+// saying nothing about what to do; these three name the GitHub review event instead.
+const RESOLUTIONS = [
+	{event: 'COMMENT', label: 'Comment'},
+	{event: 'APPROVE', label: 'Approve'},
+	{event: 'REQUEST_CHANGES', label: 'Request changes'},
+];
+
+function submitPhrase(event) {
+	return `I read the drafts — submit them as ${event}`;
+}
+
+// The next-step box holds this PR's one decision. The page cannot reach GitHub, so a
+// button's honest job is to tell the agent what was decided - the label says the
+// action, the confirmed state says who carries it out.
 function renderNext(card) {
 	if (!card.next) return '<div class="next empty"><p>No next step recorded for this PR.</p></div>';
-	const cta = card.cta
-		? `<button class="cta" type="button" data-cta="${esc(card.cta)}">${esc(card.cta)}</button>`
-		: '';
+	let action = '';
+	if (Number(card.pendingDrafts) > 0) {
+		const buttons = RESOLUTIONS.map(
+			(r) =>
+				`<button class="cta resolve" type="button" data-phrase="${esc(submitPhrase(r.event))}" data-label="${esc(r.label)}">${esc(r.label)}</button>`,
+		).join('');
+		action = `<div class="resolve-row"><span class="resolve-label">Read them, then submit as</span>${buttons}</div>`;
+	} else if (card.cta) {
+		action = `<button class="cta" type="button" data-phrase="${esc(card.cta)}" data-label="${esc(card.cta)}">${esc(card.cta)}</button>`;
+	}
 	return `<div class="next">
 		<span class="next-label">Your next step</span>
 		<p>${esc(card.next)}</p>
-		${cta}
+		${action}
 	</div>`;
 }
 
@@ -309,24 +329,30 @@ function dashboardClient() {
 		list.appendChild(li);
 	}
 
-	Array.prototype.forEach.call(document.querySelectorAll('.cta'), function (btn) {
-		var card = btn.closest('.card');
+	// One decision per card: a resolution group and a single CTA both resolve to one
+	// stored phrase, so picking Approve after Comment replaces it rather than stacking.
+	function paintCard(card) {
 		var key = card.dataset.key;
-		var label = btn.dataset.cta;
-		function paint() {
-			var chosen = state.decisions[key] === label;
+		Array.prototype.forEach.call(card.querySelectorAll('.cta'), function (btn) {
+			var chosen = state.decisions[key] === btn.dataset.phrase;
 			btn.classList.toggle('sent', chosen);
-			btn.textContent = chosen ? '\u2713 for the agent: ' + label : label;
+			btn.textContent = chosen ? '\u2713 ' + btn.dataset.label : btn.dataset.label;
 			btn.setAttribute('aria-pressed', chosen ? 'true' : 'false');
-		}
-		btn.addEventListener('click', function () {
-			if (state.decisions[key] === label) delete state.decisions[key];
-			else state.decisions[key] = label;
-			persist();
-			paint();
-			refresh();
 		});
-		paint();
+	}
+
+	Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
+		var key = card.dataset.key;
+		Array.prototype.forEach.call(card.querySelectorAll('.cta'), function (btn) {
+			btn.addEventListener('click', function () {
+				if (state.decisions[key] === btn.dataset.phrase) delete state.decisions[key];
+				else state.decisions[key] = btn.dataset.phrase;
+				persist();
+				paintCard(card);
+				refresh();
+			});
+		});
+		paintCard(card);
 	});
 
 	function payload() {
@@ -413,7 +439,7 @@ function dashboardClient() {
 		});
 		Array.prototype.forEach.call(document.querySelectorAll('.cta'), function (btn) {
 			btn.classList.remove('sent');
-			btn.textContent = btn.dataset.cta;
+			btn.textContent = btn.dataset.label;
 			btn.setAttribute('aria-pressed', 'false');
 		});
 		document.getElementById('handoff-note').textContent = '';
@@ -644,6 +670,18 @@ footer { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); 
 .cta:hover { filter: brightness(1.08); }
 .cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .cta.sent { background: transparent; color: var(--good); border-color: var(--good); }
+.resolve-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.6rem; }
+.resolve-label {
+	font-family: var(--mono);
+	font-size: 0.66rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--ink-faint);
+	margin-right: 0.15rem;
+}
+.cta.resolve { margin-top: 0; background: transparent; color: var(--accent); }
+.cta.resolve:hover { background: var(--accent-soft); }
+.cta.resolve.sent { background: var(--good); border-color: var(--good); color: var(--surface); }
 .selpill, .annopop { position: absolute; z-index: 20; }
 /* A class that sets display beats the UA's [hidden] rule, so the attribute stops
    hiding anything. Restate it for the elements this page toggles. */

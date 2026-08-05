@@ -284,6 +284,40 @@ describe('dashboard rendering', () => {
 		assert.ok(html.includes('2 unsubmitted drafts'));
 	});
 
+	it('offers a submit resolution, not an instruction, when drafts are waiting', () => {
+		const withDrafts = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [{key: 'a/b#1', pendingDrafts: 2, prState: 'open', storeStatus: 'drafted'}],
+				actions: {prs: {'a/b#1': {next: 'Two drafts waiting.', cta: 'Read the 2 drafts, then submit'}}},
+			}),
+		);
+		for (const event of ['COMMENT', 'APPROVE', 'REQUEST_CHANGES']) {
+			assert.match(withDrafts, new RegExp(`submit them as ${event}`),
+				`a card with drafts must offer ${event}`);
+		}
+		// The reviewer-facing instruction must not come back as the decision.
+		assert.ok(!withDrafts.includes('data-phrase="Read the 2 drafts'));
+	});
+
+	it('keeps the free-text CTA on cards with nothing drafted', () => {
+		const noDrafts = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [{key: 'a/b#2', pendingDrafts: 0, prState: 'open', storeStatus: 'submitted'}],
+				actions: {prs: {'a/b#2': {next: 'Ball is with the author.', cta: 'Approve the PR'}}},
+			}),
+		);
+		assert.match(noDrafts, /data-phrase="Approve the PR"/);
+		assert.ok(!noDrafts.includes('submit them as APPROVE'));
+	});
+
+	it('does not ask for a cta on a card that gets resolution buttons', () => {
+		const model = lib.dashboardModel({
+			prs: [{key: 'a/b#1', pendingDrafts: 1, prState: 'open', storeStatus: 'drafted'}],
+			actions: {prs: {'a/b#1': {next: 'Drafts waiting.'}}},
+		});
+		assert.deepEqual(model.missingCta, []);
+	});
+
 	it('keeps [hidden] effective on every element it sets display on', () => {
 		// A class that sets display beats the UA's [hidden] rule, so each toggled
 		// element needs its own [hidden] restatement or the attribute hides nothing.

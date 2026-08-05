@@ -2,6 +2,19 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.4
+
+### Fixed
+
+- **dw-review-prs: a card with drafts waiting now asks for a resolution instead of handing back an
+  instruction.** Its button carried the agent-authored `cta`, and on a PR with unsubmitted drafts that
+  text is addressed to the reviewer - "Read the 2 drafts, then submit". Clicking it sent that sentence
+  back verbatim, so the run received an instruction to *itself* and still had no idea which review
+  event the reviewer wanted. Those cards now render **Comment / Approve / Request changes**, one
+  decision per card, and the payload reads `I read the drafts - submit them as APPROVE`, which names
+  the event and authorizes exactly `submit --event APPROVE`. Cards with nothing drafted keep their
+  free-text `cta`, and the build no longer asks for a `cta` on a card that gets the resolution row.
+
 ## 0.4.3
 
 ### Added

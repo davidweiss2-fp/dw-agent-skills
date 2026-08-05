@@ -126,7 +126,9 @@ node scripts/review-prs.js dashboard --out queue.html --actions actions.json
 ```
 
 Write `actions.json` yourself — per PR a `next` (the free-text next step), a short `cta` for the
-button inside it ("Approve the PR", "Submit the draft"), and a `lane` when the derived one is wrong.
+button inside it ("Approve the PR", "Check the comments landed"), and a `lane` when the derived one
+is wrong. A PR that still has unsubmitted drafts renders **Comment / Approve / Request changes**
+instead of the `cta`, since what that card needs back is a resolution, not an instruction to read.
 The build prints the exact `title` / `description` / `favicon` / `url` to publish with; pass them
 verbatim, and on a first publish record the URL with `dashboard-url --set`.
 
@@ -136,7 +138,8 @@ unsubmitted and how to submit it.
 
 The page hands feedback back as a pasted block of comments and decisions. Each comment re-enters at
 Step 2; a `Do these` line is the reviewer's instruction, and it is the one route by which `submit` is
-authorized without them naming the event in chat.
+authorized without them naming the event in chat — `submit them as APPROVE` names it, so run
+`submit --event APPROVE` on that PR and nothing else.
 
 **Done when** the page is republished to its recorded URL, every card carries a next step and a
 button, and the chat report says the review is unsubmitted.

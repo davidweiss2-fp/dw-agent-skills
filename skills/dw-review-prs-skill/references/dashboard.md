@@ -30,7 +30,7 @@ varies per run is the data below.
 | Field | Does |
 |---|---|
 | `next` | The free-text next step, the one thing the reviewer reads per card. Written by the agent, not derived. |
-| `cta` | Short imperative for the button inside the next-step box: "Approve the PR", "Submit the draft", "Resolve the mentioned comments". |
+| `cta` | Short imperative for the button inside the next-step box: "Approve the PR", "Resolve the mentioned comments". Ignored when the PR has unsubmitted drafts - that card renders **Comment / Approve / Request changes** instead, because a resolution is what it needs back. |
 | `lane` | `needs-you` / `waiting-author` / `delegated` / `done`. Omit to let the rule below decide. |
 | `notes` | Extra lines under the next step, for a caveat the decision depends on. |
 
@@ -82,12 +82,16 @@ and pastes the result into the run:
 ## Review queue feedback - <timestamp>
 
 ### Do these
-- acme/widget#42 -> Approve the PR
+- acme/widget#42 -> I read the drafts - submit them as APPROVE
+- acme/widget#43 -> Approve the PR
 
 ### Comments
 - acme/widget#42 - on "the quoted text"
   what they want done about it
 ```
+
+A `submit them as <EVENT>` line names the review event, so it authorizes exactly
+`submit <pr> --event <EVENT>` on that PR - one submit, no other resolution inferred.
 
 Each pasted comment re-enters the skill at Step 2: read the thread, check the claim against the
 code, draft the reply. A `Do these` line is an instruction from the reviewer — including `submit`,
