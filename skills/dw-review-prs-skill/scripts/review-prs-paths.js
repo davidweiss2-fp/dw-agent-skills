@@ -40,6 +40,12 @@ function watchStatePath(env = process.env) {
 	return join(reviewNotesDir(env), 'watch-state.json');
 }
 
+// The published dashboard's Artifact URL. Persisted so every later run updates that
+// same page instead of minting a new link the reviewer has to re-find.
+function dashboardStatePath(env = process.env) {
+	return join(reviewNotesDir(env), 'dashboard.json');
+}
+
 // Create a directory (recursive); ignore EEXIST.
 function ensureDir(dir) {
 	try {
@@ -55,5 +61,6 @@ module.exports = {
 	statePath,
 	commentsLogPath,
 	watchStatePath,
+	dashboardStatePath,
 	ensureDir,
 };
