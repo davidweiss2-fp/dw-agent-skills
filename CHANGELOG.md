@@ -15,7 +15,10 @@ All notable changes to dw-agent-skills. This project follows semantic versioning
   the old single bucket held ten PRs; the split turned them into one approved, one undecided, one
   blocked on its author and one WIP, with the rest pruned by the new window. The reply check costs an
   API call, so it is only asked for a head already reviewed, and standing decisions are derived from
-  the reviews the run had already fetched.
+  the reviews the run had already fetched. The reply check compares timestamps in JS: the first cut
+  asked gh for `[...] | max` via `--jq`, whose bare-string output is not JSON, so the parse failed,
+  the check returned false and `answered` could never fire - invisible to unit tests that pass the
+  boolean straight in, and caught only by running it against a real queue.
 - **The search now unions review-requested, team-review-requested, reviewed-by and mentions.** Teams
   come from `/user/teams` per run, so the skill carries no one's team names and a token without that
   scope simply loses the source. Requests aimed at the reviewer or their team are never aged out - an

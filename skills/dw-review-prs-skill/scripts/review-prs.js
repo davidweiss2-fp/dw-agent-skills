@@ -228,26 +228,32 @@ function queueHits(flags) {
 	return [...byKey.values()];
 }
 
-// Only asked for PRs already reviewed at this head, so the extra call is not paid on
-// every hit: did anyone comment after this reviewer's last submitted review?
-function authorRepliedSinceMyReview(r, login) {
-	const mine = ghJsonSoft([
-		'api',
-		`repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews`,
-		'--paginate',
-		'--jq',
-		`[.[] | select(.user.login == "${login}" and .state != "PENDING") | .submitted_at] | max`,
-	]);
-	if (!mine.ok || !mine.data) return false;
-	const theirs = ghJsonSoft([
-		'api',
-		`repos/${r.owner}/${r.repo}/pulls/${r.number}/comments`,
-		'--paginate',
-		'--jq',
-		`[.[] | select(.user.login != "${login}") | .created_at] | max`,
-	]);
-	if (!theirs.ok || !theirs.data) return false;
-	return String(theirs.data) > String(mine.data);
+function maxTimestamp(rows, pick) {
+	let latest = '';
+	for (const row of rows || []) {
+		const at = pick(row);
+		if (at && String(at) > latest) latest = String(at);
+	}
+	return latest;
+}
+
+// Did anyone comment after this reviewer's last submitted review? Asked only for a head
+// already reviewed, so the extra call is not paid on every hit. The reviews array is the
+// one the caller already fetched, and the timestamps are compared in JS rather than
+// through `--jq`, whose bare-string output is not JSON and silently failed to parse.
+function authorRepliedSinceMyReview(r, login, reviews) {
+	const mine = maxTimestamp(
+		(reviews || []).filter((v) => v.user && v.user.login === login && v.state !== 'PENDING'),
+		(v) => v.submitted_at,
+	);
+	if (!mine) return false;
+	const res = ghJsonSoft(['api', `repos/${r.owner}/${r.repo}/pulls/${r.number}/comments`, '--paginate']);
+	if (!res.ok) return false;
+	const theirs = maxTimestamp(
+		(res.data || []).filter((c) => c.user && c.user.login !== login),
+		(c) => c.created_at,
+	);
+	return Boolean(theirs) && theirs > mine;
 }
 
 // Others' standing review states, from the reviews this run already fetched.
@@ -285,7 +291,8 @@ function cmdQueue(flags) {
 		const reviewedThisHead =
 			Boolean(headSha) &&
 			(submittedShas.includes(headSha) || (stored && stored.sha === headSha && stored.status === 'submitted'));
-		const decisions = reviewedThisHead ? othersDecisions(reviewsFor(r), login) : {};
+		const reviews = reviewedThisHead ? reviewsFor(r) : [];
+		const decisions = reviewedThisHead ? othersDecisions(reviews, login) : {};
 		const cls = lib.classifyPr(
 			{
 				key: r.key,
@@ -297,7 +304,7 @@ function cmdQueue(flags) {
 				submittedShas,
 				sources: hit.sources,
 				...decisions,
-				authorRepliedSinceMyReview: reviewedThisHead && authorRepliedSinceMyReview(r, login),
+				authorRepliedSinceMyReview: reviewedThisHead && authorRepliedSinceMyReview(r, login, reviews),
 			},
 			stored,
 		);
