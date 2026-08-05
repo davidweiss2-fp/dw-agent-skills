@@ -110,6 +110,44 @@ describe('classifyPr', () => {
 	});
 });
 
+describe('queue coverage beyond review requests', () => {
+	const base = {headSha: 'aaa', isOpen: true, authoredByMe: false, pendingReview: null, submittedShas: []};
+
+	it('keeps a PR you already reviewed visible instead of dropping it', () => {
+		// The request disappears once the review is submitted, which is exactly when the
+		// reviewer is waiting on an answer and still needs to see it.
+		const cls = lib.classifyPr({...base, sources: ['reviewed'], submittedShas: ['aaa']}, undefined);
+		assert.equal(cls.status, 'reviewed');
+		assert.equal(lib.isActionable(cls.status), false);
+	});
+
+	it('makes a reviewed PR actionable again once it is pushed to', () => {
+		const cls = lib.classifyPr({...base, headSha: 'bbb', sources: ['reviewed'], submittedShas: ['aaa']}, undefined);
+		assert.equal(cls.status, 'needs-draft');
+		assert.equal(lib.isActionable(cls.status), true);
+	});
+
+	it('does not turn taking part in a thread into a review to write', () => {
+		const cls = lib.classifyPr({...base, sources: ['commented']}, undefined);
+		assert.equal(cls.status, 'watching');
+		assert.equal(lib.isActionable(cls.status), false);
+	});
+
+	it('still treats a requested review with no history as work', () => {
+		const cls = lib.classifyPr({...base, sources: ['requested']}, undefined);
+		assert.equal(cls.status, 'needs-draft');
+	});
+
+	it('lets the store settle a head an older submitted review would re-open', () => {
+		// Reviewed the delta at this head and found nothing: recorded, not published.
+		const cls = lib.classifyPr(
+			{...base, headSha: 'ccc', sources: ['reviewed'], submittedShas: ['aaa']},
+			{sha: 'ccc', status: 'submitted'},
+		);
+		assert.equal(cls.status, 'reviewed');
+	});
+});
+
 describe('queue presentation', () => {
 	it('puts drafts waiting first, then new work, then the empty-slot case', () => {
 		const rows = [

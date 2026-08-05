@@ -22,7 +22,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 
 | Command | Does |
 |---|---|
-| `node scripts/review-prs.js queue` | Open review requests, classified against the store (`--json` for machine output) |
+| `node scripts/review-prs.js queue` | PRs requested of you **or already reviewed by you**, classified against the store (`--json`; `--participation` also pulls PRs you only commented on) |
 | `… surfaces <pr>` | Your pending drafts, your submitted reviews, and every published comment (human and bot) |
 | `… threads <pr>` | Review threads with node ids, for replying into an existing thread |
 | `… draft <pr> --path P --line N --body-file F` | New draft comment on a diff line; opens the pending review if needed |
@@ -41,7 +41,11 @@ Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-a
 
 ## Step 1 — Read the queue
 
-`queue` re-resolves every search hit through the PR endpoint, so closed and merged PRs drop out.
+`queue` searches `review-requested:@me` **and** `reviewed-by:@me`, then re-resolves every hit through
+the PR endpoint so closed and merged PRs drop out. Both searches matter: GitHub clears the review
+request the moment a review is submitted, so a request-only queue loses the PR exactly when the
+reviewer is waiting on the author's answer. `--participation` adds `commenter:@me`.
+
 Statuses:
 
 | Status | Meaning | Move |
@@ -50,6 +54,7 @@ Statuses:
 | `needs-draft` | No review from you, or pushed to since your last one | Full review, Steps 2-4 |
 | `draft-empty` | An empty pending review holds the one-per-PR slot | Draft into it, or `drop` its remnants |
 | `reviewed` / `skip` / `closed` | Handled at this head, own PR, or gone | One line, no work |
+| `watching` | You took part in a thread, but review was never requested of you | One line, no work |
 
 **Done when** every open request is classified and the actionable ones are reported to the user as
 links, newest work first.
