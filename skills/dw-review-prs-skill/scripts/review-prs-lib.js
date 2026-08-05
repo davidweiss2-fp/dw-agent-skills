@@ -117,6 +117,14 @@ function hasDraftTag(body) {
 	return String(body || '').includes(DRAFT_TAG);
 }
 
+// The author reads one line and knows what closes the thread, so the ask leads
+// every body: the tag, then `Ask:` on the first line that carries any text.
+function hasAskLine(body) {
+	const lines = String(body || '').split('\n');
+	const first = lines.findIndex((l) => l.trim() !== '' && l.trim() !== DRAFT_TAG);
+	return first !== -1 && /^Ask:\s*\S/.test(lines[first].trim());
+}
+
 function ledgerLine({at, key, url, status, weight, finding}) {
 	const cells = [at || '', key || '', status || '', weight || '', (finding || '').replace(/\s+/g, ' ').trim(), url || ''];
 	return `| ${cells.join(' | ')} |`;
@@ -134,5 +142,6 @@ module.exports = {
 	sortQueue,
 	summarize,
 	hasDraftTag,
+	hasAskLine,
 	ledgerLine,
 };

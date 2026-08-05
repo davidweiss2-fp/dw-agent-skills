@@ -75,13 +75,31 @@ approach, note only what survives the rewrite.
 
 ## Step 4 — Draft one comment per finding
 
-`draft` for a new thread, `reply` to join an existing one. The script refuses a body without the
-`[dev-ai]` tag.
+`draft` for a new thread, `reply` to join an existing one. The script refuses a body that does not
+carry the `[dev-ai]` tag and open on an `Ask:` line.
 
+Every comment leads with its ask, in this shape:
+
+```
+[dev-ai]
+Ask: <the one closeable action, imperative>
+
+<weight>: <the finding, one sentence>
+
+<evidence, then reasoning>
+```
+
+- **The `Ask:`** is imperative, one action, and closeable by the author — "restore the when-clause
+  on `@throws`", "align RD-1234's AC with what the PR delivers". One ask per comment; two findings
+  means two comments. Alternatives joined by "or" belong here only when choosing between them is
+  itself the ask.
+- **The weight label** — blocker / please fix / suggestion / nit — sits on the line that states the
+  finding, and does the framing on its own.
+- **Evidence** is one line or one short block: the minimum that lets the author check it themselves.
 - **150 words per comment, 250 with a code block.** Over budget means cut, not rephrase.
-- **Finding and ask in the first two lines.** One ask per comment; two findings means two comments.
-- **Label the weight** — blocker / please fix / suggestion / nit — and let the label do the framing.
-- **Evidence is one line or one short block**: the minimum that lets the author check it themselves.
+- **A one-line code change ships as a ` ```suggestion ` block** in the evidence slot, matching the
+  anchored line verbatim, indentation included, so the author closes it in one click. `draft` anchors
+  a single line, so a fix spanning more than one line is prose, not a suggestion block.
 - **Quote code verbatim** and never elide a list the argument depends on. **Name the unit** — a row,
   a sale, a shopper. **Try to falsify the finding** before drafting: can the state it describes
   actually occur?
@@ -91,7 +109,8 @@ approach, note only what survives the rewrite.
 For anything at the top of the budget, hand the rendered draft to a subagent with no session context
 and ask it to restate the claim; if it cannot, the draft is not ready.
 
-**Done when** every surviving finding is drafted on the PR and nothing is submitted.
+**Done when** every surviving finding is drafted on the PR, every body's first line after `[dev-ai]`
+is its `Ask:` line, and nothing is submitted.
 
 ## Step 5 — Hand over
 
@@ -116,6 +135,7 @@ row per draft.
 | "I read the diff and know what's wrong — surfaces can wait" | Bots and other reviewers have usually said it already. A duplicate finding wastes the author's time and costs the review its credibility. Read the surfaces first, every run. |
 | "The PR is unchanged since the last run, but another look can't hurt" | A matching head SHA in `state.md` means handled. Re-reviewing it re-delivers findings the author already has. |
 | "No findings — I should write something so the run isn't empty" | An empty queue or a clean PR is a real result. Say so in one line. |
+| "It's a nit — the ask is obvious from the label, an `Ask:` line is overhead" | Obvious to you, inferred by the author. "Worth restoring the clause" reads as an observation to file away; `Ask: restore the when-clause` reads as a thread to close. The smaller the finding, the cheaper its ask is to state. |
 
 ## Hard rules
 

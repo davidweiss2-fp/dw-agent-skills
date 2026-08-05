@@ -155,6 +155,22 @@ describe('cli guards (no network)', () => {
 		rmSync(dir, {recursive: true, force: true});
 	});
 
+	it('refuses a tagged body whose ask does not lead, and accepts one where it does', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'dw-review-ask-'));
+		const buried = join(dir, 'buried.md');
+		writeFileSync(buried, '[dev-ai]\nnit: the docblock lost its condition.\n\nAsk: restore the clause.\n');
+		const res = runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', buried]);
+		assert.equal(res.status, 1);
+		assert.match(res.stderr, /Ask:/);
+
+		// Same guard, satisfied: the ask leads, so the body gets past validation and
+		// fails later — on the network, not on its shape.
+		const leads = join(dir, 'leads.md');
+		writeFileSync(leads, '[dev-ai]\nAsk: restore the when-clause on `@throws`.\n\nnit: the docblock lost its condition.\n');
+		assert.doesNotMatch(runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', leads]).stderr, /Ask:/);
+		rmSync(dir, {recursive: true, force: true});
+	});
+
 	it('refuses an empty or missing body file', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'dw-review-body-'));
 		const empty = join(dir, 'empty.md');
