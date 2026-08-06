@@ -29,8 +29,10 @@ const USAGE = `dw-review-prs - draft [dev-review-ai] comments as an unsubmitted 
   log <pr> --status S --weight W --finding TEXT [--url URL]
   watch                              long-running: new comments on every PR in scope,
                                      plus newly actionable PRs from the queue
-  cleanup <pr> [--delete --yes]      list (default) what can come off your OWN PR: superseded
-                                     pending drafts + your published comments in finished threads
+  cleanup <pr> [--delete --authorized-by ID[,ID]]
+                                     list (default) what can come off your OWN PR: superseded inner
+                                     drafts + your published comments in finished threads. Removing
+                                     needs the id of the comment that asked for the cleanup
   dashboard --out FILE [--actions FILE] [--title T]   build the status page
   dashboard-url [--set URL]          the artifact url the page is published to
 
@@ -605,10 +607,30 @@ function cmdCleanup(arg, flags) {
 		for (const d of outerKept) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
 	if (!flags.delete) {
-		process.stdout.write('\nnothing removed. re-run with --delete --yes.\n');
+		process.stdout.write(
+			'\nnothing removed. to remove: --delete --authorized-by <comment-id[,id]>\n' +
+				'  the id of the comment asking for the cleanup - yours untagged, or one from each agent side.\n',
+		);
 		return;
 	}
-	if (!flags.yes) fail('--delete also needs --yes: this permanently removes published comments');
+	// The free text that asks for a cleanup is judged by the agent; WHO asked is checked here.
+	// Naming the comment also leaves an audit trail: the run says what it read as its instruction.
+	const named = String(flags['authorized-by'] || '')
+		.split(',')
+		.map((x) => x.trim())
+		.filter(Boolean);
+	if (!named.length) fail('--delete needs --authorized-by <comment-id>: name the comment asking for the cleanup');
+	const all = [...rows, ...(issue || []).map((c) => ({id: c.id, author: c.user && c.user.login, body: c.body}))];
+	const triggers = named.map((id) => {
+		const hit = all.find((c) => String(c.id) === id) || (inline.concat(issue)).find((c) => String(c.id) === id);
+		if (!hit) fail(`--authorized-by ${id} is not a comment on ${r.key}`);
+		const raw = inline.concat(issue).find((c) => String(c.id) === id);
+		return {id, author: hit.author || (raw && raw.user && raw.user.login), body: hit.body, isBot: Boolean(raw && raw.user && raw.user.type === 'Bot')};
+	});
+	const auth = lib.cleanupAuthorization(triggers, {prAuthor: pr.user && pr.user.login, me: login});
+	if (!auth.authorized) fail(`cleanup not authorized: ${auth.why}`);
+	process.stdout.write(`\nauthorized (${auth.by}): ${auth.why}\n`);
+	for (const c of auth.comments) process.stdout.write(`  trigger ${c.id}: ${short(c.body)}\n`);
 	for (const d of stale) {
 		graphql(`mutation($id:ID!){ deletePullRequestReviewComment(input:{id:$id}){ clientMutationId } }`, {id: d.nodeId});
 		process.stdout.write(`dropped draft ${d.nodeId}\n`);

@@ -267,6 +267,46 @@ function isOuterDraft(draft, threadAuthors, me) {
 	return authors.some((a) => a && a.login !== me && !a.isBot);
 }
 
+// Does the cleanup have authorization, and from whom.
+//
+// The trigger lives on the PR as free text - "cleanup the PR from agents comments", or whatever
+// wording the moment produced - so recognising it is judgment and stays in prose. What is checked
+// here is the part judgment gets wrong: WHO said it. The agent names the comment it read as the
+// trigger, and this decides whether that comment could authorize anything.
+//
+// The owner's own comment is enough on its own. Two agent comments, one from each side, also
+// count - that is the sides agreeing the exchange is over. Anyone else saying "clean this up" is
+// a person making a suggestion in a thread, not an instruction to delete the owner's words, and a
+// bot saying it is not even that.
+function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
+	const rows = (Array.isArray(triggers) ? triggers : []).filter(Boolean);
+	if (!rows.length) return {authorized: false, why: 'no trigger comment named'};
+
+	// Untagged is the tell. Both agents post under the owner's account, so author identity alone
+	// cannot separate "the owner said so" from "the owner's agent said so" - and treating an
+	// agent's suggestion as the owner's instruction would let the agents authorize themselves.
+	// The human is the one who signs nothing, which is what the tag scheme already means.
+	const owner = rows.find(
+		(t) => t.author && t.author === prAuthor && t.author === me && !t.isBot && tagSide(t.body) === null,
+	);
+	if (owner) return {authorized: true, by: 'owner', comments: [owner], why: `${owner.author} asked for it on the PR`};
+
+	const sides = new Map();
+	for (const t of rows) {
+		if (t.isBot) continue;
+		const side = tagSide(t.body);
+		if (side && !sides.has(side)) sides.set(side, t);
+	}
+	if (sides.size >= 2) {
+		return {authorized: true, by: 'both-sides', comments: [...sides.values()], why: 'both review sides asked for it'};
+	}
+	const outsider = rows.find((t) => t.author && t.author !== prAuthor);
+	if (outsider) {
+		return {authorized: false, why: `${outsider.author} is not the PR owner - only the owner can authorize removing their comments`};
+	}
+	return {authorized: false, why: `only the ${[...sides.keys()][0] || 'one'} side asked - needs the owner, or the other side too`};
+}
+
 // Statuses the reviewer has to act on, in the order they should be reported.
 const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
@@ -508,6 +548,7 @@ module.exports = {
 	cleanupCandidates,
 	supersededDrafts,
 	isOuterDraft,
+	cleanupAuthorization,
 	authorHandoffPrompt,
 	settledStatus,
 	hasSource,
