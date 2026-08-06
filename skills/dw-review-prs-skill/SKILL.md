@@ -150,6 +150,25 @@ or the ticket, then it is not yet written down anywhere a reviewer could find it
 finding — say it belongs in the PR body or the ticket. And drafts on your own PR submit as
 `COMMENT`; GitHub refuses `APPROVE` and `REQUEST_CHANGES` there.
 
+### Handing your own PR to the agent that will fix it
+
+Once your review is submitted, the next move on your own PR belongs to whoever does the work. Its
+card on the status page carries **Prompt for the coding agent** — a copy-ready markdown brief whose
+whole content is *where the comments are and how to answer them*. It deliberately says nothing
+about the change itself: the comments are the brief, and a second copy here would drift from them.
+
+That brief establishes three voices in one thread, which is the point of the tags:
+
+| Tag | Who | 
+|---|---|
+| `[dev-ai]` | the reviewing agent — this skill |
+| `[author-ai]` | the agent doing the work, replying and pushing back |
+| *(none)* | you, and an untagged comment is the deciding voice |
+
+So the whole exchange happens on the PR: the working agent answers in-thread, refutes what it can
+refute with evidence, fixes what it cannot, and you weigh in as yourself without a tag. Nothing has
+to come back through this skill for the two agents to argue.
+
 **Done when** each finding is either substantiated with the evidence you'd quote, or dropped, and
 the diff has been checked against the ticket's ACs in both directions.
 

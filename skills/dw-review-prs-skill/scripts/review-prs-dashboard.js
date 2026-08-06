@@ -95,6 +95,23 @@ function renderNext(card) {
 	</div>`;
 }
 
+// Your own PR is the one card whose next move belongs to somebody else, so it carries a brief
+// to hand them rather than an instruction to yourself. Rendered collapsed: it is long, and it is
+// not what you are reading the page for.
+function renderHandoff(card) {
+	if (!card.handoffPrompt) return '';
+	return `<div class="handoffbox">
+		<button class="cta ghost" type="button" data-handoff="toggle">Prompt for the coding agent</button>
+		<div class="handoff-body" hidden>
+			<div class="handoff-row">
+				<span class="handoff-hint">Copy as-is into the agent doing the work</span>
+				<button class="btn primary" type="button" data-handoff="copy">Copy</button>
+			</div>
+			<textarea class="handoff-text" readonly rows="16">${esc(card.handoffPrompt)}</textarea>
+		</div>
+	</div>`;
+}
+
 function renderCard(card) {
 	const chips = stateChip(card)
 		.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
@@ -122,6 +139,7 @@ function renderCard(card) {
 		<div class="chips">${chips}</div>
 	</header>
 	${renderNext(card)}
+	${renderHandoff(card)}
 	${notes}
 	${comments}
 </article>`;
@@ -353,6 +371,54 @@ function dashboardClient() {
 			});
 		});
 		paintCard(card);
+	});
+
+	// The handoff block is copy-only: it never reaches GitHub and carries no decision, so it
+	// stays out of the feedback payload the rest of this page collects.
+	Array.prototype.forEach.call(document.querySelectorAll('.handoffbox'), function (box) {
+		var body = box.querySelector('.handoff-body');
+		var area = box.querySelector('.handoff-text');
+		var toggle = box.querySelector('[data-handoff="toggle"]');
+		var copy = box.querySelector('[data-handoff="copy"]');
+		toggle.addEventListener('click', function () {
+			body.hidden = !body.hidden;
+			toggle.setAttribute('aria-expanded', body.hidden ? 'false' : 'true');
+			if (!body.hidden) area.focus();
+		});
+		copy.addEventListener('click', function () {
+			area.focus();
+			area.select();
+			// execCommand first: this page runs sandboxed, where the async clipboard may not
+			// be granted but a copy from a focused, selected textarea under a real click works.
+			var ok = false;
+			try {
+				ok = document.execCommand('copy');
+			} catch (err) {
+				ok = false;
+			}
+			if (ok) {
+				copy.textContent = 'Copied';
+				setTimeout(function () {
+					copy.textContent = 'Copy';
+				}, 1500);
+				return;
+			}
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(area.value).then(
+					function () {
+						copy.textContent = 'Copied';
+						setTimeout(function () {
+							copy.textContent = 'Copy';
+						}, 1500);
+					},
+					function () {
+						copy.textContent = 'Select and copy';
+					},
+				);
+				return;
+			}
+			copy.textContent = 'Select and copy';
+		});
 	});
 
 	function payload() {
@@ -748,6 +814,26 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 .anno-text { grid-column: 1; color: var(--ink); }
 .anno-drop { grid-row: 1 / span 2; grid-column: 2; align-self: start; background: none; border: 0; color: var(--ink-faint); font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.2rem; }
 .anno-drop:hover { color: var(--crit); }
+.handoffbox { margin-top: 0.2rem; }
+.cta.ghost { background: transparent; color: var(--accent); }
+.cta.ghost:hover { background: var(--accent-soft); }
+.handoff-body { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.handoff-body[hidden] { display: none; }
+.handoff-row { display: flex; align-items: center; gap: 0.5rem; }
+.handoff-hint { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-faint); margin-right: auto; }
+.handoff-text {
+	width: 100%;
+	box-sizing: border-box;
+	font-family: var(--mono);
+	font-size: 0.72rem;
+	line-height: 1.5;
+	color: var(--ink);
+	background: var(--ground);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	padding: 0.55rem;
+	resize: vertical;
+}
 .handoff {
 	position: sticky;
 	bottom: 0;

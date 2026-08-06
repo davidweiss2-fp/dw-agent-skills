@@ -128,6 +128,37 @@ describe('classifyPr', () => {
 	});
 });
 
+describe('handoff prompt for the agent doing the work', () => {
+	it('is attached only to your own PR', () => {
+		const model = lib.dashboardModel({
+			prs: [
+				{key: 'a/b#1', filesUrl: 'https://github.com/a/b/pull/1/files', mine: true},
+				{key: 'a/b#2', filesUrl: 'https://github.com/a/b/pull/2/files', mine: false},
+			],
+		});
+		assert.match(model.cards.find((c) => c.key === 'a/b#1').handoffPrompt, /review comments waiting/);
+		assert.equal(model.cards.find((c) => c.key === 'a/b#2').handoffPrompt, '');
+	});
+
+	it('names the PR and every voice in the thread, and nothing about the change', () => {
+		const p = lib.authorHandoffPrompt({url: 'https://github.com/a/b/pull/7'});
+		assert.match(p, /https:\/\/github\.com\/a\/b\/pull\/7/);
+		assert.match(p, /\[author-ai\]/); // the working agent signs
+		assert.match(p, /\[dev-ai\]/); // the reviewing agent is recognisable
+		assert.match(p, /no tag are\n from a human|no tag are/); // and the human is not
+		assert.match(p, /Pushing back is expected/);
+		// The brief is the comments, so the prompt must not try to restate the work.
+		assert.doesNotMatch(p, /diff|implement|ticket/i);
+	});
+
+	it('falls back to the files URL when no plain PR url is on the card', () => {
+		assert.match(
+			lib.authorHandoffPrompt({filesUrl: 'https://github.com/a/b/pull/9/files'}),
+			/pull\/9\n|pull\/9$|pull\/9\s/m,
+		);
+	});
+});
+
 describe('per-author review instructions', () => {
 	it('matches a login case-insensitively, since GitHub logins are', () => {
 		const notes = lib.normalizeAuthorNotes({'Someone-FP': {instructions: ['be kind']}});
