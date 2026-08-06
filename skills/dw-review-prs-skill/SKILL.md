@@ -39,27 +39,16 @@ Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-a
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
 `comments.md` (every finding ever drafted or submitted).
 
-`authors.json` in that same directory carries **per-author review instructions** — some authors
-need the review delivered differently, and that belongs in the store rather than in this file, so
-one JSON edit reaches every routine that runs the skill.
+`authors.json` in that same directory carries **per-author review instructions**, keyed by login —
+who they are, `dw-knowledge` names to recall, extra `steps`, and `instructions` constraining the
+comment text. Some authors need the review delivered differently, and that is data rather than
+skill, so one JSON edit reaches every routine that runs this skill.
 
-```json
-{
-  "some-login": {
-    "who": "one line of context — who they are and why this entry exists",
-    "knowledge": ["memory-name-to-recall-through-dw-knowledge"],
-    "steps": ["an extra step this author's PRs need, before drafting or at close-out"],
-    "instructions": ["how the comments themselves must be written"]
-  }
-}
-```
-
-Every field is optional and a bare string is shorthand for `instructions`. Notes **never change how
-a PR is classified** — an author needing a different register is still ordinary review work. They
-change how the review is written and delivered, so `surfaces` returns the matching entry (Step 2
-already makes `surfaces` mandatory, which is why they ride there rather than in a command that can
-be forgotten) and `queue` tags the row `[author notes]`. Full contract and a worked example:
-`references/authors.md`.
+Notes **never change how a PR is classified** — an author needing a different register is still
+ordinary review work. They change how the review is written and delivered, so `surfaces` returns the
+matching entry (Step 2 already makes `surfaces` mandatory, which is why they ride there rather than
+in a command that can be forgotten) and `queue` tags the row `[author notes]`. Shape, field
+contract and a worked example: `references/authors.md`.
 
 ## Step 1 — Read the queue
 
@@ -142,46 +131,15 @@ differently" is not a defect; "this name says X and the function does Y" is.
 
 ### Reviewing your own PR
 
-The queue hands you your own PRs as ordinary work, and they get an ordinary review. The one rule
-that changes: **take context only from sources a stranger could reach** — the diff and surrounding
-code at the PR's ref, what is committed in the local repo, the PR description, the ticket and its
-ACs, and the comment surfaces. Nothing from the session that wrote the code, the plan behind it, or
-your memory of why a line is the way it is.
+Your own PRs are ordinary review work, with one rule that changes: **take context only from sources
+a stranger could reach** — the diff at the PR's ref, what is committed locally, the PR description,
+the ticket and its ACs, the comment surfaces. Nothing from the session that wrote the code.
 
-That rule is the whole point rather than a formality. Knowing the intent is what lets a reviewer
-talk themselves out of a real defect — the code matches what you meant, so the gap between what you
-meant and what you wrote becomes invisible, and that gap is exactly what review is for. Judge the
-diff on its merits, the way the strict reviewer in the repo's own conventions would, and let a
-finding stand even when you remember deciding it was fine.
-
-Two practical consequences: if justifying a finding needs a fact that is not in the diff, the repo,
-or the ticket, then it is not yet written down anywhere a reviewer could find it, and *that* is the
-finding — say it belongs in the PR body or the ticket. And drafts on your own PR submit as
-`COMMENT`; GitHub refuses `APPROVE` and `REQUEST_CHANGES` there.
-
-### Handing your own PR to the agent that will fix it
-
-Once your review is submitted, the next move on your own PR belongs to whoever does the work. Its
-card on the status page carries **Prompt for the coding agent** — a copy-ready markdown brief whose
-whole content is *where the comments are and how to answer them*. It deliberately says nothing
-about the change itself: the comments are the brief, and a second copy here would drift from them.
-
-That brief establishes three voices in one thread, which is the point of the tags:
-
-| Tag | Who | 
-|---|---|
-| `[dev-ai]` | the reviewing agent — this skill |
-| `[author-ai]` | the agent doing the work, replying and pushing back |
-| *(none)* | you, and an untagged comment is the deciding voice |
-
-So the whole exchange happens on the PR: the working agent answers in-thread, refutes what it can
-refute with evidence, fixes what it cannot, and you weigh in as yourself without a tag. Nothing has
-to come back through this skill for the two agents to argue.
-
-**Done when** each finding is either substantiated with the evidence you'd quote, or dropped; the
-diff has been checked against the ticket's ACs in both directions; and every file the diff touches
-has been through the cost-to-the-next-reader question — not only the ones that matched a named
-smell.
+Knowing the intent is what lets a reviewer talk themselves out of a real defect: the code matches
+what you meant, so the gap between what you meant and what you wrote goes invisible — and that gap
+is what review is for. Once your review is submitted the PR's card offers a copy-ready brief for
+whichever agent does the work. Both, plus the tag conventions that let two agents argue on the
+thread: `references/own-prs.md`.
 
 ## Step 4 — Draft one comment per finding
 
@@ -225,27 +183,23 @@ is its `Ask:` line, and nothing is submitted.
 ## Step 5 — Hand over: refresh the status page, then report
 
 The reviewer's own surface is one published page, re-published to the same URL every run — every PR
-the store records, its state, and the single next step waiting on them. Full field reference and the
-publishing rules: `references/dashboard.md`.
+the store records, its state, and the single next step waiting on them.
 
 ```bash
 node scripts/review-prs.js dashboard --out queue.html --actions actions.json
 ```
 
-Write `actions.json` yourself — per PR a `next` (the free-text next step), a short `cta` for the
-button inside it ("Approve the PR", "Check the comments landed"), and a `lane` when the derived one
-is wrong. A PR that still has unsubmitted drafts renders **Comment / Approve / Request changes**
-instead of the `cta`, since what that card needs back is a resolution, not an instruction to read.
-The build prints the exact `title` / `description` / `favicon` / `url` to publish with; pass them
-verbatim, and on a first publish record the URL with `dashboard-url --set`.
+You write `actions.json`: per PR the free-text `next`, a short `cta`, and a `lane` when the derived
+one is wrong. Field contract, how a card with unsubmitted drafts differs, and the publishing rules
+that keep the URL stable: `references/dashboard.md`.
 
 Then report in chat as well: per PR the `/files` link, what was drafted with one line each, what was
 dropped and why, and anything that does not belong on a PR at all. Say explicitly that the review is
 unsubmitted and how to submit it.
 
-The page hands feedback back as a pasted block of comments and decisions. Each comment re-enters at
-Step 2; a `Do these` line is the reviewer's instruction, and it is the one route by which `submit` is
-authorized without them naming the event in chat — `submit them as APPROVE` names it, so run
+The page hands feedback back as a pasted block, and each comment in it re-enters at Step 2. A
+`Do these` line is the reviewer's instruction, and it is **the one route by which `submit` is
+authorized without them naming the event in chat** — `submit them as APPROVE` names it, so run
 `submit --event APPROVE` on that PR and nothing else.
 
 **Done when** the page is republished to its recorded URL, every card carries a next step and a
@@ -262,36 +216,17 @@ row per draft.
 ## Step 7 — Keep listening
 
 A drafted review is half a conversation, and the queue does not stop moving when the run ends.
-`watch` covers both: it polls **every PR `state.md` has ever recorded** — across repos, including
-merged and closed ones, since a thread outlives its merge — for comments landed since the last pass,
-and it re-runs the **queue** on a slower interval so a PR whose review was requested after the run
-still reaches you.
 
 ```bash
 node scripts/review-prs.js watch
 ```
 
-It takes no options. Comments poll every 2 minutes, the queue sweeps every 15, bots never report,
-and every PR state is polled — those were knobs once and none of them earned the surface.
+It takes no options, and runs until stopped: it polls every PR in scope for new comments every two
+minutes, and re-runs the queue every fifteen so a PR whose review was requested after the run still
+reaches you. What it polls, what stays quiet, and why the two clocks differ: `references/watch.md`.
 
-- **Its own comments and bots stay out of the report** (`--include-bots` opts them back in), so what
-  surfaces is a person waiting on a reply.
-- **A high-water mark per PR per surface** lives in `watch-state.json`; the first pass on a PR seeds
-  those marks and reports nothing, rather than replaying the whole history.
-- **The queue sweep runs every 15 minutes**, not every pass — it re-resolves every review request
-  through the PR endpoint, so it costs far more API calls than a comment poll. Only actionable rows
-  are reported, keyed on status and head
-  SHA, so a PR surfaces again when it is pushed to or moves `needs-draft` → `answered`, and a quiet
-  one stays quiet. Unlike the comment marks, the first sweep **does** report — an actionable PR is
-  work waiting whether or not this process has seen it before.
-- **One unreachable PR is a line of output, not the end of the pass** — a deleted PR or a revoked
-  token on one repo leaves the others reporting.
-
-Everything reported re-enters this skill at Step 2 — a comment means read the thread and draft the
-reply through `reply`; a `[queue]` line means a full review, Steps 2-4. An answer that closes a
-thread is worth saying so in one line; an answer that resolves nothing needs the verification pass
-first — a colleague's "I checked and it's fine" is evidence to confirm, not a finding to drop on
-trust.
+Everything it reports re-enters at Step 2 — a comment means read the thread and draft the reply
+through `reply`; a `[queue]` line means a full review, Steps 2-4.
 
 **Done when** every reported comment is either answered with a draft or named as needing nothing,
 and every PR the sweep surfaced is drafted on or classified.
