@@ -81,8 +81,12 @@ Statuses:
 | `changes-requested` | Changes requested and not yet resolved | One line, waiting on the author |
 | `not-ready` | The author has it back in draft | One line; reviewing a WIP is wasted |
 | `watching` | You took part in a thread, but review was never requested of you | One line, no work |
-| `mine` | Your own PR - not review work, but your reviewers' threads land on it | Watched for comments; reply with `reply` |
 | `skip` / `closed` | Declined at this head, or gone | One line, no work |
+
+Your **own** PRs are classified on exactly these terms — same statuses, same lifecycle, same work.
+Authorship is a property of the row (`[yours]` in the listing), not a status, and it changes only
+two things: where the review's context may come from (Step 3), and that GitHub allows only
+`--event COMMENT` when you submit.
 
 **Done when** every open request is classified and the actionable ones are reported to the user as
 links, newest work first.
@@ -126,6 +130,25 @@ it, no repeated shape that wants extracting, tests that assert behavior rather t
 implementation. Recall the repo's own conventions rather than importing generic taste — and hold a
 quality finding to the same evidence bar as a correctness one, since "I would have written it
 differently" is not a defect.
+
+### Reviewing your own PR
+
+The queue hands you your own PRs as ordinary work, and they get an ordinary review. The one rule
+that changes: **take context only from sources a stranger could reach** — the diff and surrounding
+code at the PR's ref, what is committed in the local repo, the PR description, the ticket and its
+ACs, and the comment surfaces. Nothing from the session that wrote the code, the plan behind it, or
+your memory of why a line is the way it is.
+
+That rule is the whole point rather than a formality. Knowing the intent is what lets a reviewer
+talk themselves out of a real defect — the code matches what you meant, so the gap between what you
+meant and what you wrote becomes invisible, and that gap is exactly what review is for. Judge the
+diff on its merits, the way the strict reviewer in the repo's own conventions would, and let a
+finding stand even when you remember deciding it was fine.
+
+Two practical consequences: if justifying a finding needs a fact that is not in the diff, the repo,
+or the ticket, then it is not yet written down anywhere a reviewer could find it, and *that* is the
+finding — say it belongs in the PR body or the ticket. And drafts on your own PR submit as
+`COMMENT`; GitHub refuses `APPROVE` and `REQUEST_CHANGES` there.
 
 **Done when** each finding is either substantiated with the evidence you'd quote, or dropped, and
 the diff has been checked against the ticket's ACs in both directions.

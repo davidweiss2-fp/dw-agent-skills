@@ -90,15 +90,11 @@ function classifyPr(pr, state) {
 		}
 		return {status: 'closed', reason: 'PR is no longer open'};
 	}
-	// The reviewer's own PR is not review work, but it is where their reviewers' comments
-	// land, so it stays in the queue as a watch target rather than being dropped. Replies
-	// are drafted the same way as anywhere else - GitHub allows a pending review on your own
-	// PR, it only refuses to let you APPROVE it.
-	if (pr.authoredByMe) {
-		if (pr.isDraft) return {status: 'mine', reason: 'your PR, still in draft'};
-		return {status: 'mine', reason: 'your PR - watching for reviewer comments'};
-	}
-
+	// An own PR is classified exactly like anyone else's - same statuses, same lifecycle - so
+	// it earns the same review rather than a glance. `authoredByMe` rides on the row instead
+	// of becoming a status, because whose PR it is and what state the review is in are two
+	// different facts. The only mechanical difference is that GitHub refuses to let you
+	// APPROVE your own PR; a pending review and a COMMENT submit are both allowed.
 	const pending = pr.pendingReview;
 	if (pending && pending.draftCount > 0) {
 		return {
@@ -134,7 +130,9 @@ function classifyPr(pr, state) {
 	}
 	// Taking part in someone's thread is not a review request. Such a PR stays visible
 	// so a reply to it can still be noticed, but it never becomes work on its own.
-	if (Array.isArray(pr.sources) && pr.sources.length > 0 && !hasSource(pr, 'requested')) {
+	// Your own PR is never this: nobody requests review of you on it, and that absence is
+	// not a signal that it needs less review than anyone else's.
+	if (!pr.authoredByMe && Array.isArray(pr.sources) && pr.sources.length > 0 && !hasSource(pr, 'requested')) {
 		return {status: 'watching', reason: 'you took part, but review was never requested of you'};
 	}
 	return {status: 'needs-draft', reason: 'no review from you yet'};
