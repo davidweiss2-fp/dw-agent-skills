@@ -215,9 +215,47 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 	const answeredRoots = new Set(
 		others.map((c) => c.inReplyTo || c.id).filter((id) => id !== undefined && id !== null),
 	);
-	const eligible = mine.filter((c) => answeredRoots.has(c.inReplyTo || c.id));
-	const unanswered = mine.filter((c) => !answeredRoots.has(c.inReplyTo || c.id));
-	return {eligible, unanswered, others: others.length, blocked: null};
+	// Whether a person ever wrote in a thread decides who can authorize clearing it. A thread
+	// only the two agents used is theirs to tidy; one a colleague replied in, or that the owner
+	// spoke in unsigned, is a conversation with a person and stays the owner's call.
+	const humanRoots = new Set();
+	for (const c of rows) {
+		if (!c) continue;
+		const root = c.inReplyTo || c.id;
+		if (c.author !== me || signedSide(c.body) === null) humanRoots.add(root);
+	}
+	// Two classes of removable, because what proves a thread finished differs by who was in it.
+	//
+	// A thread only the agents used has no third party to reply, so "someone answered" can never
+	// fire there and the old rule would have kept agent chatter forever. What settles those is the
+	// two sides agreeing. A thread a person wrote in still needs their reply as the proof, and
+	// only the owner may clear it.
+	// An agent-only thread counts as finished only once BOTH sides have spoken in it. A lone
+	// signed comment with no answer is not converged chatter - it is often the agent addressing a
+	// person who has not replied yet, and the thread reads empty of humans for exactly that
+	// reason. Removing it would delete a message nobody has read, with nothing left to show it.
+	const sidesInThread = new Map();
+	for (const c of rows) {
+		if (!c) continue;
+		const root = c.inReplyTo || c.id;
+		const side = signedSide(c.body);
+		if (!side) continue;
+		if (!sidesInThread.has(root)) sidesInThread.set(root, new Set());
+		sidesInThread.get(root).add(side);
+	}
+	const bothSidesSpoke = (root) => (sidesInThread.get(root) || new Set()).size >= 2;
+
+	const agentOnly = [];
+	const answered = [];
+	const unanswered = [];
+	for (const c of mine) {
+		const root = c.inReplyTo || c.id;
+		if (!humanRoots.has(root) && bothSidesSpoke(root)) agentOnly.push(c);
+		else if (humanRoots.has(root) && answeredRoots.has(root)) answered.push(c);
+		else unanswered.push(c);
+	}
+	// `eligible` stays the owner-scoped set - everything a full authorization may remove.
+	return {eligible: [...agentOnly, ...answered], agentOnly, answered, unanswered, others: others.length, blocked: null};
 }
 
 // Pending drafts the cleanup can drop: every one but the newest on each thread.
@@ -286,10 +324,15 @@ function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
 	// cannot separate "the owner said so" from "the owner's agent said so" - and treating an
 	// agent's suggestion as the owner's instruction would let the agents authorize themselves.
 	// The human is the one who signs nothing, which is what the tag scheme already means.
+	// What each authorization is allowed to reach. The owner speaks for the whole PR. The two
+	// agents agreeing speaks only for threads they had to themselves - agreement between them
+	// says nothing about a thread a person is in, and that is the one the owner must rule on.
 	const owner = rows.find(
 		(t) => t.author && t.author === prAuthor && t.author === me && !t.isBot && tagSide(t.body) === null,
 	);
-	if (owner) return {authorized: true, by: 'owner', comments: [owner], why: `${owner.author} asked for it on the PR`};
+	if (owner) {
+		return {authorized: true, by: 'owner', scope: 'all', comments: [owner], why: `${owner.author} asked for it on the PR`};
+	}
 
 	const sides = new Map();
 	for (const t of rows) {
@@ -298,7 +341,13 @@ function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
 		if (side && !sides.has(side)) sides.set(side, t);
 	}
 	if (sides.size >= 2) {
-		return {authorized: true, by: 'both-sides', comments: [...sides.values()], why: 'both review sides asked for it'};
+		return {
+			authorized: true,
+			by: 'both-sides',
+			scope: 'agent-only-threads',
+			comments: [...sides.values()],
+			why: 'both review sides agreed - limited to threads no person wrote in',
+		};
 	}
 	const outsider = rows.find((t) => t.author && t.author !== prAuthor);
 	if (outsider) {

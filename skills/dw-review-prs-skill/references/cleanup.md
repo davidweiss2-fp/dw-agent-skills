@@ -64,6 +64,17 @@ drafts sitting on the PR.
 | **Superseded inner draft** | a pending draft, not the newest on its thread, in a thread with only your own agents in it | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
 | **Published comment** | your comment in a thread that got a reply | anyone reading the PR | REST, by **database id** (a number) |
 | **Outer draft** | any pending draft in a thread a person has written in | nobody yet - but someone is waiting for it | **never removed** |
+| **Agent-only thread** | a published thread only the two agents used, where **both** have spoken | anyone reading the PR | the two sides agreeing is enough |
+| **Thread a person wrote in** | your published comment where a person replied | anyone reading the PR | **the owner only** |
+
+**Handled comments can clear themselves, within one boundary.** When both sides have spoken in a
+thread and agree it is done, that thread is theirs to tidy and no owner instruction is needed. A
+thread a person wrote in is a conversation with them: agreement between your two agents says
+nothing about it, and clearing your side of it stays your call.
+
+Both sides having *spoken* is the test, not one side declaring it finished. A lone signed comment
+with no answer reads as human-free only because nobody has replied yet - it is often the agent
+addressing a person - so it is kept, for the same reason an outer draft is.
 
 **Inner and outer is the distinction that matters most here.** An inner draft is your agents
 talking to each other; an outer one answers a human. Outer drafts stay however stale they look,

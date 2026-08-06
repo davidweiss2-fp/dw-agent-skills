@@ -262,6 +262,33 @@ describe('convergence cleanup on your own PR', () => {
 		assert.equal(lib.cleanupAuthorization([], ctx).authorized, false);
 	});
 
+	it('lets the two sides clear a thread they had to themselves, once both have spoken', () => {
+		const comments = [
+			{id: 1, author: 'me', body: '[dev-review-ai] Ask: fix X'},
+			{id: 2, author: 'me', inReplyTo: 1, body: '[dev-author-ai] done in abc'},
+			{id: 5, author: 'me', body: '[dev-author-ai] @colleague answering your note'},
+			{id: 10, author: 'colleague', body: 'I think this is wrong'},
+			{id: 11, author: 'me', inReplyTo: 10, body: '[dev-author-ai] answered'},
+		];
+		const r = lib.cleanupCandidates({prAuthor: 'me', me: 'me', comments});
+		assert.deepEqual(r.agentOnly.map((c) => c.id), [1, 2], 'a converged two-sided thread');
+		assert.deepEqual(r.answered.map((c) => c.id), [11], "a person's thread stays owner-only");
+		// A lone signed comment addressed to a person reads as human-free only because they have
+		// not replied yet. Removing it would delete a message nobody has read.
+		assert.deepEqual(r.unanswered.map((c) => c.id), [5]);
+	});
+
+	it('scopes what each authorization may reach', () => {
+		const ctx = {prAuthor: 'me', me: 'me'};
+		assert.equal(lib.cleanupAuthorization([{author: 'me', body: 'clean it'}], ctx).scope, 'all');
+		const both = lib.cleanupAuthorization(
+			[{author: 'me', body: '[dev-review-ai] agree this can be closed?'}, {author: 'me', body: '[dev-author-ai] agreed'}],
+			ctx,
+		);
+		// The agents agreeing says nothing about a thread a person is in.
+		assert.equal(both.scope, 'agent-only-threads');
+	});
+
 	it('refuses outright on a PR you did not author', () => {
 		const r = lib.cleanupCandidates({prAuthor: 'someone-else', me: 'me', comments});
 		assert.match(r.blocked, /not your PR/);
