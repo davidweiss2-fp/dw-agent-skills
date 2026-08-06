@@ -3,7 +3,19 @@
 // Pure decision logic for dw-review-prs: PR refs, state file, and queue
 // classification. No I/O and no gh calls - the CLI fetches, this decides.
 
-const DRAFT_TAG = '[dev-ai]';
+// Which side of the review a comment comes from, signed so one thread stays readable when two
+// agents and a human are all writing in it.
+//
+// The old tag was `[dev-ai]`, which named "an AI" and not a side - and that genericness is what
+// broke: the PR-babysitting skill, acting FOR the author, signed the reviewer's tag, so the
+// distinction the tag exists to carry was gone. These two are parallel on purpose, so picking
+// the wrong one reads as wrong.
+const REVIEW_TAG = '[dev-review-ai]';
+const AUTHOR_TAG = '[dev-author-ai]';
+// Recognised on read only, never emitted: comments already on PRs and rows already in the
+// ledger carry it, and a later run still has to know they were ours.
+const LEGACY_TAGS = ['[dev-ai]', '[author-ai]'];
+const DRAFT_TAG = REVIEW_TAG;
 
 // Accepts a PR URL (with or without /files and a fragment), owner/repo#123,
 // or owner/repo/123. Returns {owner, repo, number, key} or null.
@@ -151,12 +163,6 @@ function normalizeAuthorNotes(raw) {
 	return out;
 }
 
-// The tag the agent working ON a PR signs its comments with, paired with DRAFT_TAG which
-// marks the reviewing agent. Three voices have to be told apart in one thread: the reviewer's
-// agent, the author's agent, and the human - who signs nothing, which is what makes an
-// untagged comment read as the deciding one.
-const AUTHOR_TAG = '[author-ai]';
-
 // Handed to whichever agent is doing the work on the PR. Deliberately says nothing about the
 // change itself: the comments on the PR are the brief, and duplicating them here would create a
 // second copy to drift. All it establishes is where to look and how to talk back.
@@ -186,6 +192,34 @@ function authorHandoffPrompt(pr) {
 	].join('\n');
 }
 
+// Which comments a convergence cleanup may remove from your own PR.
+//
+// Three guards, and they are the whole point of doing this in code rather than by eye:
+// the PR must be yours, every candidate must be authored by you, and a comment nobody else
+// replied under is left alone. That last one is what stops a cleanup from deleting an ask that
+// was never answered - the thread reads quiet either way, so "no reply" is the signal that the
+// conversation did not finish rather than that it did.
+//
+// Other people's comments are never candidates, at any tag, under any agreement. The protocol
+// is an agreement between your own agents about your own words.
+function cleanupCandidates({prAuthor, me, comments} = {}) {
+	const reason = (r) => ({eligible: [], unanswered: [], others: 0, blocked: r});
+	if (!prAuthor || !me) return reason('missing pr author or viewer');
+	if (prAuthor !== me) return reason(`not your PR - authored by ${prAuthor}`);
+
+	const rows = Array.isArray(comments) ? comments : [];
+	const mine = rows.filter((c) => c && c.author === me);
+	const others = rows.filter((c) => c && c.author !== me);
+	// A reply from someone else under a root means that root was part of a real exchange; the
+	// roots nobody answered are the ones still owed something.
+	const answeredRoots = new Set(
+		others.map((c) => c.inReplyTo || c.id).filter((id) => id !== undefined && id !== null),
+	);
+	const eligible = mine.filter((c) => answeredRoots.has(c.inReplyTo || c.id));
+	const unanswered = mine.filter((c) => !answeredRoots.has(c.inReplyTo || c.id));
+	return {eligible, unanswered, others: others.length, blocked: null};
+}
+
 // Statuses the reviewer has to act on, in the order they should be reported.
 const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
@@ -210,14 +244,25 @@ function summarize(rows) {
 // Every comment body this skill drafts carries the tag, so a later run can tell
 // its own comments from a human's on the same thread.
 function hasDraftTag(body) {
-	return String(body || '').includes(DRAFT_TAG);
+	const text = String(body || '');
+	return [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS].some((t) => text.includes(t));
+}
+
+// Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
+// untagged comment is the deciding voice precisely because people do not sign.
+function tagSide(body) {
+	const text = String(body || '');
+	if (text.includes(REVIEW_TAG) || text.includes('[dev-ai]')) return 'review';
+	if (text.includes(AUTHOR_TAG) || text.includes('[author-ai]')) return 'author';
+	return null;
 }
 
 // The author reads one line and knows what closes the thread, so the ask leads
 // every body: the tag, then `Ask:` on the first line that carries any text.
 function hasAskLine(body) {
 	const lines = String(body || '').split('\n');
-	const first = lines.findIndex((l) => l.trim() !== '' && l.trim() !== DRAFT_TAG);
+	const tags = [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS];
+	const first = lines.findIndex((l) => l.trim() !== '' && !tags.includes(l.trim()));
 	return first !== -1 && /^Ask:\s*\S/.test(lines[first].trim());
 }
 
@@ -409,7 +454,11 @@ function ledgerLine({at, key, url, status, weight, finding}) {
 
 module.exports = {
 	DRAFT_TAG,
+	REVIEW_TAG,
 	AUTHOR_TAG,
+	LEGACY_TAGS,
+	tagSide,
+	cleanupCandidates,
 	authorHandoffPrompt,
 	settledStatus,
 	hasSource,

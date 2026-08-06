@@ -2,7 +2,7 @@
 name: dw-review-prs-skill
 description: >-
   Review the pull requests waiting on you and leave every finding as an
-  UNSUBMITTED [dev-ai] review, so nothing reaches the author until you submit it
+  UNSUBMITTED [dev-review-ai] review, so nothing reaches the author until you submit it
   yourself. Starts by reading what you already drafted, what you already posted,
   and what every other reviewer and bot has said, then reports the PRs still
   missing your draft with links. Use when the user asks "review the PRs I was
@@ -31,6 +31,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… submit <pr> --event COMMENT\|APPROVE\|REQUEST_CHANGES` | Publish the pending review — only on explicit instruction |
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
+| `… cleanup <pr>` | List your own comments a converged discussion can remove from your OWN PR; deletes only with `--delete --yes` |
 | `… watch` | Long-running: new comments on every PR in scope, and newly actionable PRs from the queue (Step 7) |
 | `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
 | `… dashboard-url [--set URL]` | The artifact URL that page is published to |
@@ -141,15 +142,21 @@ is what review is for. Once your review is submitted the PR's card offers a copy
 whichever agent does the work. Both, plus the tag conventions that let two agents argue on the
 thread: `references/own-prs.md`.
 
+**When that argument is over**, the exchange is scaffolding standing in front of the change, and
+`cleanup <pr>` lists your own comments that can come down. It deletes nothing by default. What
+counts as converged, the three guards, and why a comment nobody replied under is always kept:
+`references/cleanup.md`. Agreement between your two agents is the precondition for proposing a
+cleanup, never the authorization to run one — the user names the PR and says to delete.
+
 ## Step 4 — Draft one comment per finding
 
 `draft` for a new thread, `reply` to join an existing one. The script refuses a body that does not
-carry the `[dev-ai]` tag and open on an `Ask:` line.
+carry the `[dev-review-ai]` tag and open on an `Ask:` line.
 
 Every comment leads with its ask, in this shape:
 
 ```
-[dev-ai]
+[dev-review-ai]
 Ask: <the one closeable action, imperative>
 
 <weight>: <the finding, one sentence>
@@ -177,7 +184,7 @@ Ask: <the one closeable action, imperative>
 For anything at the top of the budget, hand the rendered draft to a subagent with no session context
 and ask it to restate the claim; if it cannot, the draft is not ready.
 
-**Done when** every surviving finding is drafted on the PR, every body's first line after `[dev-ai]`
+**Done when** every surviving finding is drafted on the PR, every body's first line after `[dev-review-ai]`
 is its `Ask:` line, and nothing is submitted.
 
 ## Step 5 — Hand over: refresh the status page, then report
@@ -221,9 +228,12 @@ A drafted review is half a conversation, and the queue does not stop moving when
 node scripts/review-prs.js watch
 ```
 
-It takes no options, and runs until stopped: it polls every PR in scope for new comments every two
-minutes, and re-runs the queue every fifteen so a PR whose review was requested after the run still
-reaches you. What it polls, what stays quiet, and why the two clocks differ: `references/watch.md`.
+It takes no options and **loops until the process is stopped** - there is no single-pass mode. It
+polls every PR in scope for new comments every two minutes, and re-runs the queue every fifteen so
+a PR whose review was requested after the run still reaches you. Run it in the background and stop
+it when done; a scheduled run that wants one look should call `queue` instead, which covers newly
+actionable PRs but not new comments on known ones. What it polls, what stays quiet, and why the two
+clocks differ: `references/watch.md`.
 
 Everything it reports re-enters at Step 2 — a comment means read the thread and draft the reply
 through `reply`; a `[queue]` line means a full review, Steps 2-4.
@@ -242,10 +252,15 @@ and every PR the sweep surfaced is drafted on or classified.
 | "No findings — I should write something so the run isn't empty" | An empty queue or a clean PR is a real result. Say so in one line. |
 | "I'll write the status page HTML myself, it's just one page" | The page's markup, themes and behaviour live in `scripts/review-prs-dashboard.js` so every reviewer on this skill gets the same interface and the same fixes. Hand-written HTML is a private one-off that drifts on the next run. Pass data through `--actions`; change the renderer if the page itself is wrong. |
 | "I went through the quality list and none of it applies, so there is nothing to flag" | The list names the defects that already have names; it cannot be the complete set, because the next one has not been named yet. What binds is the question asked of each thing the diff adds — what does this cost the next person to touch it? A clean pass over the examples with the question never asked is not a clean review, it is an unread one. |
+| "I'll read `scripts/review-prs.js` to see what this command actually does" | Every fact you need about a command is in this file or behind one of its pointers, and reading the implementation instead costs a few thousand tokens to re-derive it. Worse, the installed copy you would grep can be a different version from the one you are running. If the answer genuinely is not written down, that is a defect in this skill: say so, and it gets written down once for every future run. |
 | "It's a nit — the ask is obvious from the label, an `Ask:` line is overhead" | Obvious to you, inferred by the author. "Worth restoring the clause" reads as an observation to file away; `Ask: restore the when-clause` reads as a thread to close. The smaller the finding, the cheaper its ask is to state. |
 
 ## Hard rules
 
 - Nothing is submitted without an explicit instruction naming the event.
-- Every drafted body carries `[dev-ai]`, so a later run can tell its own comments from a human's.
+- Every drafted body carries `[dev-review-ai]`, so a later run can tell its own comments from a
+  human's. Its counterpart is `[dev-author-ai]`, worn by any agent acting FOR the author - the
+  PR-babysitting skill, or the agent working the comments. The pair replaced a single `[dev-ai]`,
+  which named an AI rather than a side, and was duly worn by both. Both old tags are still
+  recognised on read; neither is written any more.
 - Findings are substantiated against the code, or dropped.

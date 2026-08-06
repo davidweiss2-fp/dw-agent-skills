@@ -13,7 +13,7 @@ const lib = require('./review-prs-lib.js');
 const paths = require('./review-prs-paths.js');
 const dash = require('./review-prs-dashboard.js');
 
-const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted review
+const USAGE = `dw-review-prs - draft [dev-review-ai] comments as an unsubmitted review
 
   queue [--json] [--participation] [--days N] [--all-time]
                                      PRs requested of you or your teams, reviewed by
@@ -29,6 +29,8 @@ const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted 
   log <pr> --status S --weight W --finding TEXT [--url URL]
   watch                              long-running: new comments on every PR in scope,
                                      plus newly actionable PRs from the queue
+  cleanup <pr> [--delete --yes]      list (default) your own comments on your OWN PR that a
+                                     converged discussion can remove; deletes only when told twice
   dashboard --out FILE [--actions FILE] [--title T]   build the status page
   dashboard-url [--set URL]          the artifact url the page is published to
 
@@ -98,8 +100,15 @@ function bodyFile(flags) {
 	if (!existsSync(f)) fail(`--body-file not found: ${f}`);
 	const body = readFileSync(f, 'utf8');
 	if (!body.trim()) fail('--body-file is empty');
-	if (!lib.hasDraftTag(body)) fail(`comment body must carry the ${lib.DRAFT_TAG} tag`);
-	if (!lib.hasAskLine(body)) fail(`comment body must open on an "Ask: <closeable action>" line after the ${lib.DRAFT_TAG} tag`);
+	if (!lib.hasDraftTag(body)) {
+		fail(`comment body must carry ${lib.REVIEW_TAG} (reviewing) or ${lib.AUTHOR_TAG} (acting for the author)`);
+	}
+	// The `Ask:` line is a reviewer's obligation - it names the action that closes the thread.
+	// A comment signed as the author's side is answering one, so requiring an ask there would
+	// force every reply into the wrong shape.
+	if (lib.tagSide(body) !== 'author' && !lib.hasAskLine(body)) {
+		fail(`comment body must open on an "Ask: <closeable action>" line after the ${lib.REVIEW_TAG} tag`);
+	}
 	return {file: f, body};
 }
 
@@ -521,6 +530,42 @@ function cmdDrop(flags) {
 	process.stdout.write(`deleted draft comment ${id}\n`);
 }
 
+// Convergence cleanup on your OWN PR: list by default, delete only when told twice.
+// Deleting a published comment is irreversible and outward-facing, so the default output is a
+// proposal a human reads. The guards live in lib.cleanupCandidates; this only fetches and prints.
+function cmdCleanup(arg, flags) {
+	const r = ref(arg);
+	const login = me();
+	const pr = prMeta(r);
+	const inline = ghJson(['api', '--paginate', `repos/${r.owner}/${r.repo}/pulls/${r.number}/comments`]) || [];
+	const issue = ghJson(['api', '--paginate', `repos/${r.owner}/${r.repo}/issues/${r.number}/comments`]) || [];
+	const rows = [
+		...inline.map((c) => ({id: c.id, author: c.user && c.user.login, inReplyTo: c.in_reply_to_id, body: c.body, kind: 'inline'})),
+		...issue.map((c) => ({id: c.id, author: c.user && c.user.login, inReplyTo: null, body: c.body, kind: 'issue'})),
+	];
+	const res = lib.cleanupCandidates({prAuthor: pr.user && pr.user.login, me: login, comments: rows});
+	if (res.blocked) fail(`cleanup refused: ${res.blocked}`);
+
+	const line = (c) => `  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${String(c.body || '').replace(/\s+/g, ' ').slice(0, 90)}`;
+	process.stdout.write(`${r.key}: ${res.eligible.length} removable, ${res.unanswered.length} kept, ${res.others} not yours\n`);
+	if (res.eligible.length) process.stdout.write(`\nwould remove:\n${res.eligible.map(line).join('\n')}\n`);
+	if (res.unanswered.length) {
+		process.stdout.write(`\nkept - nobody replied under these, so the exchange did not finish:\n${res.unanswered.map(line).join('\n')}\n`);
+	}
+	if (!flags.delete) {
+		process.stdout.write('\nnothing deleted. re-run with --delete --yes to remove the listed comments.\n');
+		return;
+	}
+	if (!flags.yes) fail('--delete also needs --yes: this permanently removes published comments');
+	for (const c of res.eligible) {
+		const path = c.kind === 'inline'
+			? `repos/${r.owner}/${r.repo}/pulls/comments/${c.id}`
+			: `repos/${r.owner}/${r.repo}/issues/comments/${c.id}`;
+		gh(['api', '--method', 'DELETE', path]);
+		process.stdout.write(`deleted ${c.kind} ${c.id}\n`);
+	}
+}
+
 const EVENTS = ['COMMENT', 'APPROVE', 'REQUEST_CHANGES'];
 
 function cmdSubmit(arg, flags) {
@@ -895,6 +940,8 @@ function main() {
 			return cmdStateSet(positional[1], flags);
 		case 'log':
 			return cmdLog(positional[1], flags);
+		case 'cleanup':
+			return cmdCleanup(positional[1], flags);
 		case 'dashboard':
 			return cmdDashboard(flags);
 		case 'dashboard-url':
