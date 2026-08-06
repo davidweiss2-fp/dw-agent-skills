@@ -29,8 +29,8 @@ const USAGE = `dw-review-prs - draft [dev-review-ai] comments as an unsubmitted 
   log <pr> --status S --weight W --finding TEXT [--url URL]
   watch                              long-running: new comments on every PR in scope,
                                      plus newly actionable PRs from the queue
-  cleanup <pr> [--delete --yes]      list (default) your own comments on your OWN PR that a
-                                     converged discussion can remove; deletes only when told twice
+  cleanup <pr> [--delete --yes]      list (default) what can come off your OWN PR: superseded
+                                     pending drafts + your published comments in finished threads
   dashboard --out FILE [--actions FILE] [--title T]   build the status page
   dashboard-url [--set URL]          the artifact url the page is published to
 
@@ -546,17 +546,47 @@ function cmdCleanup(arg, flags) {
 	const res = lib.cleanupCandidates({prAuthor: pr.user && pr.user.login, me: login, comments: rows});
 	if (res.blocked) fail(`cleanup refused: ${res.blocked}`);
 
-	const line = (c) => `  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${String(c.body || '').replace(/\s+/g, ' ').slice(0, 90)}`;
-	process.stdout.write(`${r.key}: ${res.eligible.length} removable, ${res.unanswered.length} kept, ${res.others} not yours\n`);
-	if (res.eligible.length) process.stdout.write(`\nwould remove:\n${res.eligible.map(line).join('\n')}\n`);
+	// Unsubmitted drafts are invisible on every other surface, so a cleanup that skipped them
+	// reported "0 removable" with a pile of superseded ones sitting on the PR.
+	const {pending} = pendingReviewFor(r, login);
+	const drafts = ((pending && pending.drafts) || []).map((c) => ({
+		nodeId: c.node_id,
+		path: c.path,
+		line: c.line,
+		inReplyTo: c.in_reply_to_id,
+		createdAt: c.created_at,
+		body: c.body,
+	}));
+	const stale = lib.supersededDrafts(drafts);
+
+	const short = (b) => String(b || '').replace(/\s+/g, ' ').slice(0, 88);
+	process.stdout.write(
+		`${r.key}: ${stale.length} superseded draft(s), ${res.eligible.length} published removable, ` +
+			`${res.unanswered.length} published kept, ${res.others} not yours\n`,
+	);
+	// Node ids for drafts, database ids for published: they are deleted through different APIs,
+	// and printing the wrong one is a failed call the reader only discovers by making it.
+	if (stale.length) {
+		process.stdout.write(`\nsuperseded drafts - unpublished, drop takes these node ids:\n`);
+		for (const d of stale) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
+	}
+	if (res.eligible.length) {
+		process.stdout.write(`\npublished, removable - others may already have read these:\n`);
+		for (const c of res.eligible) process.stdout.write(`  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${short(c.body)}\n`);
+	}
 	if (res.unanswered.length) {
-		process.stdout.write(`\nkept - nobody replied under these, so the exchange did not finish:\n${res.unanswered.map(line).join('\n')}\n`);
+		process.stdout.write(`\npublished, kept - nobody replied under these, so the exchange did not finish:\n`);
+		for (const c of res.unanswered) process.stdout.write(`  ${c.kind} ${c.id} ${short(c.body)}\n`);
 	}
 	if (!flags.delete) {
-		process.stdout.write('\nnothing deleted. re-run with --delete --yes to remove the listed comments.\n');
+		process.stdout.write('\nnothing removed. re-run with --delete --yes.\n');
 		return;
 	}
 	if (!flags.yes) fail('--delete also needs --yes: this permanently removes published comments');
+	for (const d of stale) {
+		graphql(`mutation($id:ID!){ deletePullRequestReviewComment(input:{id:$id}){ clientMutationId } }`, {id: d.nodeId});
+		process.stdout.write(`dropped draft ${d.nodeId}\n`);
+	}
 	for (const c of res.eligible) {
 		const path = c.kind === 'inline'
 			? `repos/${r.owner}/${r.repo}/pulls/comments/${c.id}`

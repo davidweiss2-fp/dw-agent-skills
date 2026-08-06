@@ -197,6 +197,22 @@ describe('convergence cleanup on your own PR', () => {
 		assert.equal(r.others, 2, "other people's comments are never candidates");
 	});
 
+	it('drops every draft on a thread but the newest, and leaves lone drafts alone', () => {
+		const drafts = [
+			{nodeId: 'A', inReplyTo: 1, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'B', inReplyTo: 1, createdAt: '2026-08-06T10:00:00Z'},
+			{nodeId: 'C', path: 'main.py', line: 5, createdAt: '2026-08-06T09:00:00Z'},
+		];
+		// B is what the author currently means; C is the only draft on its line.
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['A']);
+	});
+
+	it('falls back to input order when drafts carry no timestamp', () => {
+		const drafts = [{nodeId: 'A', inReplyTo: 7}, {nodeId: 'B', inReplyTo: 7}];
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['A']);
+		assert.deepEqual(lib.supersededDrafts([]), []);
+	});
+
 	it('refuses outright on a PR you did not author', () => {
 		const r = lib.cleanupCandidates({prAuthor: 'someone-else', me: 'me', comments});
 		assert.match(r.blocked, /not your PR/);

@@ -220,6 +220,38 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 	return {eligible, unanswered, others: others.length, blocked: null};
 }
 
+// Pending drafts the cleanup can drop: every one but the newest on each thread.
+//
+// A cleanup that only looks at published comments reports "0 removable" while a pile of
+// superseded drafts sits on the PR - they are unpublished, so nothing else surfaces them either.
+// Supersession is the one thing that IS computable here: two of your drafts on one thread means
+// the older one was rewritten rather than answered, which is exactly how "Agreed, this comes out"
+// ends up shipping alongside "Done in <sha>".
+//
+// Grouped by the thread a draft belongs to - its in-reply-to when it joins one, otherwise the
+// line it opens. Order is the tiebreak, so a draft with no timestamp still resolves.
+function supersededDrafts(drafts) {
+	const rows = (Array.isArray(drafts) ? drafts : []).filter(Boolean);
+	const byThread = new Map();
+	rows.forEach((d, i) => {
+		const key = d.inReplyTo ? `r:${d.inReplyTo}` : `l:${d.path || ''}:${d.line ?? ''}`;
+		if (!byThread.has(key)) byThread.set(key, []);
+		byThread.get(key).push({...d, _i: i});
+	});
+	const superseded = [];
+	for (const group of byThread.values()) {
+		if (group.length < 2) continue;
+		const ordered = [...group].sort((a, b) => {
+			const at = Date.parse(a.createdAt || '') || 0;
+			const bt = Date.parse(b.createdAt || '') || 0;
+			return at - bt || a._i - b._i;
+		});
+		// Keep the last: it is the one that says what the author currently means.
+		superseded.push(...ordered.slice(0, -1).map(({_i, ...d}) => d));
+	}
+	return superseded;
+}
+
 // Statuses the reviewer has to act on, in the order they should be reported.
 const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
@@ -459,6 +491,7 @@ module.exports = {
 	LEGACY_TAGS,
 	tagSide,
 	cleanupCandidates,
+	supersededDrafts,
 	authorHandoffPrompt,
 	settledStatus,
 	hasSource,

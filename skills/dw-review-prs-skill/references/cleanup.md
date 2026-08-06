@@ -21,6 +21,25 @@ Both sides have to be able to say yes, independently:
 "Nobody has posted for a while" is not convergence. Silence is what an unanswered ask and a settled
 thread have in common, which is why the tool refuses to remove anything nobody replied under.
 
+## Two kinds of removable, two different APIs
+
+`cleanup` covers both in one listing, because they are invisible to each other otherwise - a
+cleanup that looked only at published comments once reported "0 removable" with four superseded
+drafts sitting on the PR.
+
+| | What it is | Who has seen it | Removed by |
+|---|---|---|---|
+| **Superseded draft** | every pending draft on a thread but the newest | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
+| **Published comment** | your comment in a thread that got a reply | anyone reading the PR | REST, by **database id** (a number) |
+
+Two of your drafts on one thread means the older was rewritten rather than answered, which is how
+"Agreed, this comes out of the PR" ends up shipping next to "Done in `<sha>`". The newest is kept:
+it is the one that says what you currently mean.
+
+**The two id types are not interchangeable**, and the listing prints the right one for each action.
+`surfaces` reports database ids for published comments and node ids for drafts; feeding a database
+id to `drop` fails, and the only way to find out is to make the call.
+
 ## What may be removed, and what never may
 
 ```bash
