@@ -31,7 +31,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… submit <pr> --event COMMENT\|APPROVE\|REQUEST_CHANGES` | Publish the pending review — only on explicit instruction |
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
-| `… watch [--once] [--poll-ms N] [--include-bots] [--open-only]` | New comments on every PR the store records (Step 7) |
+| `… watch [--once] [--poll-ms N] [--queue-poll-ms N\|--no-queue] [--include-bots] [--open-only]` | New comments on every PR the store records, and newly actionable PRs from the queue (Step 7) |
 | `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
 | `… dashboard-url [--set URL]` | The artifact URL that page is published to |
 
@@ -162,11 +162,13 @@ a correction to these steps — through `dw-knowledge`.
 **Done when** `state.md` carries the head SHA for every PR reviewed this run and `comments.md` has a
 row per draft.
 
-## Step 7 — Listen for the replies
+## Step 7 — Keep listening
 
-A drafted review is half a conversation. `watch` polls **every PR `state.md` has ever recorded** —
-across repos, including merged and closed ones, since a thread outlives its merge — and reports the
-comments that landed since the last pass.
+A drafted review is half a conversation, and the queue does not stop moving when the run ends.
+`watch` covers both: it polls **every PR `state.md` has ever recorded** — across repos, including
+merged and closed ones, since a thread outlives its merge — for comments landed since the last pass,
+and it re-runs the **queue** on a slower interval so a PR whose review was requested after the run
+still reaches you.
 
 ```bash
 node scripts/review-prs.js watch --once          # one pass, for a scheduled run
@@ -177,15 +179,23 @@ node scripts/review-prs.js watch --poll-ms 60000 # keep listening
   surfaces is a person waiting on a reply.
 - **A high-water mark per PR per surface** lives in `watch-state.json`; the first pass on a PR seeds
   those marks and reports nothing, rather than replaying the whole history.
+- **The queue sweep runs every 15 minutes**, not every pass — it re-resolves every review request
+  through the PR endpoint, so it costs far more API calls than a comment poll. `--queue-poll-ms N`
+  retunes it, `--no-queue` turns it off. Only actionable rows are reported, keyed on status and head
+  SHA, so a PR surfaces again when it is pushed to or moves `needs-draft` → `answered`, and a quiet
+  one stays quiet. Unlike the comment marks, the first sweep **does** report — an actionable PR is
+  work waiting whether or not this process has seen it before.
 - **One unreachable PR is a line of output, not the end of the pass** — a deleted PR or a revoked
   token on one repo leaves the others reporting.
 
-Each reported comment re-enters this skill at Step 2: read the thread, check the claims against the
-code, and draft the reply through `reply`. An answer that closes a thread is worth saying so in one
-line; an answer that resolves nothing needs the verification pass first — a colleague's "I checked
-and it's fine" is evidence to confirm, not a finding to drop on trust.
+Everything reported re-enters this skill at Step 2 — a comment means read the thread and draft the
+reply through `reply`; a `[queue]` line means a full review, Steps 2-4. An answer that closes a
+thread is worth saying so in one line; an answer that resolves nothing needs the verification pass
+first — a colleague's "I checked and it's fine" is evidence to confirm, not a finding to drop on
+trust.
 
-**Done when** every reported comment is either answered with a draft or named as needing nothing.
+**Done when** every reported comment is either answered with a draft or named as needing nothing,
+and every PR the sweep surfaced is drafted on or classified.
 
 ## Rationalizations
 

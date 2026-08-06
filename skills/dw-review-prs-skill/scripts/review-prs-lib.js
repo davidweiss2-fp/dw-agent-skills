@@ -181,6 +181,30 @@ function watchTargets(entries) {
 		.map((r) => r.key);
 }
 
+// `watchTargets` only ever yields PRs the store has already recorded, so a PR whose
+// review was requested since the last run cannot reach the watch through it. The queue
+// sweep covers that gap, and this decides which of its rows are worth reporting: an
+// actionable row is new when the reviewer has not been shown it at this status and head.
+// Keying on status+head rather than key alone means a PR that is pushed to, or that moves
+// needs-draft -> answered, surfaces again, while a quiet actionable PR stays quiet.
+function unseenQueueRows(rows, seen) {
+	const next = {...(seen || {})};
+	const fresh = [];
+	for (const row of Array.isArray(rows) ? rows : []) {
+		if (!row || !row.key || !isActionable(row.status)) continue;
+		const stamp = `${row.status}@${row.headSha || 'unknown'}`;
+		if (next[row.key] === stamp) continue;
+		next[row.key] = stamp;
+		fresh.push(row);
+	}
+	// A row that left the actionable set is forgotten, so returning to it later reports.
+	const live = new Set((Array.isArray(rows) ? rows : []).filter((r) => r && isActionable(r.status)).map((r) => r.key));
+	for (const key of Object.keys(next)) {
+		if (!live.has(key)) delete next[key];
+	}
+	return {fresh, seen: next};
+}
+
 // GitHub's comment ids climb, so one high-water mark per surface separates a new
 // comment from a seen one without storing every id. The mark advances past
 // filtered-out comments too - a bot or self comment is seen, just not surfaced -
@@ -331,6 +355,7 @@ module.exports = {
 	hasDraftTag,
 	hasAskLine,
 	watchTargets,
+	unseenQueueRows,
 	unseenComments,
 	isFirstWatch,
 	watchPass,
