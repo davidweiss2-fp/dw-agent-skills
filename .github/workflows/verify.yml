@@ -26,9 +26,14 @@ jobs:
         with:
           node-version: '20'
 
-      # Runs BEFORE the tests on purpose: the amended commit is pushed with GITHUB_TOKEN, which
-      # deliberately does not trigger another workflow run, so the tree that gets pushed has to
-      # be the tree that was tested. Bumping first and pushing last is what makes those the same.
+      # Runs BEFORE the tests on purpose. A push made with GITHUB_TOKEN queues a run that never
+      # executes - observed on this repo as a `pull_request` run sitting at `action_required`
+      # with zero jobs - so the amended head is never tested by a run of its own. Bumping first
+      # and pushing last is therefore the only thing that makes the pushed tree the tested tree.
+      #
+      # Consequence to know: the PR's head commit ends with no completed check (mergeStateStatus
+      # UNSTABLE). Harmless while `verify` is not a required status check; if it ever becomes one,
+      # push with a PAT or App token instead of GITHUB_TOKEN so the run actually executes.
       - name: Version bump to one patch above main
         id: bump
         # Pull requests only, and only from a branch in this repo - a fork's head is not
