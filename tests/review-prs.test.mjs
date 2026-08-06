@@ -242,6 +242,33 @@ describe('watch bookkeeping', () => {
 		assert.deepEqual(lib.watchTargets(entries), ['a/b#2', 'a/b#1', 'a/b#3']);
 	});
 
+	it('surfaces an actionable PR the store has never recorded, then stays quiet on it', () => {
+		const rows = [
+			{key: 'a/b#1', status: 'needs-draft', headSha: 'aaa'},
+			{key: 'a/b#2', status: 'reviewed', headSha: 'bbb'},
+		];
+		const first = lib.unseenQueueRows(rows, {});
+		assert.deepEqual(first.fresh.map((r) => r.key), ['a/b#1']);
+		// A settled PR is never reported, however many passes run over it.
+		assert.deepEqual(lib.unseenQueueRows(rows, first.seen).fresh, []);
+	});
+
+	it('reports the same PR again when it is pushed to or changes status', () => {
+		const seeded = lib.unseenQueueRows([{key: 'a/b#1', status: 'needs-draft', headSha: 'aaa'}], {}).seen;
+		const pushed = lib.unseenQueueRows([{key: 'a/b#1', status: 'needs-draft', headSha: 'ccc'}], seeded);
+		assert.deepEqual(pushed.fresh.map((r) => r.headSha), ['ccc']);
+		const answered = lib.unseenQueueRows([{key: 'a/b#1', status: 'answered', headSha: 'ccc'}], pushed.seen);
+		assert.deepEqual(answered.fresh.map((r) => r.status), ['answered']);
+	});
+
+	it('forgets a PR that leaves the actionable set, so returning to it reports again', () => {
+		const seeded = lib.unseenQueueRows([{key: 'a/b#1', status: 'needs-draft', headSha: 'aaa'}], {}).seen;
+		const settled = lib.unseenQueueRows([{key: 'a/b#1', status: 'reviewed', headSha: 'aaa'}], seeded);
+		assert.deepEqual(settled.seen, {});
+		const returned = lib.unseenQueueRows([{key: 'a/b#1', status: 'needs-draft', headSha: 'aaa'}], settled.seen);
+		assert.deepEqual(returned.fresh.map((r) => r.key), ['a/b#1']);
+	});
+
 	it('reports only comments above the mark, and advances past ones it filters out', () => {
 		const comments = [
 			{id: 10, user: 'someone', body: 'old'},

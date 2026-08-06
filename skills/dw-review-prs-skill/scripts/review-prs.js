@@ -271,8 +271,9 @@ function othersDecisions(reviews, login) {
 	};
 }
 
-function cmdQueue(flags) {
-	const login = me();
+// Shared by `queue` and the watch's queue sweep, so both classify a PR the same way and a
+// change to the rules lands in one place.
+function queueRows(flags, login) {
 	const hits = queueHits(flags);
 	const state = existsSync(paths.statePath())
 		? lib.parseStateMd(readFileSync(paths.statePath(), 'utf8'))
@@ -323,7 +324,12 @@ function cmdQueue(flags) {
 		});
 	}
 
-	const sorted = lib.sortQueue(rows);
+	return lib.sortQueue(rows);
+}
+
+function cmdQueue(flags) {
+	const login = me();
+	const sorted = queueRows(flags, login);
 	if (flags.json) {
 		process.stdout.write(JSON.stringify({me: login, counts: lib.summarize(sorted), queue: sorted}, null, 2) + '\n');
 		return;
@@ -649,20 +655,48 @@ function printWatchResult(res) {
 	}
 }
 
+// The queue sweep re-resolves every review request through the PR endpoint, so it costs far
+// more API calls than a comment poll. It gets its own, slower interval rather than running on
+// every pass: comments stay near-real-time while a new review request surfaces within a
+// quarter hour. `--queue-poll-ms 0` or `--no-queue` turns it off.
+function sweepQueue(watchState, login) {
+	const rows = queueRows({}, login);
+	const {fresh, seen} = lib.unseenQueueRows(rows, watchState.queueSeen);
+	watchState.queueSeen = seen;
+	for (const row of fresh) {
+		process.stdout.write(`\n[queue] ${row.key} - ${row.status}: ${row.reason}\n`);
+		process.stdout.write(`  ${row.title}\n`);
+		process.stdout.write(`  ${row.url}${row.isDraftPr ? '  (draft PR)' : ''}\n`);
+	}
+	return {count: fresh.length, scanned: rows.length};
+}
+
 async function cmdWatch(flags) {
 	const pollMs = Number(flags['poll-ms']) > 0 ? Number(flags['poll-ms']) : 120_000;
+	const queueOff = Boolean(flags['no-queue']) || Number(flags['queue-poll-ms']) === 0;
+	const queuePollMs = Number(flags['queue-poll-ms']) > 0 ? Number(flags['queue-poll-ms']) : 900_000;
 	const opts = {
 		includeBots: Boolean(flags['include-bots']),
 		openOnly: Boolean(flags['open-only']),
 		myLogin: me(),
 	};
 	const stateFile = paths.statePath();
-	process.stdout.write(`[watch] store=${stateFile} me=${opts.myLogin} mode=${flags.once ? 'once' : 'loop'}\n`);
+	process.stdout.write(
+		`[watch] store=${stateFile} me=${opts.myLogin} mode=${flags.once ? 'once' : 'loop'}` +
+			`${queueOff ? ' queue=off' : ` queue=every ${Math.round(queuePollMs / 1000)}s`}\n`,
+	);
+	let nextQueueAt = 0;
 
 	for (;;) {
 		const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
 		const targets = lib.watchTargets(entries);
 		const watchState = loadWatchState();
+		if (!queueOff && Date.now() >= nextQueueAt) {
+			const q = sweepQueue(watchState, opts.myLogin);
+			saveWatchState(watchState);
+			nextQueueAt = Date.now() + queuePollMs;
+			process.stdout.write(`[queue] ${q.count} new of ${q.scanned} classified\n`);
+		}
 		// Re-read state.md every pass, so a PR reviewed by another run joins the
 		// watch without a restart.
 		process.stdout.write(`[watch] pass ${new Date().toISOString()} prs=${targets.length}\n`);
