@@ -325,6 +325,10 @@ function recommendedNextCommands(owner, repo, prNumber, reason) {
 	}
 }
 
+// States that mean "nothing to do yet". In loop mode the watcher holds through them; in
+// --run get-all it still reports and exits 0, because a single poll has nothing to wait for.
+const WAITING_REASONS = ['waiting-review', 'waiting-draft', 'waiting-checks'];
+
 function writeInterruptArtifact(prUrl, payload) {
 	const dir = defaultInterruptDir(prUrl);
 	utils.ensureParentDir(join(dir, 'placeholder'));
@@ -599,6 +603,7 @@ async function main() {
 		`[dw-pr-ready] mode=${options.once ? 'once' : 'loop'} branchUpdate=${options.branchUpdate} pollMs=${options.pollMs}`,
 	);
 
+	let lastWaiting = null;
 	for (;;) {
 		try {
 			const attention = pollOnce(options.prUrl, state, options, directiveLogins);
@@ -614,6 +619,23 @@ async function main() {
 					process.exit(0);
 				}
 
+				// A waiting state is the absence of an event, not one. Exiting on it made
+				// watch-for-new behave like a single poll for the whole early life of a PR -
+				// a draft returned waiting-draft and the loop ended on its first pass, so the
+				// watcher could not be started before the work that produces the events.
+				// It now holds, and says so once per change of state rather than every poll.
+				if (WAITING_REASONS.includes(attention.reason) && !options.once) {
+					if (lastWaiting !== attention.reason) {
+						lastWaiting = attention.reason;
+						console.log(
+							`[dw-pr-ready] ${attention.reason}: ${attention.readyHeadline || 'holding'} - still watching`,
+						);
+					}
+					await sleep(options.pollMs);
+					continue;
+				}
+				lastWaiting = null;
+
 				const artifactPath = writeInterruptArtifact(options.prUrl, {
 					localBranch,
 					interruptedAt: new Date().toISOString(),
@@ -621,7 +643,7 @@ async function main() {
 					...attention,
 				});
 				printInterrupt(attention, localBranch, artifactPath);
-				process.exit(['pr-ready', 'waiting-review', 'waiting-draft', 'waiting-checks'].includes(attention.reason) ? 0 : 2);
+				process.exit(['pr-ready', ...WAITING_REASONS].includes(attention.reason) ? 0 : 2);
 			}
 
 			console.log(`[dw-pr-ready] quiet at ${new Date().toISOString()}`);
