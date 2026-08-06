@@ -179,6 +179,7 @@ When a skill misbehaves, name the failure before fixing it:
 | Same meaning in two places | **duplication** | Collapse to one source of truth. |
 | Skill keeps growing, nothing removed | **sediment** | Prune on a schedule; deletion is the default move. |
 | Skill is just too long | **sprawl** | Disclose reference behind pointers; split by branch or sequence. |
+| Agent greps the skill's own scripts to learn what a command does | **unanswered question** | The skill did not state a fact the agent needed, so it paid to re-derive it from source - and may have read a different installed version than the one running. Write the fact down; a Rationalizations row at the point of temptation stops the habit. |
 | A line the model already obeys | **no-op** | Delete it, or swap a weak phrase for a strong leading word. |
 | Agent checks the listed cases, finds none, and reports clean | **closed list** | The list is an open class read as complete. Lead with the generative question, mark the examples as a floor, and range the completion criterion over the work instead of the list. |
 | Skill doesn't fire when it should | weak description | Add the concrete trigger phrasing the user actually types; front-load the leading word. |

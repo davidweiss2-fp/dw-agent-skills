@@ -51,7 +51,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 
 | reason | Action |
 |--------|--------|
-| `new-comment` / `user-directive` | Triage unresolved threads. Fix valid issues. Reply `[DEV-AI]`. Resolve threads when done. |
+| `new-comment` / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
 | `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
@@ -93,8 +93,35 @@ Recall the map before selecting tests; this loop is what grows it.
 
 ## Hard rules
 
-- PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, reply `[DEV-AI]`, resolve thread.
+- PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, then reply as an unsubmitted draft.
 - Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
 - Add new replies rather than editing existing PR comments.
+
+## Replying is drafting, never publishing
+
+Every reply this skill writes goes on the PR as an **unsubmitted draft**, signed `[dev-author-ai]`,
+and the user submits it. Nothing this skill writes reaches a reviewer on its own.
+
+```bash
+node <dw-review-prs-skill>/scripts/review-prs.js reply <pr> --thread <id> --body-file <f>
+```
+
+That script owns drafting for the suite - one pending review per user per PR, GraphQL against the
+pending review - so this skill borrows it rather than growing a second implementation that would
+drift. It accepts `[dev-author-ai]` without an `Ask:` line, because a reply answers an ask rather
+than making one.
+
+When the exchange is genuinely over and neither side has an action left, the author's own comments
+can be cleared from their own PR under the convergence protocol in
+`<dw-review-prs-skill>/references/cleanup.md` - proposed by an agent, deleted only when the user
+says so. Never another person's comment.
+
+**Do not resolve a thread you did not open.** Resolving says "settled" in the reviewer's name, and
+only the person who raised it can say that.
+
+| Excuse | Reality |
+|---|---|
+| "The fix is pushed and obviously right, so the reply is just bookkeeping" | The reply is a claim about someone's else's finding, published under the user's name to their reviewers. Obvious-and-right is exactly the reply that gets sent without being read, and the one that is embarrassing when the fix missed the point. Draft it. |
+| "It is the user's own directive, so answering it is not answering a reviewer" | The thread is on a PR other people read. A directive comment and a reviewer comment look identical to everyone else in it. |
 - Merge the PR only when the user explicitly asks.
 - Fix only failures in this PR's scope.

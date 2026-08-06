@@ -41,12 +41,14 @@ The brief establishes three voices in one thread:
 
 | Tag | Who |
 |---|---|
-| `[dev-ai]` | the reviewing agent — this skill |
-| `[author-ai]` | the agent doing the work, replying and pushing back |
+| `[dev-review-ai]` | the reviewing agent — this skill |
+| `[dev-author-ai]` | any agent acting for the author — the one doing the work, or `dw-pr-ready` |
 | *(none)* | you, and an untagged comment is the deciding voice |
 
 `author` and `reviewer` are the vocabulary GitHub already puts on a PR, so a reader of the thread
-knows which side a comment came from without a glossary.
+knows which side a comment came from without a glossary. They are parallel on purpose: the earlier
+`[dev-ai]` named an AI rather than a side, and the author-side skill wore it, which is exactly the
+confusion the tag exists to prevent.
 
 The whole exchange then happens on the PR: the working agent answers in-thread, refutes what it can
 refute with evidence, fixes what it cannot, leaves threads unresolved, ignores bots, and you weigh in

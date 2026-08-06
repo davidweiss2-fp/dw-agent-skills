@@ -143,8 +143,8 @@ describe('handoff prompt for the agent doing the work', () => {
 	it('names the PR and every voice in the thread, and nothing about the change', () => {
 		const p = lib.authorHandoffPrompt({url: 'https://github.com/a/b/pull/7'});
 		assert.match(p, /https:\/\/github\.com\/a\/b\/pull\/7/);
-		assert.match(p, /\[author-ai\]/); // the working agent signs
-		assert.match(p, /\[dev-ai\]/); // the reviewing agent is recognisable
+		assert.match(p, /\[dev-author-ai\]/); // the working agent signs
+		assert.match(p, /\[dev-review-ai\]/); // the reviewing agent is recognisable
 		assert.match(p, /no tag are\n from a human|no tag are/); // and the human is not
 		assert.match(p, /Pushing back is expected/);
 		// The brief is the comments, so the prompt must not try to restate the work.
@@ -156,6 +156,62 @@ describe('handoff prompt for the agent doing the work', () => {
 			lib.authorHandoffPrompt({filesUrl: 'https://github.com/a/b/pull/9/files'}),
 			/pull\/9\n|pull\/9$|pull\/9\s/m,
 		);
+	});
+});
+
+describe('which side signed a comment', () => {
+	it('tells the reviewing side from the author side, and a human from both', () => {
+		assert.equal(lib.tagSide(`${lib.REVIEW_TAG} finding`), 'review');
+		assert.equal(lib.tagSide(`${lib.AUTHOR_TAG} answer`), 'author');
+		assert.equal(lib.tagSide('a person wrote this'), null);
+	});
+
+	it('still recognises the tags already sitting on PRs and in the ledger', () => {
+		// [dev-ai] was worn by BOTH sides before the split, and it resolves to the reviewing
+		// side - which is what it meant in this skill's own output, the only place it is ours.
+		assert.equal(lib.tagSide('[dev-ai] old comment'), 'review');
+		assert.equal(lib.tagSide('[author-ai] old comment'), 'author');
+		for (const legacy of lib.LEGACY_TAGS) assert.equal(lib.hasDraftTag(`${legacy} x`), true);
+	});
+
+	it('requires an Ask only from the reviewing side', () => {
+		// A reply answers an ask; forcing one on it would be the wrong shape.
+		assert.equal(lib.hasAskLine(`${lib.REVIEW_TAG}\nAsk: do the thing.\n`), true);
+		assert.equal(lib.hasAskLine(`${lib.REVIEW_TAG}\nno ask here\n`), false);
+	});
+});
+
+describe('convergence cleanup on your own PR', () => {
+	const comments = [
+		{id: 1, author: 'me', body: '[dev-review-ai] Ask: fix it'},
+		{id: 2, author: 'them', inReplyTo: 1, body: 'agreed'},
+		{id: 3, author: 'me', body: '[dev-review-ai] Ask: nobody answered this'},
+		{id: 4, author: 'them', body: 'their own finding'},
+	];
+
+	it('removes only your own comments, and only where someone replied', () => {
+		const r = lib.cleanupCandidates({prAuthor: 'me', me: 'me', comments});
+		assert.deepEqual(r.eligible.map((c) => c.id), [1]);
+		// 3 is the shape of an ask that never landed - deleting it loses the question.
+		assert.deepEqual(r.unanswered.map((c) => c.id), [3]);
+		assert.equal(r.others, 2, "other people's comments are never candidates");
+	});
+
+	it('refuses outright on a PR you did not author', () => {
+		const r = lib.cleanupCandidates({prAuthor: 'someone-else', me: 'me', comments});
+		assert.match(r.blocked, /not your PR/);
+		assert.deepEqual(r.eligible, []);
+	});
+
+	it('never proposes a comment written by anyone else, whatever tag it carries', () => {
+		const theirs = [
+			{id: 9, author: 'them', body: '[dev-review-ai] posted by another account'},
+			{id: 10, author: 'me', inReplyTo: 9, body: '[dev-author-ai] ack'},
+			{id: 11, author: 'them', inReplyTo: 9, body: 'ok'},
+		];
+		const r = lib.cleanupCandidates({prAuthor: 'me', me: 'me', comments: theirs});
+		assert.deepEqual(r.eligible.map((c) => c.id), [10]);
+		assert.ok(!r.eligible.some((c) => c.author !== 'me'));
 	});
 });
 
@@ -593,20 +649,20 @@ describe('cli guards (no network)', () => {
 		assert.equal(runCli(['nope']).status, 1);
 	});
 
-	it('refuses a comment body that is missing the dev-ai tag, before touching the network', () => {
+	it('refuses a comment body that is missing a side tag, before touching the network', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'dw-review-body-'));
 		const file = join(dir, 'body.md');
 		writeFileSync(file, 'looks like a review comment but carries no tag\n');
 		const res = runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', file]);
 		assert.equal(res.status, 1);
-		assert.match(res.stderr, /\[dev-ai\]/);
+		assert.match(res.stderr, /\[dev-review-ai\]/);
 		rmSync(dir, {recursive: true, force: true});
 	});
 
 	it('refuses a tagged body whose ask does not lead, and accepts one where it does', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'dw-review-ask-'));
 		const buried = join(dir, 'buried.md');
-		writeFileSync(buried, '[dev-ai]\nnit: the docblock lost its condition.\n\nAsk: restore the clause.\n');
+		writeFileSync(buried, '[dev-review-ai]\nnit: the docblock lost its condition.\n\nAsk: restore the clause.\n');
 		const res = runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', buried]);
 		assert.equal(res.status, 1);
 		assert.match(res.stderr, /Ask:/);
@@ -614,6 +670,7 @@ describe('cli guards (no network)', () => {
 		// Same guard, satisfied: the ask leads, so the body gets past validation and
 		// fails later — on the network, not on its shape.
 		const leads = join(dir, 'leads.md');
+		// Deliberately the legacy tag: bodies and threads already carry it, so it must still pass.
 		writeFileSync(leads, '[dev-ai]\nAsk: restore the when-clause on `@throws`.\n\nnit: the docblock lost its condition.\n');
 		assert.doesNotMatch(runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', leads]).stderr, /Ask:/);
 		rmSync(dir, {recursive: true, force: true});
