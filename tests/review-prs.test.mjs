@@ -498,6 +498,52 @@ describe('dashboard rendering', () => {
 		assert.ok(!withDrafts.includes('data-phrase="Read the 2 drafts'));
 	});
 
+	it('offers only COMMENT on your own PR, since GitHub refuses the other two there', () => {
+		const mine = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [
+					{
+						key: 'a/b#1',
+						pendingDrafts: 3,
+						prState: 'open',
+						storeStatus: 'drafted',
+						mine: true,
+						filesUrl: 'https://github.com/a/b/pull/1/files',
+					},
+				],
+				actions: {prs: {'a/b#1': {next: 'Three drafts on your own PR.'}}},
+			}),
+		);
+		assert.match(mine, /submit them as COMMENT/);
+		for (const event of ['APPROVE', 'REQUEST_CHANGES']) {
+			assert.ok(!mine.includes(`submit them as ${event}`), `own PR must not offer ${event}`);
+		}
+	});
+
+	it('gives the handoff toggle no decision wiring, so it cannot store an empty one', () => {
+		const mine = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [{key: 'a/b#1', pendingDrafts: 1, prState: 'open', mine: true, filesUrl: 'https://github.com/a/b/pull/1/files'}],
+				actions: {prs: {'a/b#1': {next: 'x'}}},
+			}),
+		);
+		const toggle = /<button class="([^"]*)"[^>]*data-handoff="toggle"/.exec(mine);
+		assert.ok(toggle, 'the handoff toggle should render on an own PR');
+		// A `.cta` is wired to record a submit decision; this button only reveals text, and
+		// carrying that class made it store `undefined` and repaint itself as "✓ undefined".
+		assert.ok(!/\bcta\b/.test(toggle[1]), `handoff toggle must not be a .cta (was "${toggle[1]}")`);
+		assert.ok(!/data-handoff="toggle"[^>]*data-phrase/.test(mine));
+	});
+
+	it('still offers a resolution when drafts exist but no next step was recorded', () => {
+		const html = dashboard.renderDashboard(
+			lib.dashboardModel({prs: [{key: 'a/b#9', pendingDrafts: 3, prState: 'open', storeStatus: 'drafted'}]}),
+		);
+		// The card says three drafts are waiting; without this it says so and offers no button.
+		assert.match(html, /No next step recorded/);
+		assert.match(html, /submit them as COMMENT/);
+	});
+
 	it('keeps the free-text CTA on cards with nothing drafted', () => {
 		const noDrafts = dashboard.renderDashboard(
 			lib.dashboardModel({

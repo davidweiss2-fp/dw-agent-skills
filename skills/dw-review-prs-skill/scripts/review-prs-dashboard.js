@@ -77,16 +77,32 @@ function submitPhrase(event) {
 // button's honest job is to tell the agent what was decided - the label says the
 // action, the confirmed state says who carries it out.
 function renderNext(card) {
-	if (!card.next) return '<div class="next empty"><p>No next step recorded for this PR.</p></div>';
 	let action = '';
 	if (Number(card.pendingDrafts) > 0) {
-		const buttons = RESOLUTIONS.map(
-			(r) =>
-				`<button class="cta resolve" type="button" data-phrase="${esc(submitPhrase(r.event))}" data-label="${esc(r.label)}">${esc(r.label)}</button>`,
-		).join('');
-		action = `<div class="resolve-row"><span class="resolve-label">Read them, then submit as</span>${buttons}</div>`;
+		// GitHub refuses APPROVE and REQUEST_CHANGES on your own PR, so offering them is an
+		// error the reviewer can only discover by clicking. COMMENT stays, and it is not
+		// optional here: an unsubmitted draft is visible to nobody, so publishing is what
+		// turns these into the comments the handoff brief tells the coding agent to read.
+		const events = card.mine ? RESOLUTIONS.filter((r) => r.event === 'COMMENT') : RESOLUTIONS;
+		const buttons = events
+			.map(
+				(r) =>
+					`<button class="cta resolve" type="button" data-phrase="${esc(submitPhrase(r.event))}" data-label="${esc(r.label)}">${esc(r.label)}</button>`,
+			)
+			.join('');
+		const lead = card.mine ? 'Publish them for the coding agent' : 'Read them, then submit as';
+		action = `<div class="resolve-row"><span class="resolve-label">${lead}</span>${buttons}</div>`;
 	} else if (card.cta) {
 		action = `<button class="cta" type="button" data-phrase="${esc(card.cta)}" data-label="${esc(card.cta)}">${esc(card.cta)}</button>`;
+	}
+	// Unsubmitted drafts keep their resolution buttons even when no next step was recorded.
+	// Otherwise the card shows "3 unsubmitted drafts" and offers no way to resolve them,
+	// which is the one thing that card exists to let the reviewer do.
+	if (!card.next) {
+		return `<div class="next empty">
+		<p>No next step recorded for this PR.</p>
+		${action}
+	</div>`;
 	}
 	return `<div class="next">
 		<span class="next-label">Your next step</span>
@@ -101,7 +117,7 @@ function renderNext(card) {
 function renderHandoff(card) {
 	if (!card.handoffPrompt) return '';
 	return `<div class="handoffbox">
-		<button class="cta ghost" type="button" data-handoff="toggle">Prompt for the coding agent</button>
+		<button class="handoff-toggle" type="button" data-handoff="toggle">Prompt for the coding agent</button>
 		<div class="handoff-body" hidden>
 			<div class="handoff-row">
 				<span class="handoff-hint">Copy as-is into the agent doing the work</span>
@@ -352,6 +368,7 @@ function dashboardClient() {
 	function paintCard(card) {
 		var key = card.dataset.key;
 		Array.prototype.forEach.call(card.querySelectorAll('.cta'), function (btn) {
+			if (!btn.dataset.phrase) return;
 			var chosen = state.decisions[key] === btn.dataset.phrase;
 			btn.classList.toggle('sent', chosen);
 			btn.textContent = chosen ? '\u2713 ' + btn.dataset.label : btn.dataset.label;
@@ -362,6 +379,9 @@ function dashboardClient() {
 	Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
 		var key = card.dataset.key;
 		Array.prototype.forEach.call(card.querySelectorAll('.cta'), function (btn) {
+			// A button with no phrase carries no decision. Without this guard one stores
+			// undefined against the PR and repaints itself as a tick over the word 'undefined'.
+			if (!btn.dataset.phrase) return;
 			btn.addEventListener('click', function () {
 				if (state.decisions[key] === btn.dataset.phrase) delete state.decisions[key];
 				else state.decisions[key] = btn.dataset.phrase;
@@ -504,6 +524,7 @@ function dashboardClient() {
 			hl.remove();
 		});
 		Array.prototype.forEach.call(document.querySelectorAll('.cta'), function (btn) {
+			if (!btn.dataset.phrase) return;
 			btn.classList.remove('sent');
 			btn.textContent = btn.dataset.label;
 			btn.setAttribute('aria-pressed', 'false');
@@ -815,8 +836,22 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 .anno-drop { grid-row: 1 / span 2; grid-column: 2; align-self: start; background: none; border: 0; color: var(--ink-faint); font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.2rem; }
 .anno-drop:hover { color: var(--crit); }
 .handoffbox { margin-top: 0.2rem; }
-.cta.ghost { background: transparent; color: var(--accent); }
-.cta.ghost:hover { background: var(--accent-soft); }
+/* Deliberately NOT .cta: every .cta in a card is wired to record a submit decision, so a
+   button that only reveals text would store an empty one and repaint itself as a tick. */
+.handoff-toggle {
+	align-self: flex-start;
+	font-family: var(--mono);
+	font-size: 0.78rem;
+	font-weight: 600;
+	padding: 0.4rem 0.8rem;
+	border-radius: 7px;
+	border: 1px solid var(--accent);
+	background: transparent;
+	color: var(--accent);
+	cursor: pointer;
+}
+.handoff-toggle:hover { background: var(--accent-soft); }
+.handoff-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .handoff-body { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .handoff-body[hidden] { display: none; }
 .handoff-row { display: flex; align-items: center; gap: 0.5rem; }
