@@ -101,9 +101,24 @@ describe('classifyPr', () => {
 		assert.equal(lib.classifyPr(base, {sha: 'head0', status: 'submitted'}).status, 'needs-draft');
 	});
 
-	it('never queues a closed PR or the reviewer own PR', () => {
+	it('never queues a closed PR', () => {
 		assert.equal(lib.classifyPr({...base, isOpen: false}).status, 'closed');
-		assert.equal(lib.classifyPr({...base, authoredByMe: true}).status, 'skip');
+	});
+
+	it('keeps the reviewer own PR as a watch target rather than dropping it', () => {
+		const mine = lib.classifyPr({...base, authoredByMe: true});
+		assert.equal(mine.status, 'mine');
+		// Not review work, so it must never be counted as something to draft on.
+		assert.equal(lib.isActionable(mine.status), false);
+		assert.match(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).reason, /draft/);
+	});
+
+	it('delegates a PR by author, but never one already carrying our pending review', () => {
+		assert.equal(lib.classifyPr({...base, delegatedTo: 'the neri routine'}).status, 'delegated');
+		// A pending review blocks REST posting for the routine we handed the PR to, so it
+		// has to stay visible instead of hiding behind `delegated`.
+		const clash = lib.classifyPr({...base, delegatedTo: 'the neri routine', pendingReview: {id: 1, draftCount: 2}});
+		assert.equal(clash.status, 'draft-waiting');
 	});
 
 	it('a pending review outranks a stale state entry claiming the head was submitted', () => {
@@ -240,6 +255,16 @@ describe('watch bookkeeping', () => {
 			'a/b#2': {key: 'a/b#2', status: 'drafted'},
 		};
 		assert.deepEqual(lib.watchTargets(entries), ['a/b#2', 'a/b#1', 'a/b#3']);
+	});
+
+	it('polls the sweep keys too, so an own PR that never reaches state.md is still watched', () => {
+		const entries = {'a/b#1': {key: 'a/b#1', status: 'drafted'}};
+		// 'a/b#9' is the reviewer's own PR: nothing is ever drafted on it, so it has no
+		// state.md row, and only the sweep knows it exists.
+		const targets = lib.watchTargets(entries, ['a/b#9', 'a/b#1']);
+		assert.deepEqual(targets, ['a/b#1', 'a/b#9']);
+		// The union must not double-poll a PR both sources know about.
+		assert.equal(new Set(targets).size, targets.length);
 	});
 
 	it('surfaces an actionable PR the store has never recorded, then stays quiet on it', () => {

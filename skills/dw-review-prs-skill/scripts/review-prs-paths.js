@@ -55,7 +55,18 @@ function ensureDir(dir) {
 	}
 }
 
+// Authors whose PRs a DIFFERENT routine reviews, as {login: why}. Those PRs are
+// classified `delegated` instead of becoming work here, so the hand-off is a property
+// of the store rather than something the reviewer has to remember to click each run.
+// Two routines drafting on one PR is not just duplicated effort: this skill holds an
+// unsubmitted PENDING review, and a pending review blocks REST comment posting on that
+// PR (one per user per PR), which is how a sibling routine's posting path breaks.
+function delegatedAuthorsPath(env = process.env) {
+	return join(reviewNotesDir(env), 'delegated-authors.json');
+}
+
 module.exports = {
+	delegatedAuthorsPath,
 	storeRoot,
 	reviewNotesDir,
 	statePath,
