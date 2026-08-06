@@ -151,6 +151,41 @@ function normalizeAuthorNotes(raw) {
 	return out;
 }
 
+// The tag the agent working ON a PR signs its comments with, paired with DRAFT_TAG which
+// marks the reviewing agent. Three voices have to be told apart in one thread: the reviewer's
+// agent, the author's agent, and the human - who signs nothing, which is what makes an
+// untagged comment read as the deciding one.
+const AUTHOR_TAG = '[author-ai]';
+
+// Handed to whichever agent is doing the work on the PR. Deliberately says nothing about the
+// change itself: the comments on the PR are the brief, and duplicating them here would create a
+// second copy to drift. All it establishes is where to look and how to talk back.
+function authorHandoffPrompt(pr) {
+	const url = (pr && pr.url) || (pr && pr.filesUrl ? String(pr.filesUrl).replace(/\/files$/, '') : '');
+	return [
+		`There are review comments waiting on ${url}`,
+		'',
+		'Read every comment on that pull request and act on it. The comments are the brief - work from',
+		'them, not from anything I tell you here. Everything you need to say back goes on the PR too:',
+		'',
+		'**Replying**',
+		'',
+		'- Answer inside the thread the comment is in, so the answer sits with what it answers.',
+		`- Start every comment you write with \`${AUTHOR_TAG}\`, then your text. That tag marks you as the`,
+		'  agent acting for the PR author.',
+		`- Comments starting with \`${DRAFT_TAG}\` come from the reviewing agent. Comments with no tag are`,
+		'  from a human, and a human is the deciding voice when the two disagree.',
+		'- Leave threads unresolved, and do not reply to bot comments.',
+		'',
+		'**Pushing back is expected.** If a comment is wrong, say so in its thread with the evidence -',
+		'the file and line, what the code actually does, what you ran. A finding you can refute should be',
+		'refuted rather than quietly applied. If a comment is right, make the change and reply saying what',
+		'you changed.',
+		'',
+		'Nothing needs to come back to me outside the PR.',
+	].join('\n');
+}
+
 // Statuses the reviewer has to act on, in the order they should be reported.
 const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
@@ -338,6 +373,9 @@ function dashboardModel({prs, ledger, actions, generatedAt} = {}) {
 			notes: Array.isArray(act.notes) ? act.notes.filter((n) => typeof n === 'string') : [],
 			comments,
 			ledgerCount: (byKey[pr.key] || []).length,
+			// Only your own PR gets one: it is the card where the next move is someone else
+			// doing the work, so the page's job is to hand that person a brief.
+			handoffPrompt: pr.mine ? authorHandoffPrompt(pr) : '',
 		};
 	});
 	const rank = Object.fromEntries(LANES.map((l, i) => [l, i]));
@@ -371,6 +409,8 @@ function ledgerLine({at, key, url, status, weight, finding}) {
 
 module.exports = {
 	DRAFT_TAG,
+	AUTHOR_TAG,
+	authorHandoffPrompt,
 	settledStatus,
 	hasSource,
 	ACTIONABLE,

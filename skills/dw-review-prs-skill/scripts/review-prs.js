@@ -804,7 +804,7 @@ function cmdDashboard(flags) {
 	const prs = [];
 	for (const key of Object.keys(entries).sort()) {
 		const facts = dashboardFacts(key, login);
-		if (facts) prs.push({...facts, storeStatus: entries[key].status});
+		if (facts) prs.push({...facts, storeStatus: entries[key].status, mine: facts.author === login});
 	}
 	const model = lib.dashboardModel({prs, ledger, actions, generatedAt: new Date().toISOString()});
 	const html = dash.renderDashboard(model, {title: flags.title || 'Review queue', reviewer: login});
