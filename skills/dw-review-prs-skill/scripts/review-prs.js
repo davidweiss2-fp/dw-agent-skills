@@ -724,6 +724,28 @@ function saveWatchState(state) {
 }
 
 // The three surfaces a reply can land on, each normalized to {id, user, isBot, body, url, ...}.
+// The pending review's own comments are a real channel and appear on no published endpoint:
+// the reviewer answers their own PR as a draft, and nothing else would ever surface it.
+// Resolved per pass because the pending review id changes when a review is submitted and reopened.
+function draftSurface(r, login) {
+	const mine = (ghJsonSoft(['api', '--paginate', `repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews`]).data || [])
+		.filter((v) => v.user && v.user.login === login);
+	const pending = mine.find((v) => v.state === 'PENDING');
+	if (!pending) return null;
+	return {
+		name: 'draft',
+		args: ['api', '--paginate', `repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews/${pending.id}/comments`],
+		map: (c) => ({
+			id: c.id,
+			user: c.user && c.user.login,
+			isBot: false,
+			where: `${c.path}:${c.line || c.original_line || '?'} (unsubmitted)`,
+			body: c.body || '',
+			url: c.html_url,
+		}),
+	};
+}
+
 function watchSurfaces(r) {
 	const base = `repos/${r.owner}/${r.repo}`;
 	return [
@@ -778,12 +800,13 @@ function watchOnePr(key, watchState, opts) {
 	const seeding = lib.isFirstWatch(entry);
 	const next = {...entry};
 	const fresh = [];
-	for (const surface of watchSurfaces(r)) {
+	const surfaces = [...watchSurfaces(r), draftSurface(r, opts.myLogin)].filter(Boolean);
+	for (const surface of surfaces) {
 		const res = ghJsonSoft(surface.args);
 		if (!res.ok) return {key, prState, error: `${surface.name}: ${res.error}`};
 		const rows = (res.data || []).map(surface.map).filter((c) => String(c.body || '').trim() !== '');
 		const seen = lib.unseenComments(rows, entry[surface.name], {
-			myLogin: opts.myLogin,
+			ownSide: opts.ownSide,
 			includeBots: opts.includeBots,
 		});
 		next[surface.name] = seen.watermark;
@@ -834,7 +857,8 @@ function sweepQueue(watchState, login) {
 
 async function cmdWatch() {
 	const myLogin = me();
-	const opts = {includeBots: false, openOnly: false, myLogin};
+	// This watch is the reviewing side, so its own [dev-review-ai] output is the only echo to skip.
+	const opts = {includeBots: false, openOnly: false, myLogin, ownSide: 'review'};
 	const stateFile = paths.statePath();
 	process.stdout.write(`[watch] store=${stateFile} me=${myLogin}\n`);
 	let nextQueueAt = 0;

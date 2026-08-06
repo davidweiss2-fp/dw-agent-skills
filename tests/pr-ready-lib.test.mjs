@@ -11,6 +11,7 @@ import {
 	isNoiseComment,
 	emptyState,
 	resolveDirectiveLogins,
+	isUserDirective,
 } from '../skills/dw-pr-ready-skill/scripts/pr-ready-lib.js';
 
 describe('parsePrUrl', () => {
@@ -172,5 +173,23 @@ describe('check buckets', () => {
 		assert.equal(collectPending([{state: 'IN_PROGRESS'}, {state: 'QUEUED'}]), 2);
 		assert.equal(collectPending([{bucket: 'pass'}, {bucket: 'fail'}]), 0);
 		assert.equal(collectPending([]), 0);
+	});
+});
+
+describe('what counts as a directive from the user', () => {
+	const logins = new Set(['davidweiss2-fp']);
+	const from = (body) => isUserDirective({authorLogin: 'davidweiss2-fp', body}, logins);
+
+	it('takes the human unsigned, and never an agent wearing the same account', () => {
+		assert.equal(from('please also handle the null case'), true);
+		// Both agents post under the user's login, so a login match alone obeyed this skill's
+		// own words as if the user had written them.
+		assert.equal(from('[dev-author-ai] Fixed in abc1234'), false);
+		assert.equal(from('[dev-review-ai] Ask: restore the clause'), false);
+	});
+
+	it('still ignores everyone who is not a directive author', () => {
+		assert.equal(isUserDirective({authorLogin: 'someone-else', body: 'do this'}, logins), false);
+		assert.equal(isUserDirective({authorLogin: 'davidweiss2-fp', body: 'x'}, new Set()), false);
 	});
 });

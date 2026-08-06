@@ -42,7 +42,10 @@ node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update 
 
 Requirements: GitHub CLI installed and authenticated (`gh auth status`).
 
-Directive author: comments from the gh-authenticated user are treated as agent directives.
+Directive author: **unsigned** comments from the gh-authenticated user are treated as agent
+directives. Both agents post under that same account, so a login match alone read every agent
+comment - including this skill's own `[dev-author-ai]` replies - as an instruction from the user.
+The human is the one who signs nothing.
 Override with `DW_PR_DIRECTIVE_LOGINS` (comma-separated logins) to widen or change the set.
 
 ## When watcher exits

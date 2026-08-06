@@ -471,15 +471,45 @@ describe('watch bookkeeping', () => {
 	it('reports only comments above the mark, and advances past ones it filters out', () => {
 		const comments = [
 			{id: 10, user: 'someone', body: 'old'},
-			{id: 20, user: 'me', body: 'my own reply'},
+			{id: 20, user: 'me', body: '[dev-review-ai] my own finding'},
 			{id: 30, user: 'bugbot', isBot: true, body: 'bot noise'},
 			{id: 40, user: 'colleague', body: 'answered your ask'},
 		];
-		const seen = lib.unseenComments(comments, 10, {myLogin: 'me', includeBots: false});
+		const seen = lib.unseenComments(comments, 10, {ownSide: 'review', includeBots: false});
 		assert.deepEqual(seen.fresh.map((c) => c.id), [40]);
 		// 30 was filtered, not skipped over: the next pass must not re-examine it.
 		assert.equal(seen.watermark, 40);
-		assert.deepEqual(lib.unseenComments(comments, seen.watermark, {myLogin: 'me'}).fresh, []);
+		assert.deepEqual(lib.unseenComments(comments, seen.watermark, {ownSide: 'review'}).fresh, []);
+	});
+
+	it('surfaces the watcher own human comments, and only its own side is echo', () => {
+		// Both agents post under the watcher's account, so filtering on login silenced the human
+		// on their own PR - drafts included, which is their only channel to the agent there.
+		const comments = [
+			{id: 1, user: 'me', body: '[dev-review-ai] my own finding'},
+			{id: 2, user: 'me', body: 'Can this thread be deleted guys?'},
+			{id: 3, user: 'me', body: '[dev-author-ai] answering you'},
+			{id: 4, user: 'colleague', body: 'a person'},
+		];
+		assert.deepEqual(
+			lib.unseenComments(comments, 0, {ownSide: 'review'}).fresh.map((c) => c.id),
+			[2, 3, 4],
+			'the reviewing watch skips only its own output',
+		);
+		assert.deepEqual(
+			lib.unseenComments(comments, 0, {ownSide: 'author'}).fresh.map((c) => c.id),
+			[1, 2, 4],
+			'the author-side watch hears the reviewer, and vice versa',
+		);
+	});
+
+	it('counts a tag as a signature only when it opens the comment', () => {
+		assert.equal(lib.signedSide('[dev-review-ai] a finding'), 'review');
+		assert.equal(lib.signedSide('[dev-author-ai]\nan answer'), 'author');
+		assert.equal(lib.signedSide('[dev-ai] the old tag'), 'review');
+		// A person quoting the tag mid-sentence is the comment most worth surfacing.
+		assert.equal(lib.signedSide('why did [dev-review-ai] say that?'), null);
+		assert.equal(lib.signedSide('plain question'), null);
 	});
 
 	it('treats a bot comment as reportable only when asked', () => {

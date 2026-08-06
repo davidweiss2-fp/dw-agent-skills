@@ -121,9 +121,19 @@ function collectPending(checks) {
 	}).length;
 }
 
+// A directive is the HUMAN speaking. Both agents post under that same account, so a login match
+// alone read every agent comment as an instruction from the user - including this skill's own.
+// The signature is the discriminator: the human signs nothing.
+//
+// The tags are owned by dw-review-prs, which ships alongside this skill; requiring them keeps one
+// definition. A missing module throws rather than defaulting, because the quiet failure is an
+// agent's own words being obeyed as the user's.
+const {signedSide} = require('../../dw-review-prs-skill/scripts/review-prs-lib.js');
+
 function isUserDirective(comment, directiveLogins) {
 	if (!directiveLogins || directiveLogins.size === 0) return false;
-	return directiveLogins.has(String(comment.authorLogin || '').toLowerCase());
+	if (!directiveLogins.has(String(comment.authorLogin || '').toLowerCase())) return false;
+	return signedSide(comment.body || comment.bodyPreview || '') === null;
 }
 
 function hasMergeConflict(summary) {

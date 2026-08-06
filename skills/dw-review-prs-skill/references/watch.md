@@ -22,7 +22,15 @@ waiting on you. Plus every open PR the last queue sweep saw, which is how a PR t
 
 ## What reports, and what stays quiet
 
-- **Bots and your own comments never report.** What surfaces is a person waiting on a reply.
+- **What reports is judged by signature, not by author.** Both agents post under your account, so
+  filtering on login silenced *your own* comments on your own PR - the one channel you have to talk
+  to the agent there. The reviewing watch skips only comments opening with `[dev-review-ai]`, its
+  own echo. Everything else reports: anything unsigned whoever wrote it, you included, and the
+  other side's `[dev-author-ai]`, so a message from the author's agent reaches this watch and back.
+  A tag counts as a signature only when it *opens* the comment - someone quoting one mid-sentence
+  is asking about it, which is the comment most worth surfacing.
+- **Unsubmitted drafts are polled too.** They appear on no published endpoint, so a reply you leave
+  as a draft on your own PR would otherwise reach nobody. Bots still never report.
 - **A high-water mark per PR per surface** lives in `watch-state.json`. The first pass on a PR seeds
   those marks and reports nothing, rather than replaying its whole history. The mark advances past
   filtered comments too, so a bot comment is seen-but-unshown and no later pass re-examines it.

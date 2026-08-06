@@ -337,6 +337,18 @@ function hasDraftTag(body) {
 
 // Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
 // untagged comment is the deciding voice precisely because people do not sign.
+// A tag only counts as a signature when it OPENS the comment, which is where both agents put it.
+// Matching anywhere would let a human quoting "[dev-review-ai]" in a question be mistaken for the
+// agent that wrote it, and that comment is exactly the one worth surfacing.
+function signedSide(body) {
+	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
+	if (!first) return null;
+	const t = first.trim();
+	if (t.startsWith(REVIEW_TAG) || t.startsWith('[dev-ai]')) return 'review';
+	if (t.startsWith(AUTHOR_TAG) || t.startsWith('[author-ai]')) return 'author';
+	return null;
+}
+
 function tagSide(body) {
 	const text = String(body || '');
 	if (text.includes(REVIEW_TAG) || text.includes('[dev-ai]')) return 'review';
@@ -406,7 +418,14 @@ function unseenQueueRows(rows, seen) {
 // comment from a seen one without storing every id. The mark advances past
 // filtered-out comments too - a bot or self comment is seen, just not surfaced -
 // so a later pass does not re-examine it.
-function unseenComments(comments, watermark, {myLogin, includeBots} = {}) {
+// What a watch reports. The filter is by SIGNATURE, not by author, because both agents post under
+// the watcher's own account: filtering on login silenced the human's own comments on their own PR
+// - drafts included - which is the one channel they have to talk to the agent there.
+//
+// Skipped: this side's own output, which is echo. Reported: anything unsigned, whoever wrote it,
+// including the watcher's own human; and the OTHER side's comments, so a message from the author's
+// agent reaches the reviewing watcher and back.
+function unseenComments(comments, watermark, {ownSide, includeBots} = {}) {
 	const mark = Number(watermark) || 0;
 	const fresh = [];
 	let next = mark;
@@ -415,7 +434,7 @@ function unseenComments(comments, watermark, {myLogin, includeBots} = {}) {
 		if (id > next) next = id;
 		if (id <= mark) continue;
 		if (c.isBot && !includeBots) continue;
-		if (myLogin && c.user === myLogin) continue;
+		if (ownSide && signedSide(c.body) === ownSide) continue;
 		fresh.push(c);
 	}
 	fresh.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
@@ -545,6 +564,7 @@ module.exports = {
 	AUTHOR_TAG,
 	LEGACY_TAGS,
 	tagSide,
+	signedSide,
 	cleanupCandidates,
 	supersededDrafts,
 	isOuterDraft,
