@@ -220,6 +220,93 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 	return {eligible, unanswered, others: others.length, blocked: null};
 }
 
+// Pending drafts the cleanup can drop: every one but the newest on each thread.
+//
+// A cleanup that only looks at published comments reports "0 removable" while a pile of
+// superseded drafts sits on the PR - they are unpublished, so nothing else surfaces them either.
+// Supersession is the one thing that IS computable here: two of your drafts on one thread means
+// the older one was rewritten rather than answered, which is exactly how "Agreed, this comes out"
+// ends up shipping alongside "Done in <sha>".
+//
+// Grouped by the thread a draft belongs to - its in-reply-to when it joins one, otherwise the
+// line it opens. Order is the tiebreak, so a draft with no timestamp still resolves.
+// `outer` marks a draft that answers a human: someone else is in its thread and waiting. Those
+// are never proposed for removal however stale they look, because the cost is asymmetric - a
+// superseded inner draft is clutter between two of your own agents, while a dropped outer draft
+// is a reply a person is still waiting for, and nothing afterwards shows it went missing.
+function supersededDrafts(drafts) {
+	const all = (Array.isArray(drafts) ? drafts : []).filter(Boolean);
+	const rows = all.filter((d) => !d.outer);
+	const byThread = new Map();
+	rows.forEach((d, i) => {
+		const key = d.inReplyTo ? `r:${d.inReplyTo}` : `l:${d.path || ''}:${d.line ?? ''}`;
+		if (!byThread.has(key)) byThread.set(key, []);
+		byThread.get(key).push({...d, _i: i});
+	});
+	const superseded = [];
+	for (const group of byThread.values()) {
+		if (group.length < 2) continue;
+		const ordered = [...group].sort((a, b) => {
+			const at = Date.parse(a.createdAt || '') || 0;
+			const bt = Date.parse(b.createdAt || '') || 0;
+			return at - bt || a._i - b._i;
+		});
+		// Keep the last: it is the one that says what the author currently means.
+		superseded.push(...ordered.slice(0, -1).map(({_i, ...d}) => d));
+	}
+	return superseded;
+}
+
+// Whose thread is it. A draft is outer when a human other than you has written in the thread it
+// replies to; a draft opening a fresh thread is inner, since nobody is in it yet. Bots do not
+// count - we never reply to them, so a bot-rooted thread is not an exchange with a person.
+function isOuterDraft(draft, threadAuthors, me) {
+	const root = draft && draft.inReplyTo;
+	if (!root) return false;
+	const authors = (threadAuthors && threadAuthors[root]) || [];
+	return authors.some((a) => a && a.login !== me && !a.isBot);
+}
+
+// Does the cleanup have authorization, and from whom.
+//
+// The trigger lives on the PR as free text - "cleanup the PR from agents comments", or whatever
+// wording the moment produced - so recognising it is judgment and stays in prose. What is checked
+// here is the part judgment gets wrong: WHO said it. The agent names the comment it read as the
+// trigger, and this decides whether that comment could authorize anything.
+//
+// The owner's own comment is enough on its own. Two agent comments, one from each side, also
+// count - that is the sides agreeing the exchange is over. Anyone else saying "clean this up" is
+// a person making a suggestion in a thread, not an instruction to delete the owner's words, and a
+// bot saying it is not even that.
+function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
+	const rows = (Array.isArray(triggers) ? triggers : []).filter(Boolean);
+	if (!rows.length) return {authorized: false, why: 'no trigger comment named'};
+
+	// Untagged is the tell. Both agents post under the owner's account, so author identity alone
+	// cannot separate "the owner said so" from "the owner's agent said so" - and treating an
+	// agent's suggestion as the owner's instruction would let the agents authorize themselves.
+	// The human is the one who signs nothing, which is what the tag scheme already means.
+	const owner = rows.find(
+		(t) => t.author && t.author === prAuthor && t.author === me && !t.isBot && tagSide(t.body) === null,
+	);
+	if (owner) return {authorized: true, by: 'owner', comments: [owner], why: `${owner.author} asked for it on the PR`};
+
+	const sides = new Map();
+	for (const t of rows) {
+		if (t.isBot) continue;
+		const side = tagSide(t.body);
+		if (side && !sides.has(side)) sides.set(side, t);
+	}
+	if (sides.size >= 2) {
+		return {authorized: true, by: 'both-sides', comments: [...sides.values()], why: 'both review sides asked for it'};
+	}
+	const outsider = rows.find((t) => t.author && t.author !== prAuthor);
+	if (outsider) {
+		return {authorized: false, why: `${outsider.author} is not the PR owner - only the owner can authorize removing their comments`};
+	}
+	return {authorized: false, why: `only the ${[...sides.keys()][0] || 'one'} side asked - needs the owner, or the other side too`};
+}
+
 // Statuses the reviewer has to act on, in the order they should be reported.
 const ACTIONABLE = ['draft-waiting', 'answered', 'needs-draft', 'draft-empty'];
 
@@ -459,6 +546,9 @@ module.exports = {
 	LEGACY_TAGS,
 	tagSide,
 	cleanupCandidates,
+	supersededDrafts,
+	isOuterDraft,
+	cleanupAuthorization,
 	authorHandoffPrompt,
 	settledStatus,
 	hasSource,

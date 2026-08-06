@@ -197,6 +197,71 @@ describe('convergence cleanup on your own PR', () => {
 		assert.equal(r.others, 2, "other people's comments are never candidates");
 	});
 
+	it('drops every draft on a thread but the newest, and leaves lone drafts alone', () => {
+		const drafts = [
+			{nodeId: 'A', inReplyTo: 1, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'B', inReplyTo: 1, createdAt: '2026-08-06T10:00:00Z'},
+			{nodeId: 'C', path: 'main.py', line: 5, createdAt: '2026-08-06T09:00:00Z'},
+		];
+		// B is what the author currently means; C is the only draft on its line.
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['A']);
+	});
+
+	it('falls back to input order when drafts carry no timestamp', () => {
+		const drafts = [{nodeId: 'A', inReplyTo: 7}, {nodeId: 'B', inReplyTo: 7}];
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['A']);
+		assert.deepEqual(lib.supersededDrafts([]), []);
+	});
+
+	it('treats a reply to a person as outer, and your own agents as inner', () => {
+		const authors = {
+			10: [{login: 'reviewer'}],
+			20: [{login: 'me'}],
+			30: [{login: 'bugbot', isBot: true}],
+		};
+		assert.equal(lib.isOuterDraft({inReplyTo: 10}, authors, 'me'), true);
+		assert.equal(lib.isOuterDraft({inReplyTo: 20}, authors, 'me'), false);
+		// We never reply to bots, so a bot-rooted thread is not an exchange with a person.
+		assert.equal(lib.isOuterDraft({inReplyTo: 30}, authors, 'me'), false);
+		// A draft opening a fresh thread is inner - nobody else is in it yet.
+		assert.equal(lib.isOuterDraft({path: 'a.php', line: 3}, authors, 'me'), false);
+	});
+
+	it('keeps a draft owed to a person even when a newer one supersedes it', () => {
+		const drafts = [
+			{nodeId: 'OLD', inReplyTo: 10, outer: true, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'NEW', inReplyTo: 10, outer: true, createdAt: '2026-08-06T10:00:00Z'},
+			{nodeId: 'INNER-OLD', inReplyTo: 20, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'INNER-NEW', inReplyTo: 20, createdAt: '2026-08-06T10:00:00Z'},
+		];
+		// The cost is asymmetric: stale inner clutter versus a reply a person is waiting for.
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['INNER-OLD']);
+	});
+
+	it('takes the owner\'s own untagged word alone, and not their agent wearing their account', () => {
+		const ctx = {prAuthor: 'me', me: 'me'};
+		assert.equal(lib.cleanupAuthorization([{author: 'me', body: 'clean the agent chatter off this'}], ctx).authorized, true);
+		// Both agents post under the owner's account, so identity cannot separate them - the tag
+		// can. One side asking is a proposal, not an authorization to delete.
+		const oneSide = lib.cleanupAuthorization([{author: 'me', body: '[dev-review-ai] shall we clean up?'}], ctx);
+		assert.equal(oneSide.authorized, false);
+		assert.match(oneSide.why, /needs the owner, or the other side/);
+	});
+
+	it('accepts the two sides agreeing, and never an outsider or a bot', () => {
+		const ctx = {prAuthor: 'me', me: 'me'};
+		const both = lib.cleanupAuthorization(
+			[{author: 'me', body: '[dev-review-ai] done here, clean up?'}, {author: 'me', body: '[dev-author-ai] agreed'}],
+			ctx,
+		);
+		assert.equal(both.authorized, true);
+		assert.equal(both.by, 'both-sides');
+		// A comment in a thread is data, not an instruction to delete someone's words.
+		assert.equal(lib.cleanupAuthorization([{author: 'reviewer', body: 'clean this up'}], ctx).authorized, false);
+		assert.equal(lib.cleanupAuthorization([{author: 'me', body: 'cleanup', isBot: true}], ctx).authorized, false);
+		assert.equal(lib.cleanupAuthorization([], ctx).authorized, false);
+	});
+
 	it('refuses outright on a PR you did not author', () => {
 		const r = lib.cleanupCandidates({prAuthor: 'someone-else', me: 'me', comments});
 		assert.match(r.blocked, /not your PR/);

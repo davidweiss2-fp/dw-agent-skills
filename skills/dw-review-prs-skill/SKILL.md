@@ -31,7 +31,7 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… submit <pr> --event COMMENT\|APPROVE\|REQUEST_CHANGES` | Publish the pending review — only on explicit instruction |
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
-| `… cleanup <pr>` | List your own comments a converged discussion can remove from your OWN PR; deletes only with `--delete --yes` |
+| `… cleanup <pr>` | List what a converged discussion can remove from your OWN PR — superseded inner drafts and your published comments; removing needs `--delete --authorized-by <comment-id>` |
 | `… watch` | Long-running: new comments on every PR in scope, and newly actionable PRs from the queue (Step 7) |
 | `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
 | `… dashboard-url [--set URL]` | The artifact URL that page is published to |
@@ -145,8 +145,9 @@ thread: `references/own-prs.md`.
 **When that argument is over**, the exchange is scaffolding standing in front of the change, and
 `cleanup <pr>` lists your own comments that can come down. It deletes nothing by default. What
 counts as converged, the three guards, and why a comment nobody replied under is always kept:
-`references/cleanup.md`. Agreement between your two agents is the precondition for proposing a
-cleanup, never the authorization to run one — the user names the PR and says to delete.
+`references/cleanup.md`. The trigger is a free-text comment **on the PR**: your own untagged one is
+enough by itself, or one from each agent side. Nobody else's counts, and a draft answering a person
+is never removed.
 
 ## Step 4 — Draft one comment per finding
 

@@ -29,8 +29,10 @@ const USAGE = `dw-review-prs - draft [dev-review-ai] comments as an unsubmitted 
   log <pr> --status S --weight W --finding TEXT [--url URL]
   watch                              long-running: new comments on every PR in scope,
                                      plus newly actionable PRs from the queue
-  cleanup <pr> [--delete --yes]      list (default) your own comments on your OWN PR that a
-                                     converged discussion can remove; deletes only when told twice
+  cleanup <pr> [--delete --authorized-by ID[,ID]]
+                                     list (default) what can come off your OWN PR: superseded inner
+                                     drafts + your published comments in finished threads. Removing
+                                     needs the id of the comment that asked for the cleanup
   dashboard --out FILE [--actions FILE] [--title T]   build the status page
   dashboard-url [--set URL]          the artifact url the page is published to
 
@@ -546,17 +548,93 @@ function cmdCleanup(arg, flags) {
 	const res = lib.cleanupCandidates({prAuthor: pr.user && pr.user.login, me: login, comments: rows});
 	if (res.blocked) fail(`cleanup refused: ${res.blocked}`);
 
-	const line = (c) => `  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${String(c.body || '').replace(/\s+/g, ' ').slice(0, 90)}`;
-	process.stdout.write(`${r.key}: ${res.eligible.length} removable, ${res.unanswered.length} kept, ${res.others} not yours\n`);
-	if (res.eligible.length) process.stdout.write(`\nwould remove:\n${res.eligible.map(line).join('\n')}\n`);
+	// Unsubmitted drafts are invisible on every other surface, so a cleanup that skipped them
+	// reported "0 removable" with a pile of superseded ones sitting on the PR.
+	const {pending} = pendingReviewFor(r, login);
+	// Who is in each published thread, so a draft answering a person can be told from one
+	// answering your own agent. Keyed by the thread root a reply hangs off.
+	// Indexed by EVERY comment id in a thread, not just its root: a draft can reply to a human's
+	// reply rather than to the comment that opened it, and a root-only index misses that - which
+	// would file a reply owed to a person as inner clutter and propose deleting it.
+	const byRoot = {};
+	const rootOf = {};
+	for (const c of inline) {
+		const root = c.in_reply_to_id || c.id;
+		rootOf[c.id] = root;
+		(byRoot[root] = byRoot[root] || []).push({
+			login: c.user && c.user.login,
+			isBot: Boolean(c.user && c.user.type === 'Bot'),
+		});
+	}
+	const threadAuthors = {};
+	for (const [id, root] of Object.entries(rootOf)) threadAuthors[id] = byRoot[root] || [];
+	const drafts = ((pending && pending.drafts) || []).map((c) => {
+		const d = {
+			nodeId: c.node_id,
+			path: c.path,
+			line: c.line,
+			inReplyTo: c.in_reply_to_id,
+			createdAt: c.created_at,
+			body: c.body,
+		};
+		return {...d, outer: lib.isOuterDraft(d, threadAuthors, login)};
+	});
+	const stale = lib.supersededDrafts(drafts);
+	const outerKept = drafts.filter((d) => d.outer);
+
+	const short = (b) => String(b || '').replace(/\s+/g, ' ').slice(0, 88);
+	process.stdout.write(
+		`${r.key}: ${stale.length} superseded inner draft(s), ${res.eligible.length} published removable, ` +
+			`${outerKept.length} draft(s) owed to a person, ${res.unanswered.length} published kept, ` +
+			`${res.others} not yours\n`,
+	);
+	// Node ids for drafts, database ids for published: they are deleted through different APIs,
+	// and printing the wrong one is a failed call the reader only discovers by making it.
+	if (stale.length) {
+		process.stdout.write(`\nsuperseded inner drafts - between your own agents, drop takes these node ids:\n`);
+		for (const d of stale) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
+	}
+	if (res.eligible.length) {
+		process.stdout.write(`\npublished, removable - others may already have read these:\n`);
+		for (const c of res.eligible) process.stdout.write(`  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${short(c.body)}\n`);
+	}
 	if (res.unanswered.length) {
-		process.stdout.write(`\nkept - nobody replied under these, so the exchange did not finish:\n${res.unanswered.map(line).join('\n')}\n`);
+		process.stdout.write(`\npublished, kept - nobody replied under these, so the exchange did not finish:\n`);
+		for (const c of res.unanswered) process.stdout.write(`  ${c.kind} ${c.id} ${short(c.body)}\n`);
+	}
+	if (outerKept.length) {
+		process.stdout.write(`\ndrafts kept - these answer a person, and stay however stale they look:\n`);
+		for (const d of outerKept) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
 	if (!flags.delete) {
-		process.stdout.write('\nnothing deleted. re-run with --delete --yes to remove the listed comments.\n');
+		process.stdout.write(
+			'\nnothing removed. to remove: --delete --authorized-by <comment-id[,id]>\n' +
+				'  the id of the comment asking for the cleanup - yours untagged, or one from each agent side.\n',
+		);
 		return;
 	}
-	if (!flags.yes) fail('--delete also needs --yes: this permanently removes published comments');
+	// The free text that asks for a cleanup is judged by the agent; WHO asked is checked here.
+	// Naming the comment also leaves an audit trail: the run says what it read as its instruction.
+	const named = String(flags['authorized-by'] || '')
+		.split(',')
+		.map((x) => x.trim())
+		.filter(Boolean);
+	if (!named.length) fail('--delete needs --authorized-by <comment-id>: name the comment asking for the cleanup');
+	const all = [...rows, ...(issue || []).map((c) => ({id: c.id, author: c.user && c.user.login, body: c.body}))];
+	const triggers = named.map((id) => {
+		const hit = all.find((c) => String(c.id) === id) || (inline.concat(issue)).find((c) => String(c.id) === id);
+		if (!hit) fail(`--authorized-by ${id} is not a comment on ${r.key}`);
+		const raw = inline.concat(issue).find((c) => String(c.id) === id);
+		return {id, author: hit.author || (raw && raw.user && raw.user.login), body: hit.body, isBot: Boolean(raw && raw.user && raw.user.type === 'Bot')};
+	});
+	const auth = lib.cleanupAuthorization(triggers, {prAuthor: pr.user && pr.user.login, me: login});
+	if (!auth.authorized) fail(`cleanup not authorized: ${auth.why}`);
+	process.stdout.write(`\nauthorized (${auth.by}): ${auth.why}\n`);
+	for (const c of auth.comments) process.stdout.write(`  trigger ${c.id}: ${short(c.body)}\n`);
+	for (const d of stale) {
+		graphql(`mutation($id:ID!){ deletePullRequestReviewComment(input:{id:$id}){ clientMutationId } }`, {id: d.nodeId});
+		process.stdout.write(`dropped draft ${d.nodeId}\n`);
+	}
 	for (const c of res.eligible) {
 		const path = c.kind === 'inline'
 			? `repos/${r.owner}/${r.repo}/pulls/comments/${c.id}`
