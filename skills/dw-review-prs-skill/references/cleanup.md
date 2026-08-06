@@ -29,8 +29,19 @@ drafts sitting on the PR.
 
 | | What it is | Who has seen it | Removed by |
 |---|---|---|---|
-| **Superseded draft** | every pending draft on a thread but the newest | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
+| **Superseded inner draft** | a pending draft, not the newest on its thread, in a thread with only your own agents in it | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
 | **Published comment** | your comment in a thread that got a reply | anyone reading the PR | REST, by **database id** (a number) |
+| **Outer draft** | any pending draft in a thread a person has written in | nobody yet - but someone is waiting for it | **never removed** |
+
+**Inner and outer is the distinction that matters most here.** An inner draft is your agents
+talking to each other; an outer one answers a human. Outer drafts stay however stale they look,
+because the cost is asymmetric: a superseded inner draft is clutter between two of your own agents,
+while a dropped outer draft is a reply a person is still waiting for, and nothing afterwards shows
+it went missing.
+
+A draft can reply to a human's *reply* rather than to the comment that opened the thread, so
+membership is judged across the whole thread, not just its root. Bots do not make a thread outer -
+we never reply to them.
 
 Two of your drafts on one thread means the older was rewritten rather than answered, which is how
 "Agreed, this comes out of the PR" ends up shipping next to "Done in `<sha>`". The newest is kept:

@@ -549,25 +549,47 @@ function cmdCleanup(arg, flags) {
 	// Unsubmitted drafts are invisible on every other surface, so a cleanup that skipped them
 	// reported "0 removable" with a pile of superseded ones sitting on the PR.
 	const {pending} = pendingReviewFor(r, login);
-	const drafts = ((pending && pending.drafts) || []).map((c) => ({
-		nodeId: c.node_id,
-		path: c.path,
-		line: c.line,
-		inReplyTo: c.in_reply_to_id,
-		createdAt: c.created_at,
-		body: c.body,
-	}));
+	// Who is in each published thread, so a draft answering a person can be told from one
+	// answering your own agent. Keyed by the thread root a reply hangs off.
+	// Indexed by EVERY comment id in a thread, not just its root: a draft can reply to a human's
+	// reply rather than to the comment that opened it, and a root-only index misses that - which
+	// would file a reply owed to a person as inner clutter and propose deleting it.
+	const byRoot = {};
+	const rootOf = {};
+	for (const c of inline) {
+		const root = c.in_reply_to_id || c.id;
+		rootOf[c.id] = root;
+		(byRoot[root] = byRoot[root] || []).push({
+			login: c.user && c.user.login,
+			isBot: Boolean(c.user && c.user.type === 'Bot'),
+		});
+	}
+	const threadAuthors = {};
+	for (const [id, root] of Object.entries(rootOf)) threadAuthors[id] = byRoot[root] || [];
+	const drafts = ((pending && pending.drafts) || []).map((c) => {
+		const d = {
+			nodeId: c.node_id,
+			path: c.path,
+			line: c.line,
+			inReplyTo: c.in_reply_to_id,
+			createdAt: c.created_at,
+			body: c.body,
+		};
+		return {...d, outer: lib.isOuterDraft(d, threadAuthors, login)};
+	});
 	const stale = lib.supersededDrafts(drafts);
+	const outerKept = drafts.filter((d) => d.outer);
 
 	const short = (b) => String(b || '').replace(/\s+/g, ' ').slice(0, 88);
 	process.stdout.write(
-		`${r.key}: ${stale.length} superseded draft(s), ${res.eligible.length} published removable, ` +
-			`${res.unanswered.length} published kept, ${res.others} not yours\n`,
+		`${r.key}: ${stale.length} superseded inner draft(s), ${res.eligible.length} published removable, ` +
+			`${outerKept.length} draft(s) owed to a person, ${res.unanswered.length} published kept, ` +
+			`${res.others} not yours\n`,
 	);
 	// Node ids for drafts, database ids for published: they are deleted through different APIs,
 	// and printing the wrong one is a failed call the reader only discovers by making it.
 	if (stale.length) {
-		process.stdout.write(`\nsuperseded drafts - unpublished, drop takes these node ids:\n`);
+		process.stdout.write(`\nsuperseded inner drafts - between your own agents, drop takes these node ids:\n`);
 		for (const d of stale) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
 	if (res.eligible.length) {
@@ -577,6 +599,10 @@ function cmdCleanup(arg, flags) {
 	if (res.unanswered.length) {
 		process.stdout.write(`\npublished, kept - nobody replied under these, so the exchange did not finish:\n`);
 		for (const c of res.unanswered) process.stdout.write(`  ${c.kind} ${c.id} ${short(c.body)}\n`);
+	}
+	if (outerKept.length) {
+		process.stdout.write(`\ndrafts kept - these answer a person, and stay however stale they look:\n`);
+		for (const d of outerKept) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
 	if (!flags.delete) {
 		process.stdout.write('\nnothing removed. re-run with --delete --yes.\n');

@@ -213,6 +213,31 @@ describe('convergence cleanup on your own PR', () => {
 		assert.deepEqual(lib.supersededDrafts([]), []);
 	});
 
+	it('treats a reply to a person as outer, and your own agents as inner', () => {
+		const authors = {
+			10: [{login: 'reviewer'}],
+			20: [{login: 'me'}],
+			30: [{login: 'bugbot', isBot: true}],
+		};
+		assert.equal(lib.isOuterDraft({inReplyTo: 10}, authors, 'me'), true);
+		assert.equal(lib.isOuterDraft({inReplyTo: 20}, authors, 'me'), false);
+		// We never reply to bots, so a bot-rooted thread is not an exchange with a person.
+		assert.equal(lib.isOuterDraft({inReplyTo: 30}, authors, 'me'), false);
+		// A draft opening a fresh thread is inner - nobody else is in it yet.
+		assert.equal(lib.isOuterDraft({path: 'a.php', line: 3}, authors, 'me'), false);
+	});
+
+	it('keeps a draft owed to a person even when a newer one supersedes it', () => {
+		const drafts = [
+			{nodeId: 'OLD', inReplyTo: 10, outer: true, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'NEW', inReplyTo: 10, outer: true, createdAt: '2026-08-06T10:00:00Z'},
+			{nodeId: 'INNER-OLD', inReplyTo: 20, createdAt: '2026-08-06T09:00:00Z'},
+			{nodeId: 'INNER-NEW', inReplyTo: 20, createdAt: '2026-08-06T10:00:00Z'},
+		];
+		// The cost is asymmetric: stale inner clutter versus a reply a person is waiting for.
+		assert.deepEqual(lib.supersededDrafts(drafts).map((d) => d.nodeId), ['INNER-OLD']);
+	});
+
 	it('refuses outright on a PR you did not author', () => {
 		const r = lib.cleanupCandidates({prAuthor: 'someone-else', me: 'me', comments});
 		assert.match(r.blocked, /not your PR/);

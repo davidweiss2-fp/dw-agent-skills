@@ -230,8 +230,13 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 //
 // Grouped by the thread a draft belongs to - its in-reply-to when it joins one, otherwise the
 // line it opens. Order is the tiebreak, so a draft with no timestamp still resolves.
+// `outer` marks a draft that answers a human: someone else is in its thread and waiting. Those
+// are never proposed for removal however stale they look, because the cost is asymmetric - a
+// superseded inner draft is clutter between two of your own agents, while a dropped outer draft
+// is a reply a person is still waiting for, and nothing afterwards shows it went missing.
 function supersededDrafts(drafts) {
-	const rows = (Array.isArray(drafts) ? drafts : []).filter(Boolean);
+	const all = (Array.isArray(drafts) ? drafts : []).filter(Boolean);
+	const rows = all.filter((d) => !d.outer);
 	const byThread = new Map();
 	rows.forEach((d, i) => {
 		const key = d.inReplyTo ? `r:${d.inReplyTo}` : `l:${d.path || ''}:${d.line ?? ''}`;
@@ -250,6 +255,16 @@ function supersededDrafts(drafts) {
 		superseded.push(...ordered.slice(0, -1).map(({_i, ...d}) => d));
 	}
 	return superseded;
+}
+
+// Whose thread is it. A draft is outer when a human other than you has written in the thread it
+// replies to; a draft opening a fresh thread is inner, since nobody is in it yet. Bots do not
+// count - we never reply to them, so a bot-rooted thread is not an exchange with a person.
+function isOuterDraft(draft, threadAuthors, me) {
+	const root = draft && draft.inReplyTo;
+	if (!root) return false;
+	const authors = (threadAuthors && threadAuthors[root]) || [];
+	return authors.some((a) => a && a.login !== me && !a.isBot);
 }
 
 // Statuses the reviewer has to act on, in the order they should be reported.
@@ -492,6 +507,7 @@ module.exports = {
 	tagSide,
 	cleanupCandidates,
 	supersededDrafts,
+	isOuterDraft,
 	authorHandoffPrompt,
 	settledStatus,
 	hasSource,
