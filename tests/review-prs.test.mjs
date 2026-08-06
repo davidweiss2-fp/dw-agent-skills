@@ -113,17 +113,35 @@ describe('classifyPr', () => {
 		assert.match(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).reason, /draft/);
 	});
 
-	it('delegates a PR by author, but never one already carrying our pending review', () => {
-		assert.equal(lib.classifyPr({...base, delegatedTo: 'the neri routine'}).status, 'delegated');
-		// A pending review blocks REST posting for the routine we handed the PR to, so it
-		// has to stay visible instead of hiding behind `delegated`.
-		const clash = lib.classifyPr({...base, delegatedTo: 'the neri routine', pendingReview: {id: 1, draftCount: 2}});
-		assert.equal(clash.status, 'draft-waiting');
+	it('author notes never change how a PR is classified', () => {
+		// They alter how the review is written and delivered, not whether it is work.
+		assert.equal(lib.classifyPr(base).status, 'needs-draft');
 	});
 
 	it('a pending review outranks a stale state entry claiming the head was submitted', () => {
 		const c = lib.classifyPr({...base, pendingReview: {id: 1, draftCount: 2}}, {sha: 'head1', status: 'submitted'});
 		assert.equal(c.status, 'draft-waiting');
+	});
+});
+
+describe('per-author review instructions', () => {
+	it('matches a login case-insensitively, since GitHub logins are', () => {
+		const notes = lib.normalizeAuthorNotes({'Someone-FP': {instructions: ['be kind']}});
+		assert.deepEqual(notes.get('someone-fp').instructions, ['be kind']);
+	});
+
+	it('reads a bare string as shorthand for instructions', () => {
+		assert.deepEqual(lib.normalizeAuthorNotes({dev: 'lead with the principle'}).get('dev'), {
+			instructions: 'lead with the principle',
+		});
+	});
+
+	it('ignores entries that cannot carry instructions instead of throwing', () => {
+		const notes = lib.normalizeAuthorNotes({a: null, b: ['not an object'], '': {x: 1}, c: {who: 'ok'}});
+		assert.deepEqual([...notes.keys()], ['c']);
+		// A missing or unreadable file leaves an empty lookup, never an error.
+		assert.equal(lib.normalizeAuthorNotes(undefined).size, 0);
+		assert.equal(lib.normalizeAuthorNotes('nonsense').size, 0);
 	});
 });
 

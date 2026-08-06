@@ -110,14 +110,6 @@ function classifyPr(pr, state) {
 		// An empty pending review still blocks REST comment posting on this PR.
 		return {status: 'draft-empty', reason: 'empty pending review holds the one-per-PR slot'};
 	}
-	// Deliberately BELOW the two pending checks. If a delegated PR somehow carries a
-	// pending review of ours, that has to surface: an open pending review blocks REST
-	// comment posting on the PR (one per user per PR), so it silently breaks the very
-	// routine this delegation hands the PR to. Hiding it behind `delegated` would turn a
-	// loud, fixable state into a mystery in the other routine's logs.
-	if (pr.delegatedTo) {
-		return {status: 'delegated', reason: `another routine owns this author's PRs - ${pr.delegatedTo}`};
-	}
 	// Checked after the drafts: an author who reopens a PR as WIP does not release the
 	// pending-review slot, so submitting or dropping those drafts still comes first.
 	if (pr.isDraft) {
@@ -146,6 +138,19 @@ function classifyPr(pr, state) {
 		return {status: 'watching', reason: 'you took part, but review was never requested of you'};
 	}
 	return {status: 'needs-draft', reason: 'no review from you yet'};
+}
+
+// authors.json -> a lookup of per-author review instructions. Case-insensitive, because
+// GitHub logins are and a config typed with the wrong case would silently do nothing. A bare
+// string is shorthand for {instructions: "..."} so the common case stays one line.
+function normalizeAuthorNotes(raw) {
+	const out = new Map();
+	for (const [login, value] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
+		if (typeof login !== 'string' || !login.trim()) continue;
+		const notes = typeof value === 'string' ? {instructions: value} : value;
+		if (notes && typeof notes === 'object' && !Array.isArray(notes)) out.set(login.toLowerCase(), notes);
+	}
+	return out;
 }
 
 // Statuses the reviewer has to act on, in the order they should be reported.
@@ -310,7 +315,7 @@ const LANES = ['needs-you', 'waiting-author', 'delegated', 'done'];
 // someone else's routine, and a merged or closed PR is history.
 function defaultLane(pr) {
 	if (Number(pr.pendingDrafts) > 0) return 'needs-you';
-	if (pr.storeStatus === 'declined' || pr.delegatedAuthor) return 'delegated';
+	if (pr.storeStatus === 'declined') return 'delegated';
 	if (pr.prState && pr.prState !== 'open') return 'done';
 	return 'waiting-author';
 }
@@ -376,6 +381,7 @@ module.exports = {
 	renderStateMd,
 	upsertState,
 	classifyPr,
+	normalizeAuthorNotes,
 	isActionable,
 	sortQueue,
 	summarize,
