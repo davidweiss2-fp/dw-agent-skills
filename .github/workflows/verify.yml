@@ -6,15 +6,43 @@ on:
   pull_request:
     branches: [main]
 
+# Only the PR version-bump step writes; everything else here reads.
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On a PR, check the head branch out by name rather than the detached merge commit,
+          # so the bump can amend it and push it back. fetch-depth 0 because amending needs
+          # the commit's own history, and the base version is read from origin/main.
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Runs BEFORE the tests on purpose: the amended commit is pushed with GITHUB_TOKEN, which
+      # deliberately does not trigger another workflow run, so the tree that gets pushed has to
+      # be the tree that was tested. Bumping first and pushing last is what makes those the same.
+      - name: Version bump to one patch above main
+        id: bump
+        # Pull requests only, and only from a branch in this repo - a fork's head is not
+        # pushable and GITHUB_TOKEN is read-only there.
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          # checkout fetches only the ref it was asked for, so origin/main is not there yet.
+          git fetch --no-tags origin main
+          BASE=$(git show origin/main:package.json | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).version')
+          echo "main is at $BASE"
+          node .github/scripts/bump-version.js --base "$BASE"
 
       - name: Syntax check
         run: npm run syntax
@@ -50,6 +78,9 @@ jobs:
       - name: deslop rules-engine self-test (scope, overlay, dry-run)
         run: node skills/dw-deslop-skill/scripts/deslop-rules.js --self-test
 
+      - name: version-bump self-test (patch maths, one-line rewrite, idempotence)
+        run: node .github/scripts/bump-version.js --self-test
+
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
         # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator
@@ -70,3 +101,20 @@ jobs:
           for s in dw-flow-skill dw-pr-ready-skill dw-knowledge-skill dw-skill-authoring-skill dw-handoff-skill dw-grilling-skill dw-git-ops-skill dw-deslop-skill dw-team-communication-skill dw-runbook-skill dw-env-skill dw-post-merge-verification-skill; do
             test -f "skills/$s/SKILL.md"
           done
+
+      # Last, so the branch is only rewritten once everything above has passed.
+      - name: Amend the version bump onto the PR head
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # xargs rather than an unquoted expansion: the staging list must not depend on the
+          # shell's word-splitting rules.
+          echo '${{ steps.bump.outputs.files }}' | xargs git add --
+          # --amend keeps the original author; only the committer becomes the bot.
+          git commit --amend --no-edit
+          # The lease is the SHA this run started from, so a push that landed while the job was
+          # running aborts this force-push instead of discarding it.
+          git push --force-with-lease=refs/heads/${{ github.head_ref }}:${{ github.event.pull_request.head.sha }} \
+            origin HEAD:refs/heads/${{ github.head_ref }}
