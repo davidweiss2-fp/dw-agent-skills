@@ -262,20 +262,29 @@ describe('convergence cleanup on your own PR', () => {
 		assert.equal(lib.cleanupAuthorization([], ctx).authorized, false);
 	});
 
-	it('lets the two sides clear a thread they had to themselves, once both have spoken', () => {
+	it('clears what was declared internal, and keeps what was addressed to a person', () => {
 		const comments = [
-			{id: 1, author: 'me', body: '[dev-review-ai] Ask: fix X'},
-			{id: 2, author: 'me', inReplyTo: 1, body: '[dev-author-ai] done in abc'},
+			{id: 1, author: 'me', body: '[dev-review-ai | internal] Ask: fix X'},
+			{id: 2, author: 'me', inReplyTo: 1, body: '[dev-author-ai | internal] done in abc'},
 			{id: 5, author: 'me', body: '[dev-author-ai] @colleague answering your note'},
 			{id: 10, author: 'colleague', body: 'I think this is wrong'},
 			{id: 11, author: 'me', inReplyTo: 10, body: '[dev-author-ai] answered'},
 		];
 		const r = lib.cleanupCandidates({prAuthor: 'me', me: 'me', comments});
-		assert.deepEqual(r.agentOnly.map((c) => c.id), [1, 2], 'a converged two-sided thread');
+		assert.deepEqual(r.internal.map((c) => c.id), [1, 2]);
 		assert.deepEqual(r.answered.map((c) => c.id), [11], "a person's thread stays owner-only");
-		// A lone signed comment addressed to a person reads as human-free only because they have
-		// not replied yet. Removing it would delete a message nobody has read.
+		// Unmarked and unanswered: reads human-free only because nobody has replied yet.
 		assert.deepEqual(r.unanswered.map((c) => c.id), [5]);
+	});
+
+	it('reads the internal marker through emphasis, casing and spacing', () => {
+		assert.deepEqual(lib.signature('[dev-review-ai | internal] x'), {side: 'review', internal: true});
+		assert.deepEqual(lib.signature('**[DEV-AUTHOR-AI | INTERNAL]** x'), {side: 'author', internal: true});
+		assert.deepEqual(lib.signature('[dev-author-ai|internal] x'), {side: 'author', internal: true});
+		assert.deepEqual(lib.signature('[dev-review-ai] x'), {side: 'review', internal: false});
+		// The bare tag is not a substring of the internal form, so the draft gate must parse it.
+		assert.equal(lib.hasDraftTag('[dev-review-ai | internal] x'), true);
+		assert.equal(lib.signature('> [dev-review-ai | internal] quoted').side, null);
 	});
 
 	it('scopes what each authorization may reach', () => {
@@ -286,7 +295,7 @@ describe('convergence cleanup on your own PR', () => {
 			ctx,
 		);
 		// The agents agreeing says nothing about a thread a person is in.
-		assert.equal(both.scope, 'agent-only-threads');
+		assert.equal(both.scope, 'internal-only');
 	});
 
 	it('refuses outright on a PR you did not author', () => {

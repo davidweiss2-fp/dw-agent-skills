@@ -586,7 +586,7 @@ function cmdCleanup(arg, flags) {
 
 	const short = (b) => String(b || '').replace(/\s+/g, ' ').slice(0, 88);
 	process.stdout.write(
-		`${r.key}: ${stale.length} superseded inner draft(s), ${res.agentOnly.length} agent-only published, ` +
+		`${r.key}: ${stale.length} superseded inner draft(s), ${res.internal.length} marked internal, ` +
 			`${res.answered.length} published in a person's thread, ${outerKept.length} draft(s) owed to a person, ` +
 			`${res.unanswered.length} published kept, ${res.others} not yours\n`,
 	);
@@ -596,9 +596,9 @@ function cmdCleanup(arg, flags) {
 		process.stdout.write(`\nsuperseded inner drafts - between your own agents, drop takes these node ids:\n`);
 		for (const d of stale) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
-	if (res.agentOnly.length) {
-		process.stdout.write(`\npublished, agent-only threads - the two sides can clear these by agreeing:\n`);
-		for (const c of res.agentOnly) process.stdout.write(`  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${short(c.body)}\n`);
+	if (res.internal.length) {
+		process.stdout.write(`\nmarked internal - agent-to-agent, the two sides can clear these by agreeing:\n`);
+		for (const c of res.internal) process.stdout.write(`  ${c.kind} ${c.id} ${short(c.body)}\n`);
 	}
 	if (res.answered.length) {
 		process.stdout.write(`\npublished, in a thread a person wrote in - only you can clear these:\n`);
@@ -639,10 +639,10 @@ function cmdCleanup(arg, flags) {
 	for (const c of auth.comments) process.stdout.write(`  trigger ${c.id}: ${short(c.body)}\n`);
 	// The two agents agreeing reaches only what they had to themselves; a thread a person wrote
 	// in is a conversation with them, and clearing the owner's side of it is the owner's call.
-	const removable = auth.scope === 'all' ? res.eligible : res.agentOnly;
+	const removable = auth.scope === 'all' ? res.eligible : res.internal;
 	if (auth.scope !== 'all' && res.answered.length) {
 		process.stdout.write(
-			`  scope: agent-only threads - leaving ${res.answered.length} comment(s) in threads a person wrote in\n`,
+			`  scope: internal only - leaving ${res.answered.length} comment(s) that were addressed to a person\n`,
 		);
 	}
 	for (const d of stale) {

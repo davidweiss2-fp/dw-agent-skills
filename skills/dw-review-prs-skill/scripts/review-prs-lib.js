@@ -179,6 +179,9 @@ function authorHandoffPrompt(pr) {
 		'- Answer inside the thread the comment is in, so the answer sits with what it answers.',
 		`- Start every comment you write with \`${AUTHOR_TAG}\`, then your text. That tag marks you as the`,
 		'  agent acting for the PR author.',
+		`- If a comment is for the reviewing agent rather than for a person, sign it`,
+		`  \`${AUTHOR_TAG.slice(0, -1)} | internal]\` instead. Those are cleared once both sides agree they are`,
+		'  done; anything addressed to a human is kept.',
 		`- Comments starting with \`${DRAFT_TAG}\` come from the reviewing agent. Comments with no tag are`,
 		'  from a human, and a human is the deciding voice when the two disagree.',
 		'- Leave threads unresolved, and do not reply to bot comments.',
@@ -215,47 +218,29 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 	const answeredRoots = new Set(
 		others.map((c) => c.inReplyTo || c.id).filter((id) => id !== undefined && id !== null),
 	);
-	// Whether a person ever wrote in a thread decides who can authorize clearing it. A thread
-	// only the two agents used is theirs to tidy; one a colleague replied in, or that the owner
-	// spoke in unsigned, is a conversation with a person and stays the owner's call.
-	const humanRoots = new Set();
-	for (const c of rows) {
-		if (!c) continue;
-		const root = c.inReplyTo || c.id;
-		if (c.author !== me || signedSide(c.body) === null) humanRoots.add(root);
-	}
 	// Two classes of removable, because what proves a thread finished differs by who was in it.
 	//
 	// A thread only the agents used has no third party to reply, so "someone answered" can never
 	// fire there and the old rule would have kept agent chatter forever. What settles those is the
 	// two sides agreeing. A thread a person wrote in still needs their reply as the proof, and
 	// only the owner may clear it.
-	// An agent-only thread counts as finished only once BOTH sides have spoken in it. A lone
-	// signed comment with no answer is not converged chatter - it is often the agent addressing a
-	// person who has not replied yet, and the thread reads empty of humans for exactly that
-	// reason. Removing it would delete a message nobody has read, with nothing left to show it.
-	const sidesInThread = new Map();
-	for (const c of rows) {
-		if (!c) continue;
-		const root = c.inReplyTo || c.id;
-		const side = signedSide(c.body);
-		if (!side) continue;
-		if (!sidesInThread.has(root)) sidesInThread.set(root, new Set());
-		sidesInThread.get(root).add(side);
-	}
-	const bothSidesSpoke = (root) => (sidesInThread.get(root) || new Set()).size >= 2;
-
-	const agentOnly = [];
+	// Three classes, decided by what the writer declared rather than by thread shape.
+	//
+	// `| internal` is agent-to-agent by declaration and was never for a person, so agreement
+	// between the two sides clears it. This replaced inferring it from the thread: "no human has
+	// replied" reads identically to "a human was addressed and has not answered yet", and on a
+	// live PR that inference offered an agent's message to a reviewer for deletion.
+	const internal = [];
 	const answered = [];
 	const unanswered = [];
 	for (const c of mine) {
 		const root = c.inReplyTo || c.id;
-		if (!humanRoots.has(root) && bothSidesSpoke(root)) agentOnly.push(c);
-		else if (humanRoots.has(root) && answeredRoots.has(root)) answered.push(c);
+		if (signature(c.body).internal) internal.push(c);
+		else if (answeredRoots.has(root)) answered.push(c);
 		else unanswered.push(c);
 	}
-	// `eligible` stays the owner-scoped set - everything a full authorization may remove.
-	return {eligible: [...agentOnly, ...answered], agentOnly, answered, unanswered, others: others.length, blocked: null};
+	// `eligible` is the owner-scoped set - everything a full authorization may remove.
+	return {eligible: [...internal, ...answered], internal, answered, unanswered, others: others.length, blocked: null};
 }
 
 // Pending drafts the cleanup can drop: every one but the newest on each thread.
@@ -344,9 +329,9 @@ function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
 		return {
 			authorized: true,
 			by: 'both-sides',
-			scope: 'agent-only-threads',
+			scope: 'internal-only',
 			comments: [...sides.values()],
-			why: 'both review sides agreed - limited to threads no person wrote in',
+			why: 'both review sides agreed - limited to comments marked internal',
 		};
 	}
 	const outsider = rows.find((t) => t.author && t.author !== prAuthor);
@@ -380,6 +365,9 @@ function summarize(rows) {
 // Every comment body this skill drafts carries the tag, so a later run can tell
 // its own comments from a human's on the same thread.
 function hasDraftTag(body) {
+	// A signature opening the body counts, including the `| internal` form, which contains none
+	// of the bare tags as a substring.
+	if (signature(body).side) return true;
 	const text = String(body || '');
 	return [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS].some((t) => text.includes(t));
 }
@@ -389,6 +377,25 @@ function hasDraftTag(body) {
 // A tag only counts as a signature when it OPENS the comment, which is where both agents put it.
 // Matching anywhere would let a human quoting "[dev-review-ai]" in a question be mistaken for the
 // agent that wrote it, and that comment is exactly the one worth surfacing.
+// A signature carries two facts: which side wrote it, and whether it was meant for a person.
+//
+//   [dev-review-ai]              addressed to whoever reads the PR
+//   [dev-review-ai | internal]   agent-to-agent, never for a human
+//
+// The second is a declaration, made by the writer who knows its intent, and it replaces guessing
+// from thread shape later - which reads "no human has replied" as "no human involved" and is
+// wrong exactly when someone has been addressed and has not answered yet.
+const SIGNATURE = /^\[(dev-review-ai|dev-author-ai|dev-ai|author-ai)(\s*\|\s*internal)?\]/;
+
+function signature(body) {
+	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
+	if (!first) return {side: null, internal: false};
+	const m = SIGNATURE.exec(first.trim().replace(/^[*_`\s]+/, '').toLowerCase());
+	if (!m) return {side: null, internal: false};
+	const side = m[1] === 'dev-author-ai' || m[1] === 'author-ai' ? 'author' : 'review';
+	return {side, internal: Boolean(m[2])};
+}
+
 function signedSide(body) {
 	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
 	if (!first) return null;
@@ -399,10 +406,7 @@ function signedSide(body) {
 	//
 	// `>` stays unstripped deliberately. A blockquote is someone citing an agent comment, not an
 	// agent signing one, and that quote is a human writing.
-	const t = first.trim().replace(/^[*_`\s]+/, '').toLowerCase();
-	if (t.startsWith(REVIEW_TAG) || t.startsWith('[dev-ai]')) return 'review';
-	if (t.startsWith(AUTHOR_TAG) || t.startsWith('[author-ai]')) return 'author';
-	return null;
+	return signature(body).side;
 }
 
 function tagSide(body) {
@@ -621,6 +625,7 @@ module.exports = {
 	LEGACY_TAGS,
 	tagSide,
 	signedSide,
+	signature,
 	cleanupCandidates,
 	supersededDrafts,
 	isOuterDraft,

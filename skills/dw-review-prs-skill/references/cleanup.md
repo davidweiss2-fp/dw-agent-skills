@@ -64,17 +64,17 @@ drafts sitting on the PR.
 | **Superseded inner draft** | a pending draft, not the newest on its thread, in a thread with only your own agents in it | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
 | **Published comment** | your comment in a thread that got a reply | anyone reading the PR | REST, by **database id** (a number) |
 | **Outer draft** | any pending draft in a thread a person has written in | nobody yet - but someone is waiting for it | **never removed** |
-| **Agent-only thread** | a published thread only the two agents used, where **both** have spoken | anyone reading the PR | the two sides agreeing is enough |
-| **Thread a person wrote in** | your published comment where a person replied | anyone reading the PR | **the owner only** |
+| **Marked internal** | signed `[dev-review-ai \| internal]` or `[dev-author-ai \| internal]` | anyone reading the PR | the two sides agreeing is enough |
+| **Addressed to a person** | any signed comment without the marker | anyone reading the PR | **the owner only** |
 
-**Handled comments can clear themselves, within one boundary.** When both sides have spoken in a
-thread and agree it is done, that thread is theirs to tidy and no owner instruction is needed. A
-thread a person wrote in is a conversation with them: agreement between your two agents says
-nothing about it, and clearing your side of it stays your call.
+**Handled comments can clear themselves, within one boundary.** Sign agent-to-agent chatter
+`[<side> | internal]` and the two sides agreeing is enough to clear it - no owner instruction. A
+comment without the marker was written for whoever reads the PR, and clearing it stays your call.
 
-Both sides having *spoken* is the test, not one side declaring it finished. A lone signed comment
-with no answer reads as human-free only because nobody has replied yet - it is often the agent
-addressing a person - so it is kept, for the same reason an outer draft is.
+The marker is a **declaration by the writer**, made when it knows the comment's intent, and that is
+why it replaced inferring the same thing from thread shape. "No human has replied in this thread"
+reads identically to "a human was addressed and has not answered yet": on a live PR that inference
+offered an agent's message to a reviewer for deletion, before he had read it.
 
 **Inner and outer is the distinction that matters most here.** An inner draft is your agents
 talking to each other; an outer one answers a human. Outer drafts stay however stale they look,
