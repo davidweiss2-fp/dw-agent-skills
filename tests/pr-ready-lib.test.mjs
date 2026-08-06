@@ -186,6 +186,11 @@ describe('what counts as a directive from the user', () => {
 		// own words as if the user had written them.
 		assert.equal(from('[dev-author-ai] Fixed in abc1234'), false);
 		assert.equal(from('[dev-review-ai] Ask: restore the clause'), false);
+		// An unreadable signature used to be promoted to a directive - the conflation this closes.
+		assert.equal(from('**[DEV-AI]** Good catch — taken'), false);
+		assert.equal(from('**[dev-author-ai]** applied'), false);
+		// Quoting an agent is a person writing, so it stays a directive.
+		assert.equal(from('> [dev-review-ai] Ask: do it'), true);
 	});
 
 	it('still ignores everyone who is not a directive author', () => {

@@ -343,7 +343,14 @@ function hasDraftTag(body) {
 function signedSide(body) {
 	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
 	if (!first) return null;
-	const t = first.trim();
+	// Emphasis and case are cosmetic, and an unreadable signature is worse than none: in
+	// dw-pr-ready a comment whose tag does not parse is promoted to a directive from the user,
+	// so an agent's own words get obeyed as theirs. `**[DEV-AI]**` is the form that skill wrote
+	// for real - three are on a live PR - and it parsed as unsigned.
+	//
+	// `>` stays unstripped deliberately. A blockquote is someone citing an agent comment, not an
+	// agent signing one, and that quote is a human writing.
+	const t = first.trim().replace(/^[*_`\s]+/, '').toLowerCase();
 	if (t.startsWith(REVIEW_TAG) || t.startsWith('[dev-ai]')) return 'review';
 	if (t.startsWith(AUTHOR_TAG) || t.startsWith('[author-ai]')) return 'author';
 	return null;

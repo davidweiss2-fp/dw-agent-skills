@@ -512,6 +512,21 @@ describe('watch bookkeeping', () => {
 		assert.equal(lib.signedSide('plain question'), null);
 	});
 
+	it('reads a signature through markdown emphasis and casing', () => {
+		// `**[DEV-AI]**` is the form dw-pr-ready actually wrote; unreadable, it was promoted to a
+		// directive from the user, so an agent's own words got obeyed as theirs.
+		assert.equal(lib.signedSide('**[DEV-AI]** Good catch — taken'), 'review');
+		assert.equal(lib.signedSide('**[dev-author-ai]** applied'), 'author');
+		assert.equal(lib.signedSide('`[dev-review-ai]` finding'), 'review');
+		assert.equal(lib.signedSide('_[Dev-Author-AI]_ done'), 'author');
+	});
+
+	it('leaves a blockquoted tag unsigned, because quoting is not signing', () => {
+		// `>` is deliberately not stripped: a blockquote is a person citing an agent comment.
+		assert.equal(lib.signedSide('> [dev-review-ai] Ask: do the thing'), null);
+		assert.equal(lib.signedSide('> **[DEV-AI]** old comment'), null);
+	});
+
 	it('treats a bot comment as reportable only when asked', () => {
 		const comments = [{id: 5, user: 'bugbot', isBot: true, body: 'high severity'}];
 		assert.deepEqual(lib.unseenComments(comments, 0, {includeBots: true}).fresh.map((c) => c.id), [5]);
