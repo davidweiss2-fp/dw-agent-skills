@@ -86,6 +86,11 @@ jobs:
       - name: version-bump self-test (patch maths, one-line rewrite, idempotence)
         run: node .github/scripts/bump-version.js --self-test
 
+      # Unconditional, so a hand-edit or a merge that bypassed the PR bump cannot leave the
+      # version files disagreeing the way marketplace.json silently did for ten patches.
+      - name: Version files agree
+        run: node .github/scripts/bump-version.js --check
+
       - name: Install commands smoke (documented `--` forms, dry-run)
         # Mirrors the documented `npx -y github:owner/repo -- --only ...` commands,
         # plus the legacy `cursor` alias. The leading `--` is the npm/npx separator
