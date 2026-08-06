@@ -769,6 +769,17 @@ describe('cli guards (no network)', () => {
 		rmSync(dir, {recursive: true, force: true});
 	});
 
+	it('lets an author-side reply quote the reviewer tag without demanding an Ask', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'dw-review-quote-'));
+		const file = join(dir, 'reply.md');
+		// The gate used to match the tag anywhere, so answering a reviewer while quoting them
+		// was read as a reviewing comment and forced into the Ask shape.
+		writeFileSync(file, '[dev-author-ai]\nTaken. You wrote `[dev-review-ai] Ask: normalise it` and that is done.\n');
+		const res = runCli(['reply', 'acme/widget#42', '--thread', 'PRRT_x', '--body-file', file]);
+		assert.ok(!/must open on an "Ask:/.test(res.stderr), `should not demand an Ask: ${res.stderr}`);
+		rmSync(dir, {recursive: true, force: true});
+	});
+
 	it('refuses a tagged body whose ask does not lead, and accepts one where it does', () => {
 		const dir = mkdtempSync(join(tmpdir(), 'dw-review-ask-'));
 		const buried = join(dir, 'buried.md');

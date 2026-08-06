@@ -108,7 +108,9 @@ function bodyFile(flags) {
 	// The `Ask:` line is a reviewer's obligation - it names the action that closes the thread.
 	// A comment signed as the author's side is answering one, so requiring an ask there would
 	// force every reply into the wrong shape.
-	if (lib.tagSide(body) !== 'author' && !lib.hasAskLine(body)) {
+	// signedSide, not tagSide: the side is whoever SIGNED the comment, and an author-side reply
+	// that quotes the reviewer's tag while answering it must not be forced into the Ask shape.
+	if (lib.signedSide(body) !== 'author' && !lib.hasAskLine(body)) {
 		fail(`comment body must open on an "Ask: <closeable action>" line after the ${lib.REVIEW_TAG} tag`);
 	}
 	return {file: f, body};
