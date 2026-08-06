@@ -108,7 +108,8 @@ author has notes, what those notes change about this review.
 ## Step 3 — Review the change
 
 Correctness first, then design, naming, tests, and whether the change leaves a seam half-finished.
-Recall the repo's review conventions through `dw-knowledge` rather than assuming them.
+That is the order attention pays off in, not a boundary on what counts as a finding. Recall the
+repo's review conventions through `dw-knowledge` rather than assuming them.
 
 Substantiate every finding against the real code: trace the helper, read the callee's signature,
 check what the test asserts. Verify empirically where you can — run the one test, execute the
@@ -118,18 +119,26 @@ approach, note only what survives the rewrite.
 
 **Does the diff deliver the ticket, and only the ticket?** Two failures, and they need different
 comments. *Under-delivering* is an AC the diff silently does not cover — the finding is "make the
-split explicit in the PR body or trim the ticket", not "you forgot". *Over-delivering* is a diff
-that reaches past what the ticket asked for: a new endpoint where the existing one owns the
-behavior, a sibling path rewired in passing, a file touched that nothing required. Both cost the
-reviewer, and the second costs the blast radius too. Name the specific AC or the specific
-unnecessary file — a general "this feels big" is not a finding.
+split explicit in the PR body or trim the ticket", not "you forgot". *Over-delivering* is anything
+in the diff the ticket does not ask for and the change does not need — a new endpoint where the
+existing one owns the behavior, a sibling path rewired in passing, are two ways it shows up, not
+the two ways. The question that finds the rest: strike this hunk, and does the ticket still get
+delivered? Both failures cost the reviewer, and the second costs the blast radius too. Name the
+specific AC or the specific unnecessary hunk — a general "this feels big" is not a finding.
 
-**Guard code quality on what the diff adds.** Naming that says what the thing is, one concept per
-class or function, no dead seam left behind, no public surface that exists only so a test can reach
-it, no repeated shape that wants extracting, tests that assert behavior rather than restating the
-implementation. Recall the repo's own conventions rather than importing generic taste — and hold a
-quality finding to the same evidence bar as a correctness one, since "I would have written it
-differently" is not a defect.
+**Guard code quality on what the diff adds.** The test is a question, not a checklist: for each
+thing the diff introduces, ask what it costs the next person who touches this file — are they
+misled about what it does, slowed down finding it, or forced to change more than their task should
+require? Whatever answers yes is a finding, named smell or not.
+
+Named smells are where to start looking, not where to stop — imprecise naming, a unit doing two
+jobs, a dead seam, visibility that exists only for a test, a repeated shape wanting extraction, a
+test that restates the implementation. Most defects worth raising are not on that list, because
+the list is the ones that already have names. Recall the repo's own conventions through
+`dw-knowledge` too, rather than importing generic taste.
+
+Hold a quality finding to the same evidence bar as a correctness one. "I would have written it
+differently" is not a defect; "this name says X and the function does Y" is.
 
 ### Reviewing your own PR
 
@@ -169,8 +178,10 @@ So the whole exchange happens on the PR: the working agent answers in-thread, re
 refute with evidence, fixes what it cannot, and you weigh in as yourself without a tag. Nothing has
 to come back through this skill for the two agents to argue.
 
-**Done when** each finding is either substantiated with the evidence you'd quote, or dropped, and
-the diff has been checked against the ticket's ACs in both directions.
+**Done when** each finding is either substantiated with the evidence you'd quote, or dropped; the
+diff has been checked against the ticket's ACs in both directions; and every file the diff touches
+has been through the cost-to-the-next-reader question — not only the ones that matched a named
+smell.
 
 ## Step 4 — Draft one comment per finding
 
@@ -295,6 +306,7 @@ and every PR the sweep surfaced is drafted on or classified.
 | "The PR is unchanged since the last run, but another look can't hurt" | A matching head SHA in `state.md` means handled. Re-reviewing it re-delivers findings the author already has. |
 | "No findings — I should write something so the run isn't empty" | An empty queue or a clean PR is a real result. Say so in one line. |
 | "I'll write the status page HTML myself, it's just one page" | The page's markup, themes and behaviour live in `scripts/review-prs-dashboard.js` so every reviewer on this skill gets the same interface and the same fixes. Hand-written HTML is a private one-off that drifts on the next run. Pass data through `--actions`; change the renderer if the page itself is wrong. |
+| "I went through the quality list and none of it applies, so there is nothing to flag" | The list names the defects that already have names; it cannot be the complete set, because the next one has not been named yet. What binds is the question asked of each thing the diff adds — what does this cost the next person to touch it? A clean pass over the examples with the question never asked is not a clean review, it is an unread one. |
 | "It's a nit — the ask is obvious from the label, an `Ask:` line is overhead" | Obvious to you, inferred by the author. "Worth restoring the clause" reads as an observation to file away; `Ask: restore the when-clause` reads as a thread to close. The smaller the finding, the cheaper its ask is to state. |
 
 ## Hard rules

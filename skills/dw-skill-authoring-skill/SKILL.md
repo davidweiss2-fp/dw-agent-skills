@@ -75,6 +75,33 @@ criterion invites **premature completion** — the agent declaring victory early
 looks more attractive than the work. If the steps still ahead keep tempting the agent to rush the
 one in front, that is the signal to split the sequence so later steps stay out of view.
 
+## Open classes vs closed sets
+
+Every list in a skill is one of two things, and the agent cannot tell which unless you say so.
+
+A **closed set** is the complete enumeration — the statuses a PR can hold, the events a command
+accepts. Listing it *is* the job, and anything outside it is an error.
+
+An **open class** is a sample — the smells worth checking for, the ways a change can overreach,
+the shapes a flaky test takes. Here the list is a floor, and an agent that reads it as the ceiling
+stops at the last bullet and reports a clean pass. That failure is invisible in the output: the run
+looks diligent, the finding count is zero, and nothing says the question was never asked.
+
+For an open class, write three things rather than a longer list:
+
+1. **The generative question first** — the test that *produces* members ("what does this cost the
+   next person who touches this file?"). A question generalizes to the case you did not foresee;
+   a bullet only matches itself.
+2. **The examples, marked as a floor** — "where to start looking, not where to stop". Say plainly
+   that the named cases are the ones that already have names, so the unnamed ones still count.
+3. **A completion criterion over the work, not the list** — "every changed file has been asked the
+   question", never "every item checked". Criteria that range over a list are satisfied by a list
+   that is too short.
+
+Lengthening the list makes this worse, not better: each addition raises the odds the enumeration
+reads as authoritative. If an open class keeps attracting examples, that is the signal to move them
+behind a pointer and leave the question in the body.
+
 ## Scripts vs. prose
 
 Put deterministic, repeatable mechanics in a **script**; keep judgment in **prose**.
@@ -132,6 +159,8 @@ Run this before calling a skill done — for a new skill or a review:
 - [ ] `description` is third-person, broad/pushy, with concrete trigger phrasings; one per path.
 - [ ] Body is concise (< ~200 lines); long detail is disclosed to `references/` behind pointers.
 - [ ] Steps end on checkable, exhaustive-where-it-matters completion criteria.
+- [ ] Every list reads unambiguously as a closed set or an open class; open classes lead with the
+      generative question and mark their examples as a floor.
 - [ ] Mechanics that should be identical every run are scripts; judgment stays prose.
 - [ ] Scripts: Node + CommonJS + `'use strict'`, `node:` builtins only, pass `node --check`, no
       shell-from-untrusted-input.
@@ -151,6 +180,7 @@ When a skill misbehaves, name the failure before fixing it:
 | Skill keeps growing, nothing removed | **sediment** | Prune on a schedule; deletion is the default move. |
 | Skill is just too long | **sprawl** | Disclose reference behind pointers; split by branch or sequence. |
 | A line the model already obeys | **no-op** | Delete it, or swap a weak phrase for a strong leading word. |
+| Agent checks the listed cases, finds none, and reports clean | **closed list** | The list is an open class read as complete. Lead with the generative question, mark the examples as a floor, and range the completion criterion over the work instead of the list. |
 | Skill doesn't fire when it should | weak description | Add the concrete trigger phrasing the user actually types; front-load the leading word. |
 | A "never do X" rule reads back as an instruction to do X | **negation** | Rephrase as the positive target behavior; keep the prohibition only where you can't phrase the target positively, and even then pair it with what to do instead — as a *Rationalizations* row where the agent argues past it. |
 | A rule the agent states, then talks itself out of | **rationalized guard** | Keep the rebuttal, not just the rule: move the argument into a *Rationalizations* row at the point of temptation. |
