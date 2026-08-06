@@ -149,6 +149,9 @@ const QUEUE_SEARCHES = [
 	{source: 'reviewed', args: ['--reviewed-by=@me'], windowed: true},
 	{source: 'mentioned', args: ['--mentions=@me'], windowed: true},
 	{source: 'commented', args: ['--commenter=@me'], windowed: true, optIn: true},
+	// Own PRs are not review work, but they carry the reviewer's own review threads. Windowed:
+	// an abandoned PR of theirs from a year ago is not something to keep polling.
+	{source: 'mine', args: ['--author=@me'], windowed: true},
 ];
 
 // Resolved per run rather than configured, so the skill carries no one's team names.
@@ -271,10 +274,22 @@ function othersDecisions(reviews, login) {
 	};
 }
 
+// {login: why} for authors another routine reviews. Case-insensitive: GitHub logins are,
+// and a config typed with the wrong case would silently stop delegating.
+function delegatedAuthors() {
+	const raw = readJsonOr(paths.delegatedAuthorsPath(), {});
+	const out = new Map();
+	for (const [login, why] of Object.entries(raw)) {
+		if (typeof login === 'string' && login) out.set(login.toLowerCase(), String(why || 'delegated'));
+	}
+	return out;
+}
+
 // Shared by `queue` and the watch's queue sweep, so both classify a PR the same way and a
 // change to the rules lands in one place.
 function queueRows(flags, login) {
 	const hits = queueHits(flags);
+	const delegated = delegatedAuthors();
 	const state = existsSync(paths.statePath())
 		? lib.parseStateMd(readFileSync(paths.statePath(), 'utf8'))
 		: {};
@@ -305,6 +320,7 @@ function queueRows(flags, login) {
 				submittedShas,
 				sources: hit.sources,
 				...decisions,
+				delegatedTo: (pr.user && delegated.get(String(pr.user.login).toLowerCase())) || null,
 				authorRepliedSinceMyReview: reviewedThisHead && authorRepliedSinceMyReview(r, login, reviews),
 			},
 			stored,
@@ -655,14 +671,20 @@ function printWatchResult(res) {
 	}
 }
 
-// The queue sweep re-resolves every review request through the PR endpoint, so it costs far
-// more API calls than a comment poll. It gets its own, slower interval rather than running on
-// every pass: comments stay near-real-time while a new review request surfaces within a
-// quarter hour. `--queue-poll-ms 0` or `--no-queue` turns it off.
+// Two clocks, not one. A comment pass hits three endpoints per known PR; the queue sweep
+// re-resolves every review request through the PR endpoint, so it costs far more. Running
+// both at the comment cadence would multiply the API cost of a question whose answer changes
+// a few times a day.
+const COMMENT_POLL_MS = 120_000;
+const QUEUE_POLL_MS = 900_000;
+
 function sweepQueue(watchState, login) {
 	const rows = queueRows({}, login);
 	const {fresh, seen} = lib.unseenQueueRows(rows, watchState.queueSeen);
 	watchState.queueSeen = seen;
+	// Everything open the sweep saw stays a comment target until the next sweep, which is how
+	// a PR that is not in state.md - notably the reviewer's own - gets its replies polled.
+	watchState.queueTargets = rows.filter((r) => r.status !== 'closed').map((r) => r.key);
 	for (const row of fresh) {
 		process.stdout.write(`\n[queue] ${row.key} - ${row.status}: ${row.reason}\n`);
 		process.stdout.write(`  ${row.title}\n`);
@@ -671,32 +693,23 @@ function sweepQueue(watchState, login) {
 	return {count: fresh.length, scanned: rows.length};
 }
 
-async function cmdWatch(flags) {
-	const pollMs = Number(flags['poll-ms']) > 0 ? Number(flags['poll-ms']) : 120_000;
-	const queueOff = Boolean(flags['no-queue']) || Number(flags['queue-poll-ms']) === 0;
-	const queuePollMs = Number(flags['queue-poll-ms']) > 0 ? Number(flags['queue-poll-ms']) : 900_000;
-	const opts = {
-		includeBots: Boolean(flags['include-bots']),
-		openOnly: Boolean(flags['open-only']),
-		myLogin: me(),
-	};
+async function cmdWatch() {
+	const myLogin = me();
+	const opts = {includeBots: false, openOnly: false, myLogin};
 	const stateFile = paths.statePath();
-	process.stdout.write(
-		`[watch] store=${stateFile} me=${opts.myLogin} mode=${flags.once ? 'once' : 'loop'}` +
-			`${queueOff ? ' queue=off' : ` queue=every ${Math.round(queuePollMs / 1000)}s`}\n`,
-	);
+	process.stdout.write(`[watch] store=${stateFile} me=${myLogin}\n`);
 	let nextQueueAt = 0;
 
 	for (;;) {
 		const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
-		const targets = lib.watchTargets(entries);
 		const watchState = loadWatchState();
-		if (!queueOff && Date.now() >= nextQueueAt) {
-			const q = sweepQueue(watchState, opts.myLogin);
+		if (Date.now() >= nextQueueAt) {
+			const q = sweepQueue(watchState, myLogin);
 			saveWatchState(watchState);
-			nextQueueAt = Date.now() + queuePollMs;
+			nextQueueAt = Date.now() + QUEUE_POLL_MS;
 			process.stdout.write(`[queue] ${q.count} new of ${q.scanned} classified\n`);
 		}
+		const targets = lib.watchTargets(entries, watchState.queueTargets);
 		// Re-read state.md every pass, so a PR reviewed by another run joins the
 		// watch without a restart.
 		process.stdout.write(`[watch] pass ${new Date().toISOString()} prs=${targets.length}\n`);
@@ -713,8 +726,7 @@ async function cmdWatch(flags) {
 		if (!pass.fresh) {
 			process.stdout.write(`[watch] quiet - ${targets.length - pass.failed}/${targets.length} PRs reachable\n`);
 		}
-		if (flags.once) return;
-		await new Promise((resolve) => setTimeout(resolve, pollMs));
+		await new Promise((resolve) => setTimeout(resolve, COMMENT_POLL_MS));
 	}
 }
 
@@ -773,10 +785,13 @@ function cmdDashboard(flags) {
 		: [];
 	const actions = readJsonOr(flags.actions, {prs: {}});
 
+	const delegated = delegatedAuthors();
 	const prs = [];
 	for (const key of Object.keys(entries).sort()) {
 		const facts = dashboardFacts(key, login);
-		if (facts) prs.push({...facts, storeStatus: entries[key].status});
+		if (!facts) continue;
+		const why = delegated.get(String(facts.author || '').toLowerCase()) || null;
+		prs.push({...facts, storeStatus: entries[key].status, delegatedAuthor: why});
 	}
 	const model = lib.dashboardModel({prs, ledger, actions, generatedAt: new Date().toISOString()});
 	const html = dash.renderDashboard(model, {title: flags.title || 'Review queue', reviewer: login});

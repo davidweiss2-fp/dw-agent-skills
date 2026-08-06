@@ -90,7 +90,14 @@ function classifyPr(pr, state) {
 		}
 		return {status: 'closed', reason: 'PR is no longer open'};
 	}
-	if (pr.authoredByMe) return {status: 'skip', reason: 'own PR'};
+	// The reviewer's own PR is not review work, but it is where their reviewers' comments
+	// land, so it stays in the queue as a watch target rather than being dropped. Replies
+	// are drafted the same way as anywhere else - GitHub allows a pending review on your own
+	// PR, it only refuses to let you APPROVE it.
+	if (pr.authoredByMe) {
+		if (pr.isDraft) return {status: 'mine', reason: 'your PR, still in draft'};
+		return {status: 'mine', reason: 'your PR - watching for reviewer comments'};
+	}
 
 	const pending = pr.pendingReview;
 	if (pending && pending.draftCount > 0) {
@@ -102,6 +109,14 @@ function classifyPr(pr, state) {
 	if (pending) {
 		// An empty pending review still blocks REST comment posting on this PR.
 		return {status: 'draft-empty', reason: 'empty pending review holds the one-per-PR slot'};
+	}
+	// Deliberately BELOW the two pending checks. If a delegated PR somehow carries a
+	// pending review of ours, that has to surface: an open pending review blocks REST
+	// comment posting on the PR (one per user per PR), so it silently breaks the very
+	// routine this delegation hands the PR to. Hiding it behind `delegated` would turn a
+	// loud, fixable state into a mystery in the other routine's logs.
+	if (pr.delegatedTo) {
+		return {status: 'delegated', reason: `another routine owns this author's PRs - ${pr.delegatedTo}`};
 	}
 	// Checked after the drafts: an author who reopens a PR as WIP does not release the
 	// pending-review slot, so submitting or dropping those drafts still comes first.
@@ -171,14 +186,26 @@ function hasAskLine(body) {
 // Every PR the store has ever recorded, in the order `watch` should poll them:
 // the ones this reviewer drafted on first, since those are the threads someone is
 // most likely answering.
-function watchTargets(entries) {
+// `extra` carries the keys the last queue sweep saw. Without it the watch could only poll
+// PRs the store had already recorded, which leaves out the reviewer's own PRs - nothing is
+// ever drafted on those first, so they never reach state.md, and a review left on one would
+// never surface.
+function watchTargets(entries, extra) {
 	const rows = Array.isArray(entries) ? entries : Object.values(entries || {});
 	const order = {drafted: 0, submitted: 1, declined: 2};
-	return rows
+	const keys = rows
 		.filter((r) => r && r.key)
 		.slice()
 		.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3))
 		.map((r) => r.key);
+	const seen = new Set(keys);
+	for (const key of Array.isArray(extra) ? extra : []) {
+		if (key && !seen.has(key)) {
+			seen.add(key);
+			keys.push(key);
+		}
+	}
+	return keys;
 }
 
 // `watchTargets` only ever yields PRs the store has already recorded, so a PR whose
@@ -283,7 +310,7 @@ const LANES = ['needs-you', 'waiting-author', 'delegated', 'done'];
 // someone else's routine, and a merged or closed PR is history.
 function defaultLane(pr) {
 	if (Number(pr.pendingDrafts) > 0) return 'needs-you';
-	if (pr.storeStatus === 'declined') return 'delegated';
+	if (pr.storeStatus === 'declined' || pr.delegatedAuthor) return 'delegated';
 	if (pr.prState && pr.prState !== 'open') return 'done';
 	return 'waiting-author';
 }

@@ -31,13 +31,20 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… submit <pr> --event COMMENT\|APPROVE\|REQUEST_CHANGES` | Publish the pending review — only on explicit instruction |
 | `… state-set <pr> --status drafted\|submitted\|declined` | Record the head SHA handled |
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
-| `… watch [--once] [--poll-ms N] [--queue-poll-ms N\|--no-queue] [--include-bots] [--open-only]` | New comments on every PR the store records, and newly actionable PRs from the queue (Step 7) |
+| `… watch` | Long-running: new comments on every PR in scope, and newly actionable PRs from the queue (Step 7) |
 | `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
 | `… dashboard-url [--set URL]` | The artifact URL that page is published to |
 
 Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-agent-store>/run-notes/dw-review-prs/`
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
 `comments.md` (every finding ever drafted or submitted).
+
+`delegated-authors.json` in that same directory hands whole authors to another routine —
+`{"login": "why"}`. Their PRs classify `delegated` and never become work here, so the hand-off
+survives a run where nobody remembers to decline them one at a time. It is checked *after* the
+pending-review checks on purpose: an unsubmitted review of ours on a delegated PR still surfaces,
+because a pending review blocks REST comment posting on that PR (one per user per PR) and would
+silently break the routine the PR was handed to.
 
 ## Step 1 — Read the queue
 
@@ -59,7 +66,8 @@ Statuses:
 | `changes-requested` | Changes requested and not yet resolved | One line, waiting on the author |
 | `not-ready` | The author has it back in draft | One line; reviewing a WIP is wasted |
 | `watching` | You took part in a thread, but review was never requested of you | One line, no work |
-| `skip` / `closed` | Own PR, declined at this head, or gone | One line, no work |
+| `mine` | Your own PR - not review work, but your reviewers' threads land on it | Watched for comments; reply with `reply` |
+| `skip` / `closed` | Declined at this head, or gone | One line, no work |
 
 **Done when** every open request is classified and the actionable ones are reported to the user as
 links, newest work first.
@@ -84,7 +92,23 @@ snippet, query the local database — and say plainly when you could not. Drop w
 substantiate. Depth follows review state: on a PR already carrying CHANGES_REQUESTED on its
 approach, note only what survives the rewrite.
 
-**Done when** each finding is either substantiated with the evidence you'd quote, or dropped.
+**Does the diff deliver the ticket, and only the ticket?** Two failures, and they need different
+comments. *Under-delivering* is an AC the diff silently does not cover — the finding is "make the
+split explicit in the PR body or trim the ticket", not "you forgot". *Over-delivering* is a diff
+that reaches past what the ticket asked for: a new endpoint where the existing one owns the
+behavior, a sibling path rewired in passing, a file touched that nothing required. Both cost the
+reviewer, and the second costs the blast radius too. Name the specific AC or the specific
+unnecessary file — a general "this feels big" is not a finding.
+
+**Guard code quality on what the diff adds.** Naming that says what the thing is, one concept per
+class or function, no dead seam left behind, no public surface that exists only so a test can reach
+it, no repeated shape that wants extracting, tests that assert behavior rather than restating the
+implementation. Recall the repo's own conventions rather than importing generic taste — and hold a
+quality finding to the same evidence bar as a correctness one, since "I would have written it
+differently" is not a defect.
+
+**Done when** each finding is either substantiated with the evidence you'd quote, or dropped, and
+the diff has been checked against the ticket's ACs in both directions.
 
 ## Step 4 — Draft one comment per finding
 
@@ -171,17 +195,19 @@ and it re-runs the **queue** on a slower interval so a PR whose review was reque
 still reaches you.
 
 ```bash
-node scripts/review-prs.js watch --once          # one pass, for a scheduled run
-node scripts/review-prs.js watch --poll-ms 60000 # keep listening
+node scripts/review-prs.js watch
 ```
+
+It takes no options. Comments poll every 2 minutes, the queue sweeps every 15, bots never report,
+and every PR state is polled — those were knobs once and none of them earned the surface.
 
 - **Its own comments and bots stay out of the report** (`--include-bots` opts them back in), so what
   surfaces is a person waiting on a reply.
 - **A high-water mark per PR per surface** lives in `watch-state.json`; the first pass on a PR seeds
   those marks and reports nothing, rather than replaying the whole history.
 - **The queue sweep runs every 15 minutes**, not every pass — it re-resolves every review request
-  through the PR endpoint, so it costs far more API calls than a comment poll. `--queue-poll-ms N`
-  retunes it, `--no-queue` turns it off. Only actionable rows are reported, keyed on status and head
+  through the PR endpoint, so it costs far more API calls than a comment poll. Only actionable rows
+  are reported, keyed on status and head
   SHA, so a PR surfaces again when it is pushed to or moves `needs-draft` → `answered`, and a quiet
   one stays quiet. Unlike the comment marks, the first sweep **does** report — an actionable PR is
   work waiting whether or not this process has seen it before.
