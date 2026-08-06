@@ -335,6 +335,7 @@ function queueRows(flags, login) {
 			reason: cls.reason,
 			sources: hit.sources,
 			authorNotes: Boolean(notes.get(String((pr.user && pr.user.login) || '').toLowerCase())),
+			mine: Boolean(pr.user && pr.user.login === login),
 		});
 	}
 
@@ -356,7 +357,8 @@ function cmdQueue(flags) {
 	for (const row of sorted) {
 		const mark = lib.isActionable(row.status) ? '*' : ' ';
 		process.stdout.write(
-			`${mark} [${row.status}] ${row.key} - ${row.reason}${row.authorNotes ? '  [author notes]' : ''}\n`,
+			`${mark} [${row.status}] ${row.key} - ${row.reason}` +
+				`${row.mine ? '  [yours]' : ''}${row.authorNotes ? '  [author notes]' : ''}\n`,
 		);
 		process.stdout.write(`    ${row.title}\n`);
 		process.stdout.write(`    ${row.url}${row.isDraftPr ? '  (draft PR)' : ''}\n`);
@@ -529,6 +531,14 @@ function cmdSubmit(arg, flags) {
 	const {pending} = pendingReviewFor(r, login);
 	if (!pending) fail(`no pending review on ${r.key} to submit`);
 	if (pending.draftCount === 0) fail('pending review has no comments - drop it or draft first');
+	// GitHub rejects APPROVE and REQUEST_CHANGES on your own PR with an opaque error. Say
+	// which one applies here rather than letting the mutation fail three calls deep.
+	if (event !== 'COMMENT') {
+		const author = prMeta(r).user;
+		if (author && author.login === login) {
+			fail(`${r.key} is your own PR - GitHub only allows --event COMMENT on it`);
+		}
+	}
 	const res = graphql(
 		`mutation($reviewId:ID!,$event:PullRequestReviewEvent!){
       submitPullRequestReview(input:{pullRequestReviewId:$reviewId,event:$event}){

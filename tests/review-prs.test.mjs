@@ -105,12 +105,16 @@ describe('classifyPr', () => {
 		assert.equal(lib.classifyPr({...base, isOpen: false}).status, 'closed');
 	});
 
-	it('keeps the reviewer own PR as a watch target rather than dropping it', () => {
-		const mine = lib.classifyPr({...base, authoredByMe: true});
-		assert.equal(mine.status, 'mine');
-		// Not review work, so it must never be counted as something to draft on.
-		assert.equal(lib.isActionable(mine.status), false);
-		assert.match(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).reason, /draft/);
+	it('reviews the reviewer own PR on the same terms as anyone else', () => {
+		// Authorship is a property of the row, never a status: an own PR earns the same
+		// review, so it has to reach the same actionable states.
+		const mine = lib.classifyPr({...base, authoredByMe: true, sources: ['mine']});
+		assert.equal(mine.status, 'needs-draft');
+		assert.equal(lib.isActionable(mine.status), true);
+		// And the same lifecycle once it has been reviewed.
+		const drafted = lib.classifyPr({...base, authoredByMe: true, pendingReview: {id: 1, draftCount: 3}});
+		assert.equal(drafted.status, 'draft-waiting');
+		assert.equal(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).status, 'not-ready');
 	});
 
 	it('author notes never change how a PR is classified', () => {
