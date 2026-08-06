@@ -39,12 +39,27 @@ Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-a
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
 `comments.md` (every finding ever drafted or submitted).
 
-`delegated-authors.json` in that same directory hands whole authors to another routine —
-`{"login": "why"}`. Their PRs classify `delegated` and never become work here, so the hand-off
-survives a run where nobody remembers to decline them one at a time. It is checked *after* the
-pending-review checks on purpose: an unsubmitted review of ours on a delegated PR still surfaces,
-because a pending review blocks REST comment posting on that PR (one per user per PR) and would
-silently break the routine the PR was handed to.
+`authors.json` in that same directory carries **per-author review instructions** — some authors
+need the review delivered differently, and that belongs in the store rather than in this file, so
+one JSON edit reaches every routine that runs the skill.
+
+```json
+{
+  "some-login": {
+    "who": "one line of context — who they are and why this entry exists",
+    "knowledge": ["memory-name-to-recall-through-dw-knowledge"],
+    "steps": ["an extra step this author's PRs need, before drafting or at close-out"],
+    "instructions": ["how the comments themselves must be written"]
+  }
+}
+```
+
+Every field is optional and a bare string is shorthand for `instructions`. Notes **never change how
+a PR is classified** — an author needing a different register is still ordinary review work. They
+change how the review is written and delivered, so `surfaces` returns the matching entry (Step 2
+already makes `surfaces` mandatory, which is why they ride there rather than in a command that can
+be forgotten) and `queue` tags the row `[author notes]`. Full contract and a worked example:
+`references/authors.md`.
 
 ## Step 1 — Read the queue
 
@@ -74,12 +89,17 @@ links, newest work first.
 
 ## Step 2 — Read what already exists, before forming an opinion
 
-Per PR in scope: `surfaces` (all three comment surfaces plus your own drafts), `threads`, the store's
-`comments.md`, the diff, and the surrounding code on the base branch. Read the linked ticket's
-acceptance criteria before raising anything scope-shaped.
+Per PR in scope: `surfaces` (all three comment surfaces, your own drafts, and any `authorNotes`
+for the author), `threads`, the store's `comments.md`, the diff, and the surrounding code on the
+base branch. Read the linked ticket's acceptance criteria before raising anything scope-shaped.
 
-**Done when** you can name, for that PR: your own drafts, your published comments, and every finding
-another reviewer or bot already raised — and no finding you carry forward duplicates one of them.
+When `surfaces` returns `authorNotes`, apply them before drafting a word: recall each name under
+`knowledge`, carry out each `steps` entry at the point it names, and write every comment to
+`instructions`. They are the reviewer's standing decision about that person, not a suggestion.
+
+**Done when** you can name, for that PR: your own drafts, your published comments, every finding
+another reviewer or bot already raised — none of which your findings duplicate — and, where the
+author has notes, what those notes change about this review.
 
 ## Step 3 — Review the change
 

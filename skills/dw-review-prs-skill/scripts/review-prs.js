@@ -27,8 +27,8 @@ const USAGE = `dw-review-prs - draft [dev-ai] review comments as an unsubmitted 
   submit <pr> --event COMMENT|APPROVE|REQUEST_CHANGES
   state-set <pr> --sha SHA --status STATUS    STATUS: drafted|submitted|declined
   log <pr> --status S --weight W --finding TEXT [--url URL]
-  watch [--once] [--poll-ms N] [--include-bots] [--open-only]
-                                     new comments on every PR the store records
+  watch                              long-running: new comments on every PR in scope,
+                                     plus newly actionable PRs from the queue
   dashboard --out FILE [--actions FILE] [--title T]   build the status page
   dashboard-url [--set URL]          the artifact url the page is published to
 
@@ -274,22 +274,20 @@ function othersDecisions(reviews, login) {
 	};
 }
 
-// {login: why} for authors another routine reviews. Case-insensitive: GitHub logins are,
-// and a config typed with the wrong case would silently stop delegating.
-function delegatedAuthors() {
-	const raw = readJsonOr(paths.delegatedAuthorsPath(), {});
-	const out = new Map();
-	for (const [login, why] of Object.entries(raw)) {
-		if (typeof login === 'string' && login) out.set(login.toLowerCase(), String(why || 'delegated'));
-	}
-	return out;
+// Per-author review instructions from authors.json. Shape and normalization live in the lib.
+function authorNotes() {
+	return lib.normalizeAuthorNotes(readJsonOr(paths.authorNotesPath(), {}));
+}
+
+function notesFor(login) {
+	return authorNotes().get(String(login || '').toLowerCase()) || null;
 }
 
 // Shared by `queue` and the watch's queue sweep, so both classify a PR the same way and a
 // change to the rules lands in one place.
 function queueRows(flags, login) {
 	const hits = queueHits(flags);
-	const delegated = delegatedAuthors();
+	const notes = authorNotes();
 	const state = existsSync(paths.statePath())
 		? lib.parseStateMd(readFileSync(paths.statePath(), 'utf8'))
 		: {};
@@ -320,7 +318,6 @@ function queueRows(flags, login) {
 				submittedShas,
 				sources: hit.sources,
 				...decisions,
-				delegatedTo: (pr.user && delegated.get(String(pr.user.login).toLowerCase())) || null,
 				authorRepliedSinceMyReview: reviewedThisHead && authorRepliedSinceMyReview(r, login, reviews),
 			},
 			stored,
@@ -337,6 +334,7 @@ function queueRows(flags, login) {
 			status: cls.status,
 			reason: cls.reason,
 			sources: hit.sources,
+			authorNotes: Boolean(notes.get(String((pr.user && pr.user.login) || '').toLowerCase())),
 		});
 	}
 
@@ -357,7 +355,9 @@ function cmdQueue(flags) {
 	);
 	for (const row of sorted) {
 		const mark = lib.isActionable(row.status) ? '*' : ' ';
-		process.stdout.write(`${mark} [${row.status}] ${row.key} - ${row.reason}\n`);
+		process.stdout.write(
+			`${mark} [${row.status}] ${row.key} - ${row.reason}${row.authorNotes ? '  [author notes]' : ''}\n`,
+		);
 		process.stdout.write(`    ${row.title}\n`);
 		process.stdout.write(`    ${row.url}${row.isDraftPr ? '  (draft PR)' : ''}\n`);
 	}
@@ -367,9 +367,15 @@ function cmdSurfaces(arg) {
 	const r = ref(arg);
 	const login = me();
 	const {pending, submittedShas} = pendingReviewFor(r, login);
+	const pr = prMeta(r);
+	const author = (pr.user && pr.user.login) || '';
 	const out = {
 		pr: r.key,
 		me: login,
+		author,
+		// Step 2 makes `surfaces` mandatory before drafting, so per-author instructions ride
+		// here rather than in a command someone can forget to run.
+		authorNotes: notesFor(author),
 		mySubmittedShas: submittedShas,
 		myPendingDrafts: pending
 			? pending.drafts.map((c) => ({
@@ -785,13 +791,10 @@ function cmdDashboard(flags) {
 		: [];
 	const actions = readJsonOr(flags.actions, {prs: {}});
 
-	const delegated = delegatedAuthors();
 	const prs = [];
 	for (const key of Object.keys(entries).sort()) {
 		const facts = dashboardFacts(key, login);
-		if (!facts) continue;
-		const why = delegated.get(String(facts.author || '').toLowerCase()) || null;
-		prs.push({...facts, storeStatus: entries[key].status, delegatedAuthor: why});
+		if (facts) prs.push({...facts, storeStatus: entries[key].status});
 	}
 	const model = lib.dashboardModel({prs, ledger, actions, generatedAt: new Date().toISOString()});
 	const html = dash.renderDashboard(model, {title: flags.title || 'Review queue', reviewer: login});
