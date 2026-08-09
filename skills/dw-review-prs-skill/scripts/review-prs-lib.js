@@ -3,20 +3,19 @@
 // Pure decision logic for dw-review-prs: PR refs, state file, and queue
 // classification. No I/O and no gh calls - the CLI fetches, this decides.
 
-// Which side of the review a comment comes from, signed so one thread stays readable when two
+// The comment signature - which side wrote it, and whether it was for a person - is shared with
+// dw-pr-ready, which has to read it identically. Source: utils/agent-tags.js.
+const {REVIEW_TAG, AUTHOR_TAG, LEGACY_TAGS, signature, signedSide} = require('./_shared-agent-tags.js');
+const DRAFT_TAG = REVIEW_TAG;
+
 // agents and a human are all writing in it.
 //
 // The old tag was `[dev-ai]`, which named "an AI" and not a side - and that genericness is what
 // broke: the PR-babysitting skill, acting FOR the author, signed the reviewer's tag, so the
 // distinction the tag exists to carry was gone. These two are parallel on purpose, so picking
 // the wrong one reads as wrong.
-const REVIEW_TAG = '[dev-review-ai]';
-const AUTHOR_TAG = '[dev-author-ai]';
 // Recognised on read only, never emitted: comments already on PRs and rows already in the
 // ledger carry it, and a later run still has to know they were ours.
-const LEGACY_TAGS = ['[dev-ai]', '[author-ai]'];
-const DRAFT_TAG = REVIEW_TAG;
-
 // Accepts a PR URL (with or without /files and a fragment), owner/repo#123,
 // or owner/repo/123. Returns {owner, repo, number, key} or null.
 function parsePrRef(ref) {
@@ -91,6 +90,8 @@ function settledStatus(pr) {
 	}
 	return {status: 'undecided', reason: 'you reviewed it and nobody has approved it'};
 }
+
+
 
 function classifyPr(pr, state) {
 	if (!pr.isOpen) {
@@ -179,6 +180,9 @@ function authorHandoffPrompt(pr) {
 		'- Answer inside the thread the comment is in, so the answer sits with what it answers.',
 		`- Start every comment you write with \`${AUTHOR_TAG}\`, then your text. That tag marks you as the`,
 		'  agent acting for the PR author.',
+		`- If a comment is for the reviewing agent rather than for a person, sign it`,
+		`  \`${AUTHOR_TAG.slice(0, -1)} | internal]\` instead. Those are cleared once both sides agree they are`,
+		'  done; anything addressed to a human is kept.',
 		`- Comments starting with \`${DRAFT_TAG}\` come from the reviewing agent. Comments with no tag are`,
 		'  from a human, and a human is the deciding voice when the two disagree.',
 		'- Leave threads unresolved, and do not reply to bot comments.',
@@ -215,9 +219,29 @@ function cleanupCandidates({prAuthor, me, comments} = {}) {
 	const answeredRoots = new Set(
 		others.map((c) => c.inReplyTo || c.id).filter((id) => id !== undefined && id !== null),
 	);
-	const eligible = mine.filter((c) => answeredRoots.has(c.inReplyTo || c.id));
-	const unanswered = mine.filter((c) => !answeredRoots.has(c.inReplyTo || c.id));
-	return {eligible, unanswered, others: others.length, blocked: null};
+	// Two classes of removable, because what proves a thread finished differs by who was in it.
+	//
+	// A thread only the agents used has no third party to reply, so "someone answered" can never
+	// fire there and the old rule would have kept agent chatter forever. What settles those is the
+	// two sides agreeing. A thread a person wrote in still needs their reply as the proof, and
+	// only the owner may clear it.
+	// Three classes, decided by what the writer declared rather than by thread shape.
+	//
+	// `| internal` is agent-to-agent by declaration and was never for a person, so agreement
+	// between the two sides clears it. This replaced inferring it from the thread: "no human has
+	// replied" reads identically to "a human was addressed and has not answered yet", and on a
+	// live PR that inference offered an agent's message to a reviewer for deletion.
+	const internal = [];
+	const answered = [];
+	const unanswered = [];
+	for (const c of mine) {
+		const root = c.inReplyTo || c.id;
+		if (signature(c.body).internal) internal.push(c);
+		else if (answeredRoots.has(root)) answered.push(c);
+		else unanswered.push(c);
+	}
+	// `eligible` is the owner-scoped set - everything a full authorization may remove.
+	return {eligible: [...internal, ...answered], internal, answered, unanswered, others: others.length, blocked: null};
 }
 
 // Pending drafts the cleanup can drop: every one but the newest on each thread.
@@ -286,10 +310,15 @@ function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
 	// cannot separate "the owner said so" from "the owner's agent said so" - and treating an
 	// agent's suggestion as the owner's instruction would let the agents authorize themselves.
 	// The human is the one who signs nothing, which is what the tag scheme already means.
+	// What each authorization is allowed to reach. The owner speaks for the whole PR. The two
+	// agents agreeing speaks only for threads they had to themselves - agreement between them
+	// says nothing about a thread a person is in, and that is the one the owner must rule on.
 	const owner = rows.find(
 		(t) => t.author && t.author === prAuthor && t.author === me && !t.isBot && tagSide(t.body) === null,
 	);
-	if (owner) return {authorized: true, by: 'owner', comments: [owner], why: `${owner.author} asked for it on the PR`};
+	if (owner) {
+		return {authorized: true, by: 'owner', scope: 'all', comments: [owner], why: `${owner.author} asked for it on the PR`};
+	}
 
 	const sides = new Map();
 	for (const t of rows) {
@@ -298,7 +327,13 @@ function cleanupAuthorization(triggers, {prAuthor, me} = {}) {
 		if (side && !sides.has(side)) sides.set(side, t);
 	}
 	if (sides.size >= 2) {
-		return {authorized: true, by: 'both-sides', comments: [...sides.values()], why: 'both review sides asked for it'};
+		return {
+			authorized: true,
+			by: 'both-sides',
+			scope: 'internal-only',
+			comments: [...sides.values()],
+			why: 'both review sides agreed - limited to comments marked internal',
+		};
 	}
 	const outsider = rows.find((t) => t.author && t.author !== prAuthor);
 	if (outsider) {
@@ -331,12 +366,28 @@ function summarize(rows) {
 // Every comment body this skill drafts carries the tag, so a later run can tell
 // its own comments from a human's on the same thread.
 function hasDraftTag(body) {
+	// A signature opening the body counts, including the `| internal` form, which contains none
+	// of the bare tags as a substring.
+	if (signature(body).side) return true;
 	const text = String(body || '');
 	return [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS].some((t) => text.includes(t));
 }
 
 // Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
 // untagged comment is the deciding voice precisely because people do not sign.
+function hasDraftTag(body) {
+	// A signature opening the body counts, including the `| internal` form, which contains none
+	// of the bare tags as a substring.
+	if (signature(body).side) return true;
+	const text = String(body || '');
+	return [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS].some((t) => text.includes(t));
+}
+
+// Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
+// untagged comment is the deciding voice precisely because people do not sign.
+// A tag only counts as a signature when it OPENS the comment, which is where both agents put it.
+// Matching anywhere would let a human quoting "[dev-review-ai]" in a question be mistaken for the
+// agent that wrote it, and that comment is exactly the one worth surfacing.
 function tagSide(body) {
 	const text = String(body || '');
 	if (text.includes(REVIEW_TAG) || text.includes('[dev-ai]')) return 'review';
@@ -348,8 +399,11 @@ function tagSide(body) {
 // every body: the tag, then `Ask:` on the first line that carries any text.
 function hasAskLine(body) {
 	const lines = String(body || '').split('\n');
-	const tags = [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS];
-	const first = lines.findIndex((l) => l.trim() !== '' && !tags.includes(l.trim()));
+	// Skip the signature by PARSING it, not by matching one of the bare tags: a signature
+	// carrying `| internal` equals none of them, so it was read as the first content line and
+	// the gate rejected every internally-signed review comment - the marker was unusable from
+	// the one side that has to lead with an ask.
+	const first = lines.findIndex((l) => l.trim() !== '' && !signature(l).side);
 	return first !== -1 && /^Ask:\s*\S/.test(lines[first].trim());
 }
 
@@ -406,7 +460,14 @@ function unseenQueueRows(rows, seen) {
 // comment from a seen one without storing every id. The mark advances past
 // filtered-out comments too - a bot or self comment is seen, just not surfaced -
 // so a later pass does not re-examine it.
-function unseenComments(comments, watermark, {myLogin, includeBots} = {}) {
+// What a watch reports. The filter is by SIGNATURE, not by author, because both agents post under
+// the watcher's own account: filtering on login silenced the human's own comments on their own PR
+// - drafts included - which is the one channel they have to talk to the agent there.
+//
+// Skipped: this side's own output, which is echo. Reported: anything unsigned, whoever wrote it,
+// including the watcher's own human; and the OTHER side's comments, so a message from the author's
+// agent reaches the reviewing watcher and back.
+function unseenComments(comments, watermark, {ownSide, includeBots} = {}) {
 	const mark = Number(watermark) || 0;
 	const fresh = [];
 	let next = mark;
@@ -415,7 +476,7 @@ function unseenComments(comments, watermark, {myLogin, includeBots} = {}) {
 		if (id > next) next = id;
 		if (id <= mark) continue;
 		if (c.isBot && !includeBots) continue;
-		if (myLogin && c.user === myLogin) continue;
+		if (ownSide && signedSide(c.body) === ownSide) continue;
 		fresh.push(c);
 	}
 	fresh.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
@@ -545,6 +606,8 @@ module.exports = {
 	AUTHOR_TAG,
 	LEGACY_TAGS,
 	tagSide,
+	signedSide,
+	signature,
 	cleanupCandidates,
 	supersededDrafts,
 	isOuterDraft,

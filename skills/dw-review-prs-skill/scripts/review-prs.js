@@ -108,7 +108,9 @@ function bodyFile(flags) {
 	// The `Ask:` line is a reviewer's obligation - it names the action that closes the thread.
 	// A comment signed as the author's side is answering one, so requiring an ask there would
 	// force every reply into the wrong shape.
-	if (lib.tagSide(body) !== 'author' && !lib.hasAskLine(body)) {
+	// signedSide, not tagSide: the side is whoever SIGNED the comment, and an author-side reply
+	// that quotes the reviewer's tag while answering it must not be forced into the Ask shape.
+	if (lib.signedSide(body) !== 'author' && !lib.hasAskLine(body)) {
 		fail(`comment body must open on an "Ask: <closeable action>" line after the ${lib.REVIEW_TAG} tag`);
 	}
 	return {file: f, body};
@@ -584,9 +586,9 @@ function cmdCleanup(arg, flags) {
 
 	const short = (b) => String(b || '').replace(/\s+/g, ' ').slice(0, 88);
 	process.stdout.write(
-		`${r.key}: ${stale.length} superseded inner draft(s), ${res.eligible.length} published removable, ` +
-			`${outerKept.length} draft(s) owed to a person, ${res.unanswered.length} published kept, ` +
-			`${res.others} not yours\n`,
+		`${r.key}: ${stale.length} superseded inner draft(s), ${res.internal.length} marked internal, ` +
+			`${res.answered.length} published in a person's thread, ${outerKept.length} draft(s) owed to a person, ` +
+			`${res.unanswered.length} published kept, ${res.others} not yours\n`,
 	);
 	// Node ids for drafts, database ids for published: they are deleted through different APIs,
 	// and printing the wrong one is a failed call the reader only discovers by making it.
@@ -594,9 +596,13 @@ function cmdCleanup(arg, flags) {
 		process.stdout.write(`\nsuperseded inner drafts - between your own agents, drop takes these node ids:\n`);
 		for (const d of stale) process.stdout.write(`  ${d.nodeId}  ${short(d.body)}\n`);
 	}
-	if (res.eligible.length) {
-		process.stdout.write(`\npublished, removable - others may already have read these:\n`);
-		for (const c of res.eligible) process.stdout.write(`  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${short(c.body)}\n`);
+	if (res.internal.length) {
+		process.stdout.write(`\nmarked internal - agent-to-agent, the two sides can clear these by agreeing:\n`);
+		for (const c of res.internal) process.stdout.write(`  ${c.kind} ${c.id} ${short(c.body)}\n`);
+	}
+	if (res.answered.length) {
+		process.stdout.write(`\npublished, in a thread a person wrote in - only you can clear these:\n`);
+		for (const c of res.answered) process.stdout.write(`  ${c.kind} ${c.id} [${lib.tagSide(c.body) || 'you'}] ${short(c.body)}\n`);
 	}
 	if (res.unanswered.length) {
 		process.stdout.write(`\npublished, kept - nobody replied under these, so the exchange did not finish:\n`);
@@ -631,11 +637,19 @@ function cmdCleanup(arg, flags) {
 	if (!auth.authorized) fail(`cleanup not authorized: ${auth.why}`);
 	process.stdout.write(`\nauthorized (${auth.by}): ${auth.why}\n`);
 	for (const c of auth.comments) process.stdout.write(`  trigger ${c.id}: ${short(c.body)}\n`);
+	// The two agents agreeing reaches only what they had to themselves; a thread a person wrote
+	// in is a conversation with them, and clearing the owner's side of it is the owner's call.
+	const removable = auth.scope === 'all' ? res.eligible : res.internal;
+	if (auth.scope !== 'all' && res.answered.length) {
+		process.stdout.write(
+			`  scope: internal only - leaving ${res.answered.length} comment(s) that were addressed to a person\n`,
+		);
+	}
 	for (const d of stale) {
 		graphql(`mutation($id:ID!){ deletePullRequestReviewComment(input:{id:$id}){ clientMutationId } }`, {id: d.nodeId});
 		process.stdout.write(`dropped draft ${d.nodeId}\n`);
 	}
-	for (const c of res.eligible) {
+	for (const c of removable) {
 		const path = c.kind === 'inline'
 			? `repos/${r.owner}/${r.repo}/pulls/comments/${c.id}`
 			: `repos/${r.owner}/${r.repo}/issues/comments/${c.id}`;
@@ -724,6 +738,28 @@ function saveWatchState(state) {
 }
 
 // The three surfaces a reply can land on, each normalized to {id, user, isBot, body, url, ...}.
+// The pending review's own comments are a real channel and appear on no published endpoint:
+// the reviewer answers their own PR as a draft, and nothing else would ever surface it.
+// Resolved per pass because the pending review id changes when a review is submitted and reopened.
+function draftSurface(r, login) {
+	const mine = (ghJsonSoft(['api', '--paginate', `repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews`]).data || [])
+		.filter((v) => v.user && v.user.login === login);
+	const pending = mine.find((v) => v.state === 'PENDING');
+	if (!pending) return null;
+	return {
+		name: 'draft',
+		args: ['api', '--paginate', `repos/${r.owner}/${r.repo}/pulls/${r.number}/reviews/${pending.id}/comments`],
+		map: (c) => ({
+			id: c.id,
+			user: c.user && c.user.login,
+			isBot: false,
+			where: `${c.path}:${c.line || c.original_line || '?'} (unsubmitted)`,
+			body: c.body || '',
+			url: c.html_url,
+		}),
+	};
+}
+
 function watchSurfaces(r) {
 	const base = `repos/${r.owner}/${r.repo}`;
 	return [
@@ -778,12 +814,13 @@ function watchOnePr(key, watchState, opts) {
 	const seeding = lib.isFirstWatch(entry);
 	const next = {...entry};
 	const fresh = [];
-	for (const surface of watchSurfaces(r)) {
+	const surfaces = [...watchSurfaces(r), draftSurface(r, opts.myLogin)].filter(Boolean);
+	for (const surface of surfaces) {
 		const res = ghJsonSoft(surface.args);
 		if (!res.ok) return {key, prState, error: `${surface.name}: ${res.error}`};
 		const rows = (res.data || []).map(surface.map).filter((c) => String(c.body || '').trim() !== '');
 		const seen = lib.unseenComments(rows, entry[surface.name], {
-			myLogin: opts.myLogin,
+			ownSide: opts.ownSide,
 			includeBots: opts.includeBots,
 		});
 		next[surface.name] = seen.watermark;
@@ -834,7 +871,8 @@ function sweepQueue(watchState, login) {
 
 async function cmdWatch() {
 	const myLogin = me();
-	const opts = {includeBots: false, openOnly: false, myLogin};
+	// This watch is the reviewing side, so its own [dev-review-ai] output is the only echo to skip.
+	const opts = {includeBots: false, openOnly: false, myLogin, ownSide: 'review'};
 	const stateFile = paths.statePath();
 	process.stdout.write(`[watch] store=${stateFile} me=${myLogin}\n`);
 	let nextQueueAt = 0;

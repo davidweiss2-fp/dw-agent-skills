@@ -52,7 +52,8 @@ stays invisible. Full spec and the mode mapping: `references/communication.md`.
    cause** (bug tasks) and a **placement contract** (both below), plus a clean **design-review**
    pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. Lock
    the **success metric** (how we'll know it worked in prod) here too.
-4. 🚪 **Post-PR** — present the draft PR; the dev decides whether to hand off to `dw-pr-ready`.
+4. 🚪 **Post-PR** — the draft PR is up and `dw-pr-ready` is already watching it; the dev decides
+   when it flips to ready.
 
 Between gates the conductor runs autonomously and is interruptible — redirect any time.
 
@@ -74,21 +75,27 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
 5. **Implement**.
-6. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
-7. **Deslop** — `dw-deslop` the diff.
-8. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
+6. **Ship it as a draft, and start keeping it ready** — `dw-git-ops` (`ops.sh cap "<message>"`
+   then `ops.sh pr --title "<t>" --body "<b>"`, draft by default), then launch **`dw-pr-ready`** on
+   it straight away. This runs *before* the quality passes on purpose: CI and the review bots start
+   working the pushed code while `/simplify`, `dw-deslop` and `/code-review` run, so their findings
+   arrive in parallel instead of serially after ship. The watcher holds through `waiting-draft`, so
+   a draft PR is watchable from the moment it exists. Fold whatever it reports into the passes below
+   rather than opening a second round after them.
+7. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
+8. **Deslop** — `dw-deslop` the diff.
+9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
    (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
    for at most five rounds, then escalate to the dev with a brief.
-9. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
-   **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
-   folding the `fmt` patch into the commit; the proof of a green preflight is the result
-   envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
-   (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
-10. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
-11. **Ship** — propose a layer-split if large; preflight green + `fmt` applied → ship via
-    **dw-git-ops** (`ops.sh cap "<message>"` then `ops.sh pr --title "<t>" --body "<b>"` — draft is
-    the default, add `--ready` only when shipping ready; worktree-first - route all git through dw-git-ops).
-12. 🚪 **Post-PR** — keep-ready? → `dw-pr-ready`.
+10. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
+    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
+    folding the `fmt` patch into the commit; the proof of a green preflight is the result
+    envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
+    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
+11. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
+12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and everything
+    `dw-pr-ready` surfaced answered → flip the PR out of draft (`ops.sh pr-ready`). The watcher is
+    already running; it carries on from here.
 13. **Post-merge verify** *(offered)* — once the PR merges, delegate to
     `dw-post-merge-verification`; it reads the plan-time success metric from the worktree context
     and rules the fix confirmed / no-effect / inconclusive.

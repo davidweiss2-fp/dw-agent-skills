@@ -176,6 +176,34 @@ function fetchReviewThreads(owner, repo, prNumber) {
 	return threads;
 }
 
+// Unsubmitted review drafts. They appear on none of the published surfaces - not reviewThreads,
+// not issue comments, not reviews - so the reviewing agent leaving drafts on this PR reads as
+// silence here. The author's side has to see them: they are the review, before it is sent.
+function fetchPendingDraftComments(owner, repo, prNumber) {
+	const reviews = parseGhJson(
+		['api', '--paginate', `repos/${owner}/${repo}/pulls/${prNumber}/reviews`],
+		`fetch reviews for PR ${prNumber}`,
+	);
+	const pending = (Array.isArray(reviews) ? reviews : []).filter((r) => r.state === 'PENDING');
+	const out = [];
+	for (const review of pending) {
+		const drafts = parseGhJson(
+			['api', '--paginate', `repos/${owner}/${repo}/pulls/${prNumber}/reviews/${review.id}/comments`],
+			`fetch draft comments for review ${review.id}`,
+		);
+		for (const c of Array.isArray(drafts) ? drafts : []) {
+			out.push({
+				id: c.id,
+				body: c.body,
+				url: c.html_url ?? '',
+				authorLogin: c.user?.login ?? 'unknown',
+				path: c.path ?? '',
+			});
+		}
+	}
+	return out;
+}
+
 function fetchIssueComments(owner, repo, prNumber) {
 	const payload = parseGhJson(
 		['pr', 'view', String(prNumber), '--repo', `${owner}/${repo}`, '--json', 'comments'],
@@ -325,6 +353,10 @@ function recommendedNextCommands(owner, repo, prNumber, reason) {
 	}
 }
 
+// States that mean "nothing to do yet". In loop mode the watcher holds through them; in
+// --run get-all it still reports and exits 0, because a single poll has nothing to wait for.
+const WAITING_REASONS = ['waiting-review', 'waiting-draft', 'waiting-checks'];
+
 function writeInterruptArtifact(prUrl, payload) {
 	const dir = defaultInterruptDir(prUrl);
 	utils.ensureParentDir(join(dir, 'placeholder'));
@@ -385,9 +417,10 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 	const threads = fetchReviewThreads(owner, repo, summary.number);
 	const issueComments = fetchIssueComments(owner, repo, summary.number);
 	const reviews = fetchReviews(owner, repo, summary.number);
+	const pendingDrafts = fetchPendingDraftComments(owner, repo, summary.number);
 	const checks = fetchChecks(owner, repo, summary.number);
 
-	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews);
+	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews, pendingDrafts);
 	const failures = lib.collectFailures(checks, summary.headRefOid);
 	const pendingCount = lib.collectPending(checks);
 	const newComments = lib.unseenComments(summary.number, actionableComments, state, directiveLogins);
@@ -599,6 +632,7 @@ async function main() {
 		`[dw-pr-ready] mode=${options.once ? 'once' : 'loop'} branchUpdate=${options.branchUpdate} pollMs=${options.pollMs}`,
 	);
 
+	let lastWaiting = null;
 	for (;;) {
 		try {
 			const attention = pollOnce(options.prUrl, state, options, directiveLogins);
@@ -614,6 +648,23 @@ async function main() {
 					process.exit(0);
 				}
 
+				// A waiting state is the absence of an event, not one. Exiting on it made
+				// watch-for-new behave like a single poll for the whole early life of a PR -
+				// a draft returned waiting-draft and the loop ended on its first pass, so the
+				// watcher could not be started before the work that produces the events.
+				// It now holds, and says so once per change of state rather than every poll.
+				if (WAITING_REASONS.includes(attention.reason) && !options.once) {
+					if (lastWaiting !== attention.reason) {
+						lastWaiting = attention.reason;
+						console.log(
+							`[dw-pr-ready] ${attention.reason}: ${attention.readyHeadline || 'holding'} - still watching`,
+						);
+					}
+					await sleep(options.pollMs);
+					continue;
+				}
+				lastWaiting = null;
+
 				const artifactPath = writeInterruptArtifact(options.prUrl, {
 					localBranch,
 					interruptedAt: new Date().toISOString(),
@@ -621,7 +672,7 @@ async function main() {
 					...attention,
 				});
 				printInterrupt(attention, localBranch, artifactPath);
-				process.exit(['pr-ready', 'waiting-review', 'waiting-draft', 'waiting-checks'].includes(attention.reason) ? 0 : 2);
+				process.exit(['pr-ready', ...WAITING_REASONS].includes(attention.reason) ? 0 : 2);
 			}
 
 			console.log(`[dw-pr-ready] quiet at ${new Date().toISOString()}`);

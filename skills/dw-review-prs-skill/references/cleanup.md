@@ -64,6 +64,17 @@ drafts sitting on the PR.
 | **Superseded inner draft** | a pending draft, not the newest on its thread, in a thread with only your own agents in it | nobody - it is unpublished | GraphQL, by **node id** (`PRRC_…`) |
 | **Published comment** | your comment in a thread that got a reply | anyone reading the PR | REST, by **database id** (a number) |
 | **Outer draft** | any pending draft in a thread a person has written in | nobody yet - but someone is waiting for it | **never removed** |
+| **Marked internal** | signed `[dev-review-ai \| internal]` or `[dev-author-ai \| internal]` | anyone reading the PR | the two sides agreeing is enough |
+| **Addressed to a person** | any signed comment without the marker | anyone reading the PR | **the owner only** |
+
+**Handled comments can clear themselves, within one boundary.** Sign agent-to-agent chatter
+`[<side> | internal]` and the two sides agreeing is enough to clear it - no owner instruction. A
+comment without the marker was written for whoever reads the PR, and clearing it stays your call.
+
+The marker is a **declaration by the writer**, made when it knows the comment's intent, and that is
+why it replaced inferring the same thing from thread shape. "No human has replied in this thread"
+reads identically to "a human was addressed and has not answered yet": on a live PR that inference
+offered an agent's message to a reviewer for deletion, before he had read it.
 
 **Inner and outer is the distinction that matters most here.** An inner draft is your agents
 talking to each other; an outer one answers a human. Outer drafts stay however stale they look,

@@ -174,6 +174,16 @@ describe('which side signed a comment', () => {
 		for (const legacy of lib.LEGACY_TAGS) assert.equal(lib.hasDraftTag(`${legacy} x`), true);
 	});
 
+	it('lets an internally-signed review comment reach its Ask line', () => {
+		// The gate skipped a line only when it equalled one of the bare tags, and
+		// `[dev-review-ai | internal]` equals none - so it was read as the first content line
+		// and the marker was unusable from the one side that must lead with an ask.
+		assert.equal(lib.hasAskLine('[dev-review-ai | internal]\nAsk: do the thing.\n'), true);
+		assert.equal(lib.hasAskLine('**[DEV-REVIEW-AI | INTERNAL]**\nAsk: do the thing.\n'), true);
+		// And it still refuses a body whose ask does not lead.
+		assert.equal(lib.hasAskLine('[dev-review-ai | internal]\nnit: buried\n\nAsk: too late.\n'), false);
+	});
+
 	it('requires an Ask only from the reviewing side', () => {
 		// A reply answers an ask; forcing one on it would be the wrong shape.
 		assert.equal(lib.hasAskLine(`${lib.REVIEW_TAG}\nAsk: do the thing.\n`), true);
@@ -260,6 +270,42 @@ describe('convergence cleanup on your own PR', () => {
 		assert.equal(lib.cleanupAuthorization([{author: 'reviewer', body: 'clean this up'}], ctx).authorized, false);
 		assert.equal(lib.cleanupAuthorization([{author: 'me', body: 'cleanup', isBot: true}], ctx).authorized, false);
 		assert.equal(lib.cleanupAuthorization([], ctx).authorized, false);
+	});
+
+	it('clears what was declared internal, and keeps what was addressed to a person', () => {
+		const comments = [
+			{id: 1, author: 'me', body: '[dev-review-ai | internal] Ask: fix X'},
+			{id: 2, author: 'me', inReplyTo: 1, body: '[dev-author-ai | internal] done in abc'},
+			{id: 5, author: 'me', body: '[dev-author-ai] @colleague answering your note'},
+			{id: 10, author: 'colleague', body: 'I think this is wrong'},
+			{id: 11, author: 'me', inReplyTo: 10, body: '[dev-author-ai] answered'},
+		];
+		const r = lib.cleanupCandidates({prAuthor: 'me', me: 'me', comments});
+		assert.deepEqual(r.internal.map((c) => c.id), [1, 2]);
+		assert.deepEqual(r.answered.map((c) => c.id), [11], "a person's thread stays owner-only");
+		// Unmarked and unanswered: reads human-free only because nobody has replied yet.
+		assert.deepEqual(r.unanswered.map((c) => c.id), [5]);
+	});
+
+	it('reads the internal marker through emphasis, casing and spacing', () => {
+		assert.deepEqual(lib.signature('[dev-review-ai | internal] x'), {side: 'review', internal: true});
+		assert.deepEqual(lib.signature('**[DEV-AUTHOR-AI | INTERNAL]** x'), {side: 'author', internal: true});
+		assert.deepEqual(lib.signature('[dev-author-ai|internal] x'), {side: 'author', internal: true});
+		assert.deepEqual(lib.signature('[dev-review-ai] x'), {side: 'review', internal: false});
+		// The bare tag is not a substring of the internal form, so the draft gate must parse it.
+		assert.equal(lib.hasDraftTag('[dev-review-ai | internal] x'), true);
+		assert.equal(lib.signature('> [dev-review-ai | internal] quoted').side, null);
+	});
+
+	it('scopes what each authorization may reach', () => {
+		const ctx = {prAuthor: 'me', me: 'me'};
+		assert.equal(lib.cleanupAuthorization([{author: 'me', body: 'clean it'}], ctx).scope, 'all');
+		const both = lib.cleanupAuthorization(
+			[{author: 'me', body: '[dev-review-ai] agree this can be closed?'}, {author: 'me', body: '[dev-author-ai] agreed'}],
+			ctx,
+		);
+		// The agents agreeing says nothing about a thread a person is in.
+		assert.equal(both.scope, 'internal-only');
 	});
 
 	it('refuses outright on a PR you did not author', () => {
@@ -471,15 +517,60 @@ describe('watch bookkeeping', () => {
 	it('reports only comments above the mark, and advances past ones it filters out', () => {
 		const comments = [
 			{id: 10, user: 'someone', body: 'old'},
-			{id: 20, user: 'me', body: 'my own reply'},
+			{id: 20, user: 'me', body: '[dev-review-ai] my own finding'},
 			{id: 30, user: 'bugbot', isBot: true, body: 'bot noise'},
 			{id: 40, user: 'colleague', body: 'answered your ask'},
 		];
-		const seen = lib.unseenComments(comments, 10, {myLogin: 'me', includeBots: false});
+		const seen = lib.unseenComments(comments, 10, {ownSide: 'review', includeBots: false});
 		assert.deepEqual(seen.fresh.map((c) => c.id), [40]);
 		// 30 was filtered, not skipped over: the next pass must not re-examine it.
 		assert.equal(seen.watermark, 40);
-		assert.deepEqual(lib.unseenComments(comments, seen.watermark, {myLogin: 'me'}).fresh, []);
+		assert.deepEqual(lib.unseenComments(comments, seen.watermark, {ownSide: 'review'}).fresh, []);
+	});
+
+	it('surfaces the watcher own human comments, and only its own side is echo', () => {
+		// Both agents post under the watcher's account, so filtering on login silenced the human
+		// on their own PR - drafts included, which is their only channel to the agent there.
+		const comments = [
+			{id: 1, user: 'me', body: '[dev-review-ai] my own finding'},
+			{id: 2, user: 'me', body: 'Can this thread be deleted guys?'},
+			{id: 3, user: 'me', body: '[dev-author-ai] answering you'},
+			{id: 4, user: 'colleague', body: 'a person'},
+		];
+		assert.deepEqual(
+			lib.unseenComments(comments, 0, {ownSide: 'review'}).fresh.map((c) => c.id),
+			[2, 3, 4],
+			'the reviewing watch skips only its own output',
+		);
+		assert.deepEqual(
+			lib.unseenComments(comments, 0, {ownSide: 'author'}).fresh.map((c) => c.id),
+			[1, 2, 4],
+			'the author-side watch hears the reviewer, and vice versa',
+		);
+	});
+
+	it('counts a tag as a signature only when it opens the comment', () => {
+		assert.equal(lib.signedSide('[dev-review-ai] a finding'), 'review');
+		assert.equal(lib.signedSide('[dev-author-ai]\nan answer'), 'author');
+		assert.equal(lib.signedSide('[dev-ai] the old tag'), 'review');
+		// A person quoting the tag mid-sentence is the comment most worth surfacing.
+		assert.equal(lib.signedSide('why did [dev-review-ai] say that?'), null);
+		assert.equal(lib.signedSide('plain question'), null);
+	});
+
+	it('reads a signature through markdown emphasis and casing', () => {
+		// `**[DEV-AI]**` is the form dw-pr-ready actually wrote; unreadable, it was promoted to a
+		// directive from the user, so an agent's own words got obeyed as theirs.
+		assert.equal(lib.signedSide('**[DEV-AI]** Good catch — taken'), 'review');
+		assert.equal(lib.signedSide('**[dev-author-ai]** applied'), 'author');
+		assert.equal(lib.signedSide('`[dev-review-ai]` finding'), 'review');
+		assert.equal(lib.signedSide('_[Dev-Author-AI]_ done'), 'author');
+	});
+
+	it('leaves a blockquoted tag unsigned, because quoting is not signing', () => {
+		// `>` is deliberately not stripped: a blockquote is a person citing an agent comment.
+		assert.equal(lib.signedSide('> [dev-review-ai] Ask: do the thing'), null);
+		assert.equal(lib.signedSide('> **[DEV-AI]** old comment'), null);
 	});
 
 	it('treats a bot comment as reportable only when asked', () => {
@@ -721,6 +812,17 @@ describe('cli guards (no network)', () => {
 		const res = runCli(['draft', 'acme/widget#42', '--path', 'a.php', '--line', '10', '--body-file', file]);
 		assert.equal(res.status, 1);
 		assert.match(res.stderr, /\[dev-review-ai\]/);
+		rmSync(dir, {recursive: true, force: true});
+	});
+
+	it('lets an author-side reply quote the reviewer tag without demanding an Ask', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'dw-review-quote-'));
+		const file = join(dir, 'reply.md');
+		// The gate used to match the tag anywhere, so answering a reviewer while quoting them
+		// was read as a reviewing comment and forced into the Ask shape.
+		writeFileSync(file, '[dev-author-ai]\nTaken. You wrote `[dev-review-ai] Ask: normalise it` and that is done.\n');
+		const res = runCli(['reply', 'acme/widget#42', '--thread', 'PRRT_x', '--body-file', file]);
+		assert.ok(!/must open on an "Ask:/.test(res.stderr), `should not demand an Ask: ${res.stderr}`);
 		rmSync(dir, {recursive: true, force: true});
 	});
 

@@ -83,6 +83,10 @@ jobs:
       - name: deslop rules-engine self-test (scope, overlay, dry-run)
         run: node skills/dw-deslop-skill/scripts/deslop-rules.js --self-test
 
+      # Vendored copies are generated, so a hand-edit fails the build instead of drifting quietly.
+      - name: Vendored utils are in sync
+        run: node utils/sync-utils.js --check
+
       - name: version-bump self-test (patch maths, one-line rewrite, idempotence)
         run: node .github/scripts/bump-version.js --self-test
 

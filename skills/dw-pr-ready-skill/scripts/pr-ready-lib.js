@@ -45,8 +45,22 @@ function isNoiseComment(authorLogin, body) {
 	return false;
 }
 
-function collectActionableComments(threads, issueComments, reviews) {
+function collectActionableComments(threads, issueComments, reviews, pendingDrafts = []) {
 	const actionable = [];
+
+	// Drafts first: an unsent review is the earliest signal there is, and it is invisible on
+	// every published surface.
+	for (const comment of pendingDrafts) {
+		if (isNoiseComment(comment.authorLogin, comment.body)) continue;
+		actionable.push({
+			id: comment.id,
+			kind: 'pending-draft',
+			authorLogin: comment.authorLogin,
+			bodyPreview: bodyPreview(comment.body),
+			body: comment.body,
+			url: comment.url,
+		});
+	}
 
 	for (const thread of threads) {
 		if (thread.isResolved) continue;
@@ -121,9 +135,19 @@ function collectPending(checks) {
 	}).length;
 }
 
+// A directive is the HUMAN speaking. Both agents post under that same account, so a login match
+// alone read every agent comment as an instruction from the user - including this skill's own.
+// The signature is the discriminator: the human signs nothing.
+//
+// Vendored from utils/agent-tags.js, not required across skill directories: skills install
+// independently, so a sibling reference resolves in the plugin cache and throws for every other
+// agent - and the quiet failure is an agent's own words being obeyed as the user's.
+const {signedSide} = require('./_shared-agent-tags.js');
+
 function isUserDirective(comment, directiveLogins) {
 	if (!directiveLogins || directiveLogins.size === 0) return false;
-	return directiveLogins.has(String(comment.authorLogin || '').toLowerCase());
+	if (!directiveLogins.has(String(comment.authorLogin || '').toLowerCase())) return false;
+	return signedSide(comment.body || comment.bodyPreview || '') === null;
 }
 
 function hasMergeConflict(summary) {

@@ -42,7 +42,10 @@ node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update 
 
 Requirements: GitHub CLI installed and authenticated (`gh auth status`).
 
-Directive author: comments from the gh-authenticated user are treated as agent directives.
+Directive author: **unsigned** comments from the gh-authenticated user are treated as agent
+directives. Both agents post under that same account, so a login match alone read every agent
+comment - including this skill's own `[dev-author-ai]` replies - as an instruction from the user.
+The human is the one who signs nothing.
 Override with `DW_PR_DIRECTIVE_LOGINS` (comma-separated logins) to widen or change the set.
 
 ## When watcher exits
@@ -55,9 +58,9 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
-| `waiting-review` | Leave the branch as-is. Wait for reviewer. |
-| `waiting-draft` | Resolve comments only, leaving the branch as-is. Mark ready when user wants. |
-| `waiting-checks` | CI still running. `watch-for-new` keeps polling automatically; with `--run get-all`, re-run when checks finish. |
+| `waiting-review` | Leave the branch as-is. In `watch-for-new` the watcher holds and keeps polling. |
+| `waiting-draft` | Resolve comments only, leaving the branch as-is. Mark ready when user wants. The watcher holds; a draft PR is watchable from the moment it exists. |
+| `waiting-checks` | CI still running. `watch-for-new` keeps polling; with `--run get-all`, re-run when checks finish. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
 
@@ -70,11 +73,23 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
   is behind base (`updatePullRequestBranch`); `on-conflicts` updates only when the PR is
   conflicting/not-mergeable; `never` never updates.
 
+## Start it early, on the draft
+
+A waiting state is the absence of an event, not one, so in `watch-for-new` the watcher **holds
+through** `waiting-draft` / `waiting-review` / `waiting-checks` and keeps polling, announcing each
+change of state once rather than every poll. Only a real event exits it.
+
+That is what makes it worth launching the moment the branch is pushed, while the PR is still a
+draft and before the local quality passes run: CI and the review bots start on the pushed code and
+their findings arrive **in parallel** with `/simplify`, `dw-deslop` and `/code-review`, instead of
+serially after them. `--run get-all` still reports a waiting state and exits, because a single poll
+has nothing to wait for.
+
 ## Agent work loop
 
 1. Run watcher.
 2. If interrupt (exit 2): fix issue, push if needed, run watcher again.
-3. If `pr-ready` / `waiting-*` (exit 0): report and stop unless user wants continued watch.
+3. If `pr-ready` (exit 0): report and stop. In loop mode `waiting-*` does not exit - it holds.
 4. Repeat until merged or user stops.
 
 ## CI-drift capture (close the local↔CI gap)
