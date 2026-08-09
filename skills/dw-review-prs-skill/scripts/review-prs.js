@@ -847,12 +847,11 @@ function printWatchResult(res) {
 	}
 }
 
-// Two clocks, not one. A comment pass hits three endpoints per known PR; the queue sweep
-// re-resolves every review request through the PR endpoint, so it costs far more. Running
-// both at the comment cadence would multiply the API cost of a question whose answer changes
-// a few times a day.
-const COMMENT_POLL_MS = 120_000;
-const QUEUE_POLL_MS = 900_000;
+// One clock. The queue sweep does cost more than a comment pass - it re-resolves every review
+// request through the PR endpoint - but a review requested one minute after a sweep used to wait
+// out the rest of a fifteen-minute window before anyone knew it existed, and that delay is worse
+// than the calls. Both run at the same cadence; the extra API cost is what buys the latency.
+const POLL_MS = 120_000;
 
 // `reportAll` is the first sweep of a process: queueSeen outlives the process, so deduping
 // against it on startup would open a session blind to work already waiting (references/watch.md).
@@ -877,19 +876,19 @@ async function cmdWatch() {
 	const opts = {includeBots: false, openOnly: false, myLogin, ownSide: 'review'};
 	const stateFile = paths.statePath();
 	process.stdout.write(`[watch] store=${stateFile} me=${myLogin}\n`);
-	let nextQueueAt = 0;
 	let firstSweep = true;
 
 	for (;;) {
 		const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
 		const watchState = loadWatchState();
-		if (Date.now() >= nextQueueAt) {
-			const q = sweepQueue(watchState, myLogin, {reportAll: firstSweep});
-			saveWatchState(watchState);
-			nextQueueAt = Date.now() + QUEUE_POLL_MS;
+		const q = sweepQueue(watchState, myLogin, {reportAll: firstSweep});
+		saveWatchState(watchState);
+		// At this cadence the summary would otherwise print every two minutes and say nothing.
+		// The opening sweep still reports, because "N actionable" is the session's starting count.
+		if (q.count > 0 || firstSweep) {
 			process.stdout.write(`[queue] ${q.count} ${firstSweep ? 'actionable' : 'new'} of ${q.scanned} classified\n`);
-			firstSweep = false;
 		}
+		firstSweep = false;
 		const targets = lib.watchTargets(entries, watchState.queueTargets);
 		// Re-read state.md every pass, so a PR reviewed by another run joins the
 		// watch without a restart.
@@ -907,7 +906,7 @@ async function cmdWatch() {
 		if (!pass.fresh) {
 			process.stdout.write(`[watch] quiet - ${targets.length - pass.failed}/${targets.length} PRs reachable\n`);
 		}
-		await new Promise((resolve) => setTimeout(resolve, COMMENT_POLL_MS));
+		await new Promise((resolve) => setTimeout(resolve, POLL_MS));
 	}
 }
 
