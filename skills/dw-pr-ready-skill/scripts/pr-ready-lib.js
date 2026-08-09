@@ -125,10 +125,10 @@ function collectPending(checks) {
 // alone read every agent comment as an instruction from the user - including this skill's own.
 // The signature is the discriminator: the human signs nothing.
 //
-// The tags are owned by dw-review-prs, which ships alongside this skill; requiring them keeps one
-// definition. A missing module throws rather than defaulting, because the quiet failure is an
-// agent's own words being obeyed as the user's.
-const {signedSide} = require('../../dw-review-prs-skill/scripts/review-prs-lib.js');
+// Vendored from utils/agent-tags.js, not required across skill directories: skills install
+// independently, so a sibling reference resolves in the plugin cache and throws for every other
+// agent - and the quiet failure is an agent's own words being obeyed as the user's.
+const {signedSide} = require('./_shared-agent-tags.js');
 
 function isUserDirective(comment, directiveLogins) {
 	if (!directiveLogins || directiveLogins.size === 0) return false;

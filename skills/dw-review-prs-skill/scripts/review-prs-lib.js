@@ -3,20 +3,19 @@
 // Pure decision logic for dw-review-prs: PR refs, state file, and queue
 // classification. No I/O and no gh calls - the CLI fetches, this decides.
 
-// Which side of the review a comment comes from, signed so one thread stays readable when two
+// The comment signature - which side wrote it, and whether it was for a person - is shared with
+// dw-pr-ready, which has to read it identically. Source: utils/agent-tags.js.
+const {REVIEW_TAG, AUTHOR_TAG, LEGACY_TAGS, signature, signedSide} = require('./_shared-agent-tags.js');
+const DRAFT_TAG = REVIEW_TAG;
+
 // agents and a human are all writing in it.
 //
 // The old tag was `[dev-ai]`, which named "an AI" and not a side - and that genericness is what
 // broke: the PR-babysitting skill, acting FOR the author, signed the reviewer's tag, so the
 // distinction the tag exists to carry was gone. These two are parallel on purpose, so picking
 // the wrong one reads as wrong.
-const REVIEW_TAG = '[dev-review-ai]';
-const AUTHOR_TAG = '[dev-author-ai]';
 // Recognised on read only, never emitted: comments already on PRs and rows already in the
 // ledger carry it, and a later run still has to know they were ours.
-const LEGACY_TAGS = ['[dev-ai]', '[author-ai]'];
-const DRAFT_TAG = REVIEW_TAG;
-
 // Accepts a PR URL (with or without /files and a fragment), owner/repo#123,
 // or owner/repo/123. Returns {owner, repo, number, key} or null.
 function parsePrRef(ref) {
@@ -91,6 +90,8 @@ function settledStatus(pr) {
 	}
 	return {status: 'undecided', reason: 'you reviewed it and nobody has approved it'};
 }
+
+
 
 function classifyPr(pr, state) {
 	if (!pr.isOpen) {
@@ -374,41 +375,19 @@ function hasDraftTag(body) {
 
 // Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
 // untagged comment is the deciding voice precisely because people do not sign.
+function hasDraftTag(body) {
+	// A signature opening the body counts, including the `| internal` form, which contains none
+	// of the bare tags as a substring.
+	if (signature(body).side) return true;
+	const text = String(body || '');
+	return [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS].some((t) => text.includes(t));
+}
+
+// Which side signed it, for a run reading a thread back. Null means a human wrote it, and an
+// untagged comment is the deciding voice precisely because people do not sign.
 // A tag only counts as a signature when it OPENS the comment, which is where both agents put it.
 // Matching anywhere would let a human quoting "[dev-review-ai]" in a question be mistaken for the
 // agent that wrote it, and that comment is exactly the one worth surfacing.
-// A signature carries two facts: which side wrote it, and whether it was meant for a person.
-//
-//   [dev-review-ai]              addressed to whoever reads the PR
-//   [dev-review-ai | internal]   agent-to-agent, never for a human
-//
-// The second is a declaration, made by the writer who knows its intent, and it replaces guessing
-// from thread shape later - which reads "no human has replied" as "no human involved" and is
-// wrong exactly when someone has been addressed and has not answered yet.
-const SIGNATURE = /^\[(dev-review-ai|dev-author-ai|dev-ai|author-ai)(\s*\|\s*internal)?\]/;
-
-function signature(body) {
-	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
-	if (!first) return {side: null, internal: false};
-	const m = SIGNATURE.exec(first.trim().replace(/^[*_`\s]+/, '').toLowerCase());
-	if (!m) return {side: null, internal: false};
-	const side = m[1] === 'dev-author-ai' || m[1] === 'author-ai' ? 'author' : 'review';
-	return {side, internal: Boolean(m[2])};
-}
-
-function signedSide(body) {
-	const first = String(body || '').split('\n').find((l) => l.trim() !== '');
-	if (!first) return null;
-	// Emphasis and case are cosmetic, and an unreadable signature is worse than none: in
-	// dw-pr-ready a comment whose tag does not parse is promoted to a directive from the user,
-	// so an agent's own words get obeyed as theirs. `**[DEV-AI]**` is the form that skill wrote
-	// for real - three are on a live PR - and it parsed as unsigned.
-	//
-	// `>` stays unstripped deliberately. A blockquote is someone citing an agent comment, not an
-	// agent signing one, and that quote is a human writing.
-	return signature(body).side;
-}
-
 function tagSide(body) {
 	const text = String(body || '');
 	if (text.includes(REVIEW_TAG) || text.includes('[dev-ai]')) return 'review';
