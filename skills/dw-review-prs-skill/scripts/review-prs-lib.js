@@ -420,8 +420,11 @@ function tagSide(body) {
 // every body: the tag, then `Ask:` on the first line that carries any text.
 function hasAskLine(body) {
 	const lines = String(body || '').split('\n');
-	const tags = [REVIEW_TAG, AUTHOR_TAG, ...LEGACY_TAGS];
-	const first = lines.findIndex((l) => l.trim() !== '' && !tags.includes(l.trim()));
+	// Skip the signature by PARSING it, not by matching one of the bare tags: a signature
+	// carrying `| internal` equals none of them, so it was read as the first content line and
+	// the gate rejected every internally-signed review comment - the marker was unusable from
+	// the one side that has to lead with an ask.
+	const first = lines.findIndex((l) => l.trim() !== '' && !signature(l).side);
 	return first !== -1 && /^Ask:\s*\S/.test(lines[first].trim());
 }
 

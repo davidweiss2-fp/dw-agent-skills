@@ -174,6 +174,16 @@ describe('which side signed a comment', () => {
 		for (const legacy of lib.LEGACY_TAGS) assert.equal(lib.hasDraftTag(`${legacy} x`), true);
 	});
 
+	it('lets an internally-signed review comment reach its Ask line', () => {
+		// The gate skipped a line only when it equalled one of the bare tags, and
+		// `[dev-review-ai | internal]` equals none - so it was read as the first content line
+		// and the marker was unusable from the one side that must lead with an ask.
+		assert.equal(lib.hasAskLine('[dev-review-ai | internal]\nAsk: do the thing.\n'), true);
+		assert.equal(lib.hasAskLine('**[DEV-REVIEW-AI | INTERNAL]**\nAsk: do the thing.\n'), true);
+		// And it still refuses a body whose ask does not lead.
+		assert.equal(lib.hasAskLine('[dev-review-ai | internal]\nnit: buried\n\nAsk: too late.\n'), false);
+	});
+
 	it('requires an Ask only from the reviewing side', () => {
 		// A reply answers an ask; forcing one on it would be the wrong shape.
 		assert.equal(lib.hasAskLine(`${lib.REVIEW_TAG}\nAsk: do the thing.\n`), true);
