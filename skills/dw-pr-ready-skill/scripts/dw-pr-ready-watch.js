@@ -176,6 +176,34 @@ function fetchReviewThreads(owner, repo, prNumber) {
 	return threads;
 }
 
+// Unsubmitted review drafts. They appear on none of the published surfaces - not reviewThreads,
+// not issue comments, not reviews - so the reviewing agent leaving drafts on this PR reads as
+// silence here. The author's side has to see them: they are the review, before it is sent.
+function fetchPendingDraftComments(owner, repo, prNumber) {
+	const reviews = parseGhJson(
+		['api', '--paginate', `repos/${owner}/${repo}/pulls/${prNumber}/reviews`],
+		`fetch reviews for PR ${prNumber}`,
+	);
+	const pending = (Array.isArray(reviews) ? reviews : []).filter((r) => r.state === 'PENDING');
+	const out = [];
+	for (const review of pending) {
+		const drafts = parseGhJson(
+			['api', '--paginate', `repos/${owner}/${repo}/pulls/${prNumber}/reviews/${review.id}/comments`],
+			`fetch draft comments for review ${review.id}`,
+		);
+		for (const c of Array.isArray(drafts) ? drafts : []) {
+			out.push({
+				id: c.id,
+				body: c.body,
+				url: c.html_url ?? '',
+				authorLogin: c.user?.login ?? 'unknown',
+				path: c.path ?? '',
+			});
+		}
+	}
+	return out;
+}
+
 function fetchIssueComments(owner, repo, prNumber) {
 	const payload = parseGhJson(
 		['pr', 'view', String(prNumber), '--repo', `${owner}/${repo}`, '--json', 'comments'],
@@ -389,9 +417,10 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 	const threads = fetchReviewThreads(owner, repo, summary.number);
 	const issueComments = fetchIssueComments(owner, repo, summary.number);
 	const reviews = fetchReviews(owner, repo, summary.number);
+	const pendingDrafts = fetchPendingDraftComments(owner, repo, summary.number);
 	const checks = fetchChecks(owner, repo, summary.number);
 
-	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews);
+	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews, pendingDrafts);
 	const failures = lib.collectFailures(checks, summary.headRefOid);
 	const pendingCount = lib.collectPending(checks);
 	const newComments = lib.unseenComments(summary.number, actionableComments, state, directiveLogins);

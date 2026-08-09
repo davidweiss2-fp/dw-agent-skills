@@ -45,8 +45,22 @@ function isNoiseComment(authorLogin, body) {
 	return false;
 }
 
-function collectActionableComments(threads, issueComments, reviews) {
+function collectActionableComments(threads, issueComments, reviews, pendingDrafts = []) {
 	const actionable = [];
+
+	// Drafts first: an unsent review is the earliest signal there is, and it is invisible on
+	// every published surface.
+	for (const comment of pendingDrafts) {
+		if (isNoiseComment(comment.authorLogin, comment.body)) continue;
+		actionable.push({
+			id: comment.id,
+			kind: 'pending-draft',
+			authorLogin: comment.authorLogin,
+			bodyPreview: bodyPreview(comment.body),
+			body: comment.body,
+			url: comment.url,
+		});
+	}
 
 	for (const thread of threads) {
 		if (thread.isResolved) continue;
