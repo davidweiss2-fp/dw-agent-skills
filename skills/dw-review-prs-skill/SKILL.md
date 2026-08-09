@@ -231,16 +231,25 @@ node scripts/review-prs.js watch
 
 It takes no options and **loops until the process is stopped** - there is no single-pass mode. It
 polls every PR in scope for new comments every two minutes, and re-runs the queue every fifteen so
-a PR whose review was requested after the run still reaches you. Run it in the background and stop
-it when done; a scheduled run that wants one look should call `queue` instead, which covers newly
-actionable PRs but not new comments on known ones. What it polls, what stays quiet, and why the two
-clocks differ: `references/watch.md`.
+a PR whose review was requested after the run still reaches you.
+
+Which of the two you reach for is decided by the session, not by a flag:
+
+- **One look** - a run that starts, works and exits calls `queue`. It classifies every open
+  request, newly actionable ones included, and is blind to new comments on PRs already drafted on.
+- **Resident** - a session that stays up arms `watch` as a persistent monitor, so both signals
+  arrive as events for as long as the session lives. Its first sweep runs immediately and reports
+  every actionable PR, so a restarted session opens on the whole backlog rather than on the delta
+  since the last one.
+
+How to arm it, what it polls, what stays quiet, and why the two clocks differ: `references/watch.md`.
 
 Everything it reports re-enters at Step 2 — a comment means read the thread and draft the reply
 through `reply`; a `[queue]` line means a full review, Steps 2-4.
 
 **Done when** every reported comment is either answered with a draft or named as needing nothing,
-and every PR the sweep surfaced is drafted on or classified.
+every PR the sweep surfaced is drafted on or classified, and a resident session still holds an armed
+monitor.
 
 ## Rationalizations
 

@@ -854,9 +854,11 @@ function printWatchResult(res) {
 const COMMENT_POLL_MS = 120_000;
 const QUEUE_POLL_MS = 900_000;
 
-function sweepQueue(watchState, login) {
+// `reportAll` is the first sweep of a process: queueSeen outlives the process, so deduping
+// against it on startup would open a session blind to work already waiting (references/watch.md).
+function sweepQueue(watchState, login, {reportAll = false} = {}) {
 	const rows = queueRows({}, login);
-	const {fresh, seen} = lib.unseenQueueRows(rows, watchState.queueSeen);
+	const {fresh, seen} = lib.unseenQueueRows(rows, reportAll ? {} : watchState.queueSeen);
 	watchState.queueSeen = seen;
 	// Everything open the sweep saw stays a comment target until the next sweep, which is how
 	// a PR that is not in state.md - notably the reviewer's own - gets its replies polled.
@@ -876,15 +878,17 @@ async function cmdWatch() {
 	const stateFile = paths.statePath();
 	process.stdout.write(`[watch] store=${stateFile} me=${myLogin}\n`);
 	let nextQueueAt = 0;
+	let firstSweep = true;
 
 	for (;;) {
 		const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
 		const watchState = loadWatchState();
 		if (Date.now() >= nextQueueAt) {
-			const q = sweepQueue(watchState, myLogin);
+			const q = sweepQueue(watchState, myLogin, {reportAll: firstSweep});
 			saveWatchState(watchState);
 			nextQueueAt = Date.now() + QUEUE_POLL_MS;
-			process.stdout.write(`[queue] ${q.count} new of ${q.scanned} classified\n`);
+			process.stdout.write(`[queue] ${q.count} ${firstSweep ? 'actionable' : 'new'} of ${q.scanned} classified\n`);
+			firstSweep = false;
 		}
 		const targets = lib.watchTargets(entries, watchState.queueTargets);
 		// Re-read state.md every pass, so a PR reviewed by another run joins the

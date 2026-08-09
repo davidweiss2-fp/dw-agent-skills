@@ -11,6 +11,24 @@ It takes no options. Comments poll every 2 minutes, the queue sweeps every 15, b
 and every PR state is polled. Those were flags once; none earned its surface, and a generic
 `--key value` parser turned a typo'd flag into a silent default rather than an error.
 
+## Arming it in a resident session
+
+A session that stays up runs the loop as a **persistent monitor**, not a background shell, so each
+line becomes an event in that session rather than text in a file nobody reads:
+
+```
+Monitor({ command: "cd <this skill dir> && node scripts/review-prs.js watch 2>&1",
+          description: "new PR comments and newly actionable PRs",
+          persistent: true })
+```
+
+`2>&1` is deliberate: a revoked token or an unreachable repo has to arrive as an event, because
+silence from this loop is indistinguishable from a quiet queue. The loop only exits on failure, so
+an exit means the session has stopped listening while still looking alive - say so and re-arm.
+
+**Steady state** for such a session: the monitor is armed, every event so far is answered with a
+draft or named as needing nothing, and the published page matches the store.
+
 ## What it polls
 
 **Every PR `state.md` has ever recorded**, across repos, including merged and closed ones — a
@@ -39,9 +57,12 @@ waiting on you. Plus every open PR the last queue sweep saw, which is how a PR t
   `status@headSha`: a PR resurfaces when it is pushed to or moves `needs-draft` → `answered`, and a
   quiet one stays quiet. A PR that leaves the actionable set is forgotten, so returning to it
   reports again.
-- **Unlike the comment marks, the first sweep does report.** An actionable PR is work waiting
-  whether or not this process has seen it before — seeding it silently would hide exactly what the
-  sweep is for.
+- **The first sweep of a process runs at once and reports everything actionable.** It fires before
+  the first comment pass, and it ignores the stored marks rather than deduping against them, because
+  `queueSeen` outlives the process: a restart that deduped would open blind to exactly the work the
+  last run reported and nobody has acted on yet. Later sweeps in that process dedupe as normal, which
+  is what keeps a quiet queue quiet. The `[queue] N …` summary line says `actionable` on that first
+  sweep and `new` afterwards.
 - **One unreachable PR is a line of output, not the end of the pass.** A deleted PR or a revoked
   token on one repo leaves the others reporting.
 

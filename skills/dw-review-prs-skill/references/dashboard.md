@@ -68,9 +68,13 @@ The URL lives in `dashboard.json` beside the rest of the store.
 - **A run that cannot publish still builds.** The HTML is written by the script; only the publish
   step needs the Artifact tool. In a headless or unauthenticated run, keep the built file, say
   plainly that the page was not refreshed, and report in chat instead.
-- **A publish conflict is safe to overwrite.** The page is derived from the store every time and is
-  never hand-edited, so if a concurrent run published first, rebuild and publish again rather than
-  merging.
+- **Carry the live page's `next` and `notes` forward.** Everything else on a card is derived from
+  the store, but those two are written by the run that touched that PR. A later run that builds a
+  fresh `actions.json` from its own work therefore strips them off every card it did not touch, and
+  those cards are the ones the reviewer reads to decide what is still waiting. Fetch the published
+  page, merge its per-PR `next` and `notes` into this run's actions, then publish.
+- **A publish conflict is otherwise safe to overwrite.** Nothing on the page is hand-edited, so once
+  the merge above is done, rebuild and publish again rather than reconciling.
 
 ## The way feedback comes back
 
