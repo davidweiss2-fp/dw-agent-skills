@@ -47,10 +47,11 @@ function buildNudge(trigger, path) {
 		`- objective, current state, next steps, decisions, gotchas, pointers; ` +
 		`(2) if a dw-flow is active, persist its state (current phase, approved plan, gate decisions) ` +
 		`to the worktree context dir so the flow can resume at the right phase.`;
-	return {
-		systemMessage: text,
-		hookSpecificOutput: {hookEventName: 'PreCompact', additionalContext: text},
-	};
+	// systemMessage alone: the host's hookSpecificOutput schema is a discriminated union
+	// on hookEventName with no PreCompact branch, so naming PreCompact there fails
+	// validation at the document root and the host drops the whole document - this text
+	// included - while the hook still exits 0.
+	return {systemMessage: text};
 }
 
 function readStdin() {
@@ -103,9 +104,9 @@ function selfTest() {
 	} catch {}
 	log(auto.status === 0, 'valid auto payload exits 0');
 	log(out !== null && typeof out.systemMessage === 'string' && out.systemMessage.length > 0, 'auto payload emits a systemMessage');
-	log(out !== null && out.hookSpecificOutput.hookEventName === 'PreCompact', 'hookSpecificOutput names PreCompact');
-	log(out !== null && out.hookSpecificOutput.additionalContext.includes('auto-compact'), 'auto trigger named in the nudge');
-	log(out !== null && out.hookSpecificOutput.additionalContext.includes('dw-handoff'), 'nudge points at the dw-handoff skill');
+	log(out !== null && out.hookSpecificOutput === undefined, 'no hookSpecificOutput: PreCompact has no branch to carry it');
+	log(out !== null && out.systemMessage.includes('auto-compact'), 'auto trigger named in the nudge');
+	log(out !== null && out.systemMessage.includes('dw-handoff'), 'nudge points at the dw-handoff skill');
 
 	const manual = pipe(JSON.stringify({hook_event_name: 'PreCompact', trigger: 'manual'}));
 	log(manual.status === 0 && manual.stdout.includes('manually (/compact)'), 'manual trigger named in the nudge');

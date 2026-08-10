@@ -46,12 +46,20 @@ Under the hood:
 ## Hooks
 
 The plugin ships one hook dispatcher (`bin/dw-hook.js`) wired to every lifecycle event in
-`hooks/hooks.json` - SessionStart/SessionEnd, UserPromptSubmit, PreToolUse(Bash),
+`hooks/hooks.json` - SessionStart/SessionEnd, UserPromptSubmit, PreToolUse,
 PostToolUse, PostToolUseFailure, PostToolBatch, Stop/StopFailure, SubagentStop,
 PreCompact/PostCompact, PermissionDenied, and CwdChanged. Context-injecting events recall
 saved knowledge (deduped per session); the rest append to the run-notes session log. The
 runbook hint (PreToolUse) and handoff nudge (PreCompact) are built in-process from the
 runbook/handoff skill modules.
+
+PreToolUse is scoped by a matcher to the tools whose input describes what the call is for -
+`Bash|Edit|Write|NotebookEdit|AskUserQuestion|LSP|PowerShell|Skill|ToolSearch|Grep|Monitor` -
+and injects the runbook hint plus pre-call recall keyed on that input. Shell-execution tools
+(Bash, PowerShell, Monitor) carry a dense command string and get the full recall limit; the
+rest query on a thinner string and get one memory. Only events whose `hookSpecificOutput`
+schema has a branch carry `additionalContext`; PreCompact has none, so its nudge travels as
+`systemMessage` alone.
 
 - **Claude Code as a plugin** - the plugin registers these itself on enable; the installer
   changes no settings.

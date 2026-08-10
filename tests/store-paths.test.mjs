@@ -156,6 +156,18 @@ describe('dw-hook.js dispatcher', () => {
 		assert.match(r.stdout, /widget-deploy-gotcha/);
 	});
 
+	it('recalls on PreToolUse from a non-Bash tool input', () => {
+		const r = run(DW_HOOK, {input: payload({
+			hook_event_name: 'PreToolUse',
+			session_id: 'pre-tool-session',
+			tool_name: 'Grep',
+			tool_input: {pattern: 'widget deploy'},
+		}), env: env()});
+		assert.equal(r.status, 0, r.stdout + r.stderr);
+		const out = JSON.parse(r.stdout);
+		assert.match(out.hookSpecificOutput.additionalContext, /widget-deploy-gotcha/);
+	});
+
 	it('log-only events append to the run-notes session log and stay silent', () => {
 		const r = run(DW_HOOK, {input: payload({hook_event_name: 'Stop'}), env: env()});
 		assert.equal(r.status, 0);
