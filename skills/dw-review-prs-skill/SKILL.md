@@ -79,9 +79,9 @@ two things: where the review's context may come from (Step 3), and that GitHub a
 
 A **draft** PR is classified on those terms too, whoever opened it. Draft is the author's signal
 about how finished the work is, not a claim that anyone has looked at it, so it earns the same
-review; the row carries `(draft PR)` in the listing so the review can be pitched at a WIP. There
-used to be a `not-ready` status that suppressed exactly this, which let a PR sit unreviewed for as
-long as its author left it in draft.
+review; the row carries `(draft PR)` in the listing, and Step 3 says what draft changes about the
+review - depth, not whether it happens. There used to be a `not-ready` status that suppressed
+exactly this, which let a PR sit unreviewed for as long as its author left it in draft.
 
 The one thing that still keeps a PR out of the work queue on its own is `watching` - review was
 never requested of you and you are not the author. That is about *who asked*, not about draft state.
@@ -113,7 +113,8 @@ Substantiate every finding against the real code: trace the helper, read the cal
 check what the test asserts. Verify empirically where you can — run the one test, execute the
 snippet, query the local database — and say plainly when you could not. Drop what you cannot
 substantiate. Depth follows review state: on a PR already carrying CHANGES_REQUESTED on its
-approach, note only what survives the rewrite.
+approach, note only what survives the rewrite; on a **draft**, note only what survives continued
+work, since the author is still writing it and a WIP re-enters the queue on every push.
 
 **Does the diff deliver the ticket, and only the ticket?** Two failures, and they need different
 comments. *Under-delivering* is an AC the diff silently does not cover — the finding is "make the
