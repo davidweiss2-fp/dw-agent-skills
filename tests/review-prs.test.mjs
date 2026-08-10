@@ -780,11 +780,54 @@ describe('dashboard rendering', () => {
 		// element needs its own [hidden] restatement or the attribute hides nothing.
 		const setsDisplay = [...html.matchAll(/^(\.[\w-]+|#[\w-]+)(?:,\s*(?:\.[\w-]+|#[\w-]+))*\s*\{[^}]*\bdisplay:/gm)]
 			.flatMap((m) => m[0].split('{')[0].split(',').map((s) => s.trim()));
-		for (const sel of ['.annopop', '.selpill', '#payload']) {
+		for (const sel of ['.annopop', '.selpill', '#payload', '.lane', '.card']) {
 			if (!setsDisplay.includes(sel)) continue;
 			assert.match(html, new RegExp(sel.replace('.', '\\.').replace('#', '#') + '\\[hidden\\]'),
 				`${sel} sets display, so it needs a ${sel}[hidden] rule`);
 		}
+	});
+
+	describe('ownership filter', () => {
+		// Two of yours, one of somebody else's, so a count that reads the wrong side of the
+		// split cannot coincide with the right answer.
+		const mixed = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [
+					{key: 'a/b#1', prState: 'open', author: 'you', mine: true},
+					{key: 'a/b#2', prState: 'open', author: 'you', mine: true},
+					{key: 'a/b#3', prState: 'open', author: 'someone'},
+				],
+			}),
+		);
+
+		it('stamps each card with the side of the split it belongs to', () => {
+			assert.match(mixed, /data-key="a\/b#1" data-own="yours"/);
+			assert.match(mixed, /data-key="a\/b#2" data-own="yours"/);
+			assert.match(mixed, /data-key="a\/b#3" data-own="theirs"/);
+		});
+
+		it('counts each chip over the whole queue, not the filtered view', () => {
+			assert.match(mixed, /data-filter="all"[^>]*><span>All<\/span><b>3<\/b>/);
+			assert.match(mixed, /data-filter="yours"[^>]*><span>Yours<\/span><b>2<\/b>/);
+			assert.match(mixed, /data-filter="theirs"[^>]*><span>Theirs<\/span><b>1<\/b>/);
+		});
+
+		it('opens on All, so nothing is hidden before the reviewer chooses', () => {
+			assert.match(mixed, /data-filter="all" aria-pressed="true"/);
+			assert.match(mixed, /data-filter="yours" aria-pressed="false"/);
+			assert.match(mixed, /data-filter="theirs" aria-pressed="false"/);
+		});
+
+		it('marks your own cards and only your own', () => {
+			assert.equal((mixed.match(/<span class="chip yours">/g) || []).length, 2);
+		});
+
+		it('carries a distinct empty message for each of the three states', () => {
+			const el = mixed.match(/<p class="nothing"[^>]*>/)[0];
+			const messages = ['all', 'yours', 'theirs'].map((id) => (el.match(new RegExp(`data-${id}="([^"]+)"`)) || [])[1]);
+			for (const message of messages) assert.ok(message && message.length > 0);
+			assert.equal(new Set(messages).size, 3, 'a shared message tells the reviewer the wrong thing about why the page is empty');
+		});
 	});
 
 	it('renders both themes through tokens, not one theme with an inverted copy', () => {

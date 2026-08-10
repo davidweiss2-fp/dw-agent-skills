@@ -12,6 +12,15 @@ const LANE_META = {
 	done: {label: 'Closed out', hint: 'merged or closed'},
 };
 
+// Ownership is orthogonal to the lanes: a card is yours when you authored the PR. The ids
+// double as the per-card `data-own` value, which is what lets the client filter on one
+// comparison rather than carrying a predicate table into the page.
+const OWNERSHIP = [
+	{id: 'all', label: 'All', holds: () => true},
+	{id: 'yours', label: 'Yours', holds: (card) => Boolean(card.mine)},
+	{id: 'theirs', label: 'Theirs', holds: (card) => !card.mine},
+];
+
 // The published page's identity, fixed here rather than chosen per run: a title or
 // favicon that moves between runs reads as a different page in the tab and the
 // gallery, and every user of this skill should get the same one.
@@ -128,10 +137,18 @@ function renderHandoff(card) {
 	</div>`;
 }
 
+// Kept out of stateChip: that function's concern is the PR's state, and who wrote it is not
+// a state. It leads the row because it says what you are looking at, not how it is going.
+function ownChip(card) {
+	return card.mine ? '<span class="chip yours">yours</span>' : '';
+}
+
 function renderCard(card) {
-	const chips = stateChip(card)
-		.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
-		.join('');
+	const chips =
+		ownChip(card) +
+		stateChip(card)
+			.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
+			.join('');
 	const comments = card.comments.length
 		? `<ul class="findings">${card.comments
 				.map((c) => {
@@ -145,7 +162,7 @@ function renderCard(card) {
 	const notes = card.notes.length
 		? `<ul class="notes">${card.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
 		: '';
-	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}">
+	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-own="${card.mine ? 'yours' : 'theirs'}">
 	<header>
 		<div class="ident">
 			<a class="key" href="${esc(card.filesUrl)}">${esc(card.key)}</a>
@@ -534,8 +551,63 @@ function dashboardClient() {
 		refresh();
 	});
 
+	// The ownership filter. Its own storage key on purpose: Clear replaces the feedback object
+	// wholesale, and clearing your comments must not throw away which slice you were reading.
+	var FILTER_KEY = 'dw-review-queue-filter-v1';
+	var filter = 'all';
+	try {
+		var storedFilter = localStorage.getItem(FILTER_KEY);
+		if (storedFilter === 'all' || storedFilter === 'yours' || storedFilter === 'theirs') filter = storedFilter;
+	} catch (err) {
+		// A blocked localStorage costs the remembered slice, not the filter.
+	}
+
+	var nothing = document.getElementById('nothing');
+	var chips = document.querySelectorAll('.own');
+
+	// Hides what the filter excludes, then re-derives every number from what is left. The lane
+	// counts describe cards in view, so they follow the filter; the feedback count below does
+	// not, because it describes decisions you recorded and those survive being scrolled past.
+	function applyFilter() {
+		var visible = 0;
+		Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
+			var show = filter === 'all' || card.dataset.own === filter;
+			card.hidden = !show;
+			if (show) visible++;
+		});
+		Array.prototype.forEach.call(document.querySelectorAll('.lane'), function (lane) {
+			var shown = lane.querySelectorAll('.card:not([hidden])').length;
+			lane.hidden = shown === 0;
+			var count = document.querySelector('.count[data-lane="' + lane.id + '"]');
+			if (!count) return;
+			var num = count.querySelector('b');
+			if (num) num.textContent = String(shown);
+			count.classList.toggle('zero', shown === 0);
+		});
+		nothing.textContent = nothing.dataset[filter] || '';
+		nothing.hidden = visible > 0;
+		Array.prototype.forEach.call(chips, function (chip) {
+			var on = chip.dataset.filter === filter;
+			chip.classList.toggle('on', on);
+			chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+		});
+	}
+
+	Array.prototype.forEach.call(chips, function (chip) {
+		chip.addEventListener('click', function () {
+			filter = chip.dataset.filter;
+			try {
+				localStorage.setItem(FILTER_KEY, filter);
+			} catch (err) {
+				/* nothing to do - the filter still applies for this visit */
+			}
+			applyFilter();
+		});
+	});
+
 	state.comments.forEach(renderComment);
 	refresh();
+	applyFilter();
 }
 
 function renderDashboard(model, opts = {}) {
@@ -556,9 +628,17 @@ function renderDashboard(model, opts = {}) {
 	const countBar = model.lanes
 		.map((lane) => {
 			const n = model.counts[lane] || 0;
-			return `<a class="count ${esc(lane)}${n ? '' : ' zero'}" href="#${esc(lane)}"><b>${n}</b><span>${esc(LANE_META[lane].label)}</span></a>`;
+			return `<a class="count ${esc(lane)}${n ? '' : ' zero'}" data-lane="${esc(lane)}" href="#${esc(lane)}"><b>${n}</b><span>${esc(LANE_META[lane].label)}</span></a>`;
 		})
 		.join('');
+
+	// The count on each chip is the only place the page can say what is on the *other* side of
+	// the filter: the lane bar recomputes to whatever is active, so it can never tell you that
+	// Theirs has seven waiting. Without these you click a chip to find out whether it is empty.
+	const ownerBar = OWNERSHIP.map((own) => {
+		const n = model.cards.filter(own.holds).length;
+		return `<button class="own${n ? '' : ' zero'}${own.id === 'all' ? ' on' : ''}" type="button" data-filter="${esc(own.id)}" aria-pressed="${own.id === 'all' ? 'true' : 'false'}"><span>${esc(own.label)}</span><b>${n}</b></button>`;
+	}).join('');
 
 	return `<title>${esc(title)}</title>
 <style>
@@ -647,6 +727,24 @@ body {
 	text-wrap: balance;
 }
 .stamp { font-family: var(--mono); font-size: 0.75rem; color: var(--ink-faint); }
+.owners { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.own {
+	display: flex; align-items: baseline; gap: 0.4rem;
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--rule);
+	background: var(--surface);
+	color: var(--ink-soft);
+	cursor: pointer;
+}
+.own b { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.own.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.own.on b { color: var(--accent); }
+.own.zero { opacity: 0.55; }
+.own:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nothing { margin: 0; color: var(--ink-faint); font-style: italic; }
 .counts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .count {
 	display: flex; align-items: baseline; gap: 0.45rem;
@@ -667,6 +765,9 @@ body {
 .count.delegated { border-left-color: var(--ink-faint); }
 .count.done { border-left-color: var(--good); }
 .lane { display: flex; flex-direction: column; gap: 0.75rem; }
+/* Both of these set display, so the UA's [hidden] rule loses to them and the attribute the
+   ownership filter toggles would hide nothing. Restated, same reason as .annopop below. */
+.lane[hidden], .card[hidden] { display: none; }
 .lane h2 {
 	margin: 0;
 	display: flex; align-items: center; gap: 0.5rem;
@@ -708,6 +809,7 @@ body {
 	border: 1px solid currentColor;
 	color: var(--ink-soft);
 }
+.chip.yours { color: var(--ink-faint); }
 .chip.accent { color: var(--accent); background: var(--accent-soft); }
 .chip.good { color: var(--good); }
 .chip.crit { color: var(--crit); }
@@ -907,8 +1009,10 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 		<h1>${esc(title)}</h1>
 		<span class="stamp">${esc(model.generatedAt)}${reviewer}</span>
 	</div>
+	<nav class="owners" role="group" aria-label="Filter by who owns the PR">${ownerBar}</nav>
 	<nav class="counts">${countBar}</nav>
-	${laneSections || '<p>No PRs recorded yet.</p>'}
+	${laneSections}
+	<p class="nothing" id="nothing" hidden data-all="No PRs recorded yet." data-yours="No PRs you authored are in the queue." data-theirs="No PRs from anyone else are in the queue."></p>
 	<div class="handoff" id="handoff">
 		<span class="handoff-count" id="handoff-count">Nothing selected yet</span>
 		<button class="btn primary" type="button" id="handoff-copy">Copy comments</button>
