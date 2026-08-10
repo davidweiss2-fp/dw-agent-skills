@@ -26,7 +26,10 @@ Four properties are load-bearing and easy to break by accident:
 - **The feedback payload ignores the filter.** A decision or comment recorded on a card that is
   now hidden still lands in **Copy comments**, and the sticky bar counts it. A filter is a view;
   the payload is the record of what the reviewer decided. Scoping the payload to visible cards
-  drops an instruction with nothing in the output to say it existed.
+  drops an instruction with nothing in the output to say it existed. Because that feedback can only
+  be read or removed on its own card, the sticky bar carries a **"N PRs hidden by the filter"**
+  button whenever some of it is out of view; clicking it returns to All. Without it the reviewer
+  copies an instruction they cannot see.
 - **Lane counts follow the filter, the feedback count does not.** They count different nouns -
   cards in view versus decisions recorded - and the inconsistency is chosen, not overlooked.
 - **The filter has its own storage key**, separate from the feedback state. `Clear` replaces the
@@ -41,6 +44,17 @@ remembered filter therefore never claims the slice is why a page with nothing in
 
 Nothing about the filter comes through `--actions`; it is entirely the reviewer's view of data the
 model already carries. No run needs to think about it.
+
+**Who owns which part.** `dashboardModel` owns the split itself, the way it owns lanes: it stamps
+`side` on every card and emits `sideCounts`, so every number on the page is derived in one place.
+The renderer owns only the wording - each side's label and what it says when empty - and the client
+owns the view. A new side is therefore added in the model and named in the renderer's `SIDE_META`.
+
+**The client's behaviour is unit-tested**, against the small DOM in `tests/support/mini-dom.mjs`:
+`dashboardClient` closes over nothing, so it runs against a fake document with no dependencies.
+That suite covers the filtering, the lane counts, persistence and the hidden-feedback cue; the
+markup-to-selector contract is asserted separately in `tests/review-prs.test.mjs`, since the mini
+DOM is built by hand rather than parsed from the page.
 
 ## The actions file
 
