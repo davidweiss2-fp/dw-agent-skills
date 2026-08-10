@@ -788,8 +788,8 @@ describe('dashboard rendering', () => {
 	});
 
 	describe('ownership filter', () => {
-		// Two of yours, one of somebody else's, so a count that reads the wrong side of the
-		// split cannot coincide with the right answer.
+		// Deliberately lopsided: with 2 and 1, a count reading the wrong side cannot land on the
+		// right answer by coincidence.
 		const mixed = dashboard.renderDashboard(
 			lib.dashboardModel({
 				prs: [
@@ -800,10 +800,39 @@ describe('dashboard rendering', () => {
 			}),
 		);
 
+		// Attribute order is not the contract, so each card is located then read.
+		function cardTag(html, key) {
+			return html.match(new RegExp(`<article[^>]*data-key="${key.replace('/', '\\/')}"[^>]*>`))[0];
+		}
+
 		it('stamps each card with the side of the split it belongs to', () => {
-			assert.match(mixed, /data-key="a\/b#1" data-own="yours"/);
-			assert.match(mixed, /data-key="a\/b#2" data-own="yours"/);
-			assert.match(mixed, /data-key="a\/b#3" data-own="theirs"/);
+			assert.match(cardTag(mixed, 'a/b#1'), /data-side="yours"/);
+			assert.match(cardTag(mixed, 'a/b#2'), /data-side="yours"/);
+			assert.match(cardTag(mixed, 'a/b#3'), /data-side="theirs"/);
+		});
+
+		it('stamps only side values the chips can actually filter to', () => {
+			const stamped = [...mixed.matchAll(/<article[^>]*data-side="([^"]+)"/g)].map((m) => m[1]);
+			const filters = [...mixed.matchAll(/class="side-filter[^"]*"[^>]*data-filter="([^"]+)"/g)].map((m) => m[1]);
+			assert.ok(stamped.length > 0);
+			for (const side of stamped) {
+				assert.ok(filters.includes(side), `no chip can select cards stamped ${side}`);
+			}
+		});
+
+		it('gives every rendered lane a count element the client can find', () => {
+			const lanes = [...mixed.matchAll(/<section class="lane" id="([^"]+)"/g)].map((m) => m[1]);
+			assert.ok(lanes.length > 0);
+			for (const lane of lanes) {
+				assert.match(mixed, new RegExp(`class="count [^"]*" data-lane="${lane}"`), `lane ${lane} has no data-lane count`);
+			}
+		});
+
+		it('keeps the filter on a storage key of its own, so clearing feedback cannot reset it', () => {
+			const keys = [...mixed.matchAll(/'(dw-review-queue-[a-z-]+-v\d+)'/g)].map((m) => m[1]);
+			assert.ok(keys.includes('dw-review-queue-feedback-v1'));
+			assert.ok(keys.includes('dw-review-queue-filter-v1'));
+			assert.equal(new Set(keys).size, 2, 'the filter and the feedback state must not share a key');
 		});
 
 		it('counts each chip over the whole queue, not the filtered view', () => {
@@ -812,28 +841,35 @@ describe('dashboard rendering', () => {
 			assert.match(mixed, /data-filter="theirs"[^>]*><span>Theirs<\/span><b>1<\/b>/);
 		});
 
-		it('opens on All, so nothing is hidden before the reviewer chooses', () => {
-			assert.match(mixed, /data-filter="all" aria-pressed="true"/);
+		it('ships with All selected, both visibly and to assistive tech', () => {
+			// Both halves matter: aria-pressed alone would leave no chip looking active.
+			assert.match(mixed, /class="side-filter on" type="button" data-filter="all" aria-pressed="true"/);
 			assert.match(mixed, /data-filter="yours" aria-pressed="false"/);
 			assert.match(mixed, /data-filter="theirs" aria-pressed="false"/);
 		});
 
-		it('marks your own cards and only your own', () => {
+		it('marks your own cards, only your own, and ahead of the state chips', () => {
 			assert.equal((mixed.match(/<span class="chip yours">/g) || []).length, 2);
+			const withState = dashboard.renderDashboard(
+				lib.dashboardModel({prs: [{key: 'a/b#1', prState: 'open', mine: true, pendingDrafts: 2, storeStatus: 'drafted'}]}),
+			);
+			assert.match(withState, /<div class="chips"><span class="chip yours">yours<\/span><span class="chip accent">/);
 		});
 
 		it('renders the empty queue message server-side, so a client that never runs still explains itself', () => {
 			const bare = dashboard.renderDashboard(lib.dashboardModel({prs: []}));
-			assert.match(bare, /<p class="nothing"[^>]*>No PRs recorded yet\.<\/p>/);
+			assert.match(bare, /<p class="empty-note"[^>]*>No PRs recorded yet\.<\/p>/);
 			// With cards present the same element ships hidden and blank; the client fills it.
-			assert.match(mixed, /<p class="nothing"[^>]* hidden><\/p>/);
+			assert.match(mixed, /<p class="empty-note"[^>]* hidden><\/p>/);
 		});
 
-		it('carries a distinct empty message for each of the three states', () => {
-			const el = mixed.match(/<p class="nothing"[^>]*>/)[0];
-			const messages = ['all', 'yours', 'theirs'].map((id) => (el.match(new RegExp(`data-${id}="([^"]+)"`)) || [])[1]);
+		it('carries a distinct empty message per side, and none for All', () => {
+			const el = mixed.match(/<p class="empty-note"[^>]*>/)[0];
+			const messages = ['yours', 'theirs'].map((id) => (el.match(new RegExp(`data-${id}="([^"]+)"`)) || [])[1]);
 			for (const message of messages) assert.ok(message && message.length > 0);
-			assert.equal(new Set(messages).size, 3, 'a shared message tells the reviewer the wrong thing about why the page is empty');
+			assert.equal(new Set(messages).size, 2, 'a shared message tells the reviewer the wrong thing about why the page is empty');
+			// All can never show a filtered-empty state, so copy for it here would be dead.
+			assert.doesNotMatch(el, /data-all=/);
 		});
 	});
 
