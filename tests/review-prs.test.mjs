@@ -822,6 +822,13 @@ describe('dashboard rendering', () => {
 			assert.equal((mixed.match(/<span class="chip yours">/g) || []).length, 2);
 		});
 
+		it('renders the empty queue message server-side, so a client that never runs still explains itself', () => {
+			const bare = dashboard.renderDashboard(lib.dashboardModel({prs: []}));
+			assert.match(bare, /<p class="nothing"[^>]*>No PRs recorded yet\.<\/p>/);
+			// With cards present the same element ships hidden and blank; the client fills it.
+			assert.match(mixed, /<p class="nothing"[^>]* hidden><\/p>/);
+		});
+
 		it('carries a distinct empty message for each of the three states', () => {
 			const el = mixed.match(/<p class="nothing"[^>]*>/)[0];
 			const messages = ['all', 'yours', 'theirs'].map((id) => (el.match(new RegExp(`data-${id}="([^"]+)"`)) || [])[1]);

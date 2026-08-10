@@ -12,14 +12,30 @@ const LANE_META = {
 	done: {label: 'Closed out', hint: 'merged or closed'},
 };
 
-// Ownership is orthogonal to the lanes: a card is yours when you authored the PR. The ids
-// double as the per-card `data-own` value, which is what lets the client filter on one
-// comparison rather than carrying a predicate table into the page.
-const OWNERSHIP = [
-	{id: 'all', label: 'All', holds: () => true},
-	{id: 'yours', label: 'Yours', holds: (card) => Boolean(card.mine)},
-	{id: 'theirs', label: 'Theirs', holds: (card) => !card.mine},
+// Ownership is orthogonal to the lanes: a card is on exactly one side of the split, and the
+// side's id is what gets stamped on the card, so the client filters on one string comparison.
+const SIDES = [
+	{
+		id: 'yours',
+		label: 'Yours',
+		empty: 'No PRs you authored are in the queue.',
+		holds: (card) => Boolean(card.mine),
+	},
+	{
+		id: 'theirs',
+		label: 'Theirs',
+		empty: 'No PRs from anyone else are in the queue.',
+		holds: (card) => !card.mine,
+	},
 ];
+
+// Not a side - the absence of a filter, which is why it holds everything.
+const NO_FILTER = {id: 'all', label: 'All', empty: 'No PRs recorded yet.', holds: () => true};
+const FILTERS = [NO_FILTER, ...SIDES];
+
+function sideOf(card) {
+	return SIDES.find((side) => side.holds(card)).id;
+}
 
 // The published page's identity, fixed here rather than chosen per run: a title or
 // favicon that moves between runs reads as a different page in the tab and the
@@ -137,15 +153,11 @@ function renderHandoff(card) {
 	</div>`;
 }
 
-// Kept out of stateChip: that function's concern is the PR's state, and who wrote it is not
-// a state. It leads the row because it says what you are looking at, not how it is going.
-function ownChip(card) {
-	return card.mine ? '<span class="chip yours">yours</span>' : '';
-}
-
 function renderCard(card) {
+	// Deliberately not a stateChip: that function's concern is the PR's state, and who wrote it
+	// is not a state. It leads the row, because it says what you are looking at.
 	const chips =
-		ownChip(card) +
+		(card.mine ? '<span class="chip yours">yours</span>' : '') +
 		stateChip(card)
 			.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
 			.join('');
@@ -162,7 +174,7 @@ function renderCard(card) {
 	const notes = card.notes.length
 		? `<ul class="notes">${card.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
 		: '';
-	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-own="${card.mine ? 'yours' : 'theirs'}">
+	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-own="${esc(sideOf(card))}">
 	<header>
 		<div class="ident">
 			<a class="key" href="${esc(card.filesUrl)}">${esc(card.key)}</a>
@@ -554,16 +566,25 @@ function dashboardClient() {
 	// The ownership filter. Its own storage key on purpose: Clear replaces the feedback object
 	// wholesale, and clearing your comments must not throw away which slice you were reading.
 	var FILTER_KEY = 'dw-review-queue-filter-v1';
+	var nothing = document.getElementById('nothing');
+	var chips = document.querySelectorAll('.own');
+	// An empty queue is a more fundamental truth than an empty side of it, and the server already
+	// rendered it. Leaving that text alone stops a remembered filter claiming the slice is why
+	// the page is bare when there is nothing in the queue at all.
+	var anyCards = Boolean(document.querySelector('.card'));
 	var filter = 'all';
+
+	// The chips are the list of valid filters, so a stored value is checked against them rather
+	// than against a copy of the ids kept over here, where a renamed slice would not reach.
 	try {
 		var storedFilter = localStorage.getItem(FILTER_KEY);
-		if (storedFilter === 'all' || storedFilter === 'yours' || storedFilter === 'theirs') filter = storedFilter;
+		var known = Array.prototype.some.call(chips, function (chip) {
+			return chip.dataset.filter === storedFilter;
+		});
+		if (known) filter = storedFilter;
 	} catch (err) {
 		// A blocked localStorage costs the remembered slice, not the filter.
 	}
-
-	var nothing = document.getElementById('nothing');
-	var chips = document.querySelectorAll('.own');
 
 	// Hides what the filter excludes, then re-derives every number from what is left. The lane
 	// counts describe cards in view, so they follow the filter; the feedback count below does
@@ -584,7 +605,7 @@ function dashboardClient() {
 			if (num) num.textContent = String(shown);
 			count.classList.toggle('zero', shown === 0);
 		});
-		nothing.textContent = nothing.dataset[filter] || '';
+		if (anyCards) nothing.textContent = nothing.dataset[filter];
 		nothing.hidden = visible > 0;
 		Array.prototype.forEach.call(chips, function (chip) {
 			var on = chip.dataset.filter === filter;
@@ -632,13 +653,21 @@ function renderDashboard(model, opts = {}) {
 		})
 		.join('');
 
-	// The count on each chip is the only place the page can say what is on the *other* side of
-	// the filter: the lane bar recomputes to whatever is active, so it can never tell you that
-	// Theirs has seven waiting. Without these you click a chip to find out whether it is empty.
-	const ownerBar = OWNERSHIP.map((own) => {
-		const n = model.cards.filter(own.holds).length;
-		return `<button class="own${n ? '' : ' zero'}${own.id === 'all' ? ' on' : ''}" type="button" data-filter="${esc(own.id)}" aria-pressed="${own.id === 'all' ? 'true' : 'false'}"><span>${esc(own.label)}</span><b>${n}</b></button>`;
+	// Each chip counts over the whole queue, which is the only place the page can say what is on
+	// the *other* side of the filter: the lane bar recomputes to whatever is active, so it can
+	// never tell you Theirs has seven waiting. All ships pre-selected so the page is correct
+	// before the script runs; `applyFilter` moves it when a filter was remembered.
+	const ownerBar = FILTERS.map((f) => {
+		const n = model.cards.filter(f.holds).length;
+		const on = f === NO_FILTER;
+		return `<button class="own${n ? '' : ' zero'}${on ? ' on' : ''}" type="button" data-filter="${esc(f.id)}" aria-pressed="${on ? 'true' : 'false'}"><span>${esc(f.label)}</span><b>${n}</b></button>`;
 	}).join('');
+
+	// One element for both ways the page can come up empty: nothing recorded at all, and nothing
+	// on the side you filtered to. The server knows the first answer for certain, so it renders
+	// it - a client that throws before wiring degrades to a page that still explains itself.
+	const emptyCopy = FILTERS.map((f) => `data-${esc(f.id)}="${esc(f.empty)}"`).join(' ');
+	const nothing = `<p class="nothing" id="nothing" ${emptyCopy}${model.cards.length ? ' hidden' : ''}>${model.cards.length ? '' : esc(NO_FILTER.empty)}</p>`;
 
 	return `<title>${esc(title)}</title>
 <style>
@@ -739,11 +768,9 @@ body {
 	color: var(--ink-soft);
 	cursor: pointer;
 }
-.own b { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.own b { color: var(--ink-faint); }
 .own.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .own.on b { color: var(--accent); }
-.own.zero { opacity: 0.55; }
-.own:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .nothing { margin: 0; color: var(--ink-faint); font-style: italic; }
 .counts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .count {
@@ -756,18 +783,16 @@ body {
 	color: var(--ink);
 	border-left: 3px solid var(--ink-faint);
 }
-.count b { font-family: var(--mono); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.count b { font-family: var(--mono); font-size: 1.05rem; }
 .count span { font-size: 0.8rem; color: var(--ink-soft); }
-.count.zero { opacity: 0.55; }
-.count:focus-visible, .key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.count.zero, .own.zero { opacity: 0.55; }
+.count b, .own b { font-variant-numeric: tabular-nums; }
+.count:focus-visible, .key:focus-visible, .own:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .count.needs-you { border-left-color: var(--accent); }
 .count.waiting-author { border-left-color: var(--warn); }
 .count.delegated { border-left-color: var(--ink-faint); }
 .count.done { border-left-color: var(--good); }
 .lane { display: flex; flex-direction: column; gap: 0.75rem; }
-/* Both of these set display, so the UA's [hidden] rule loses to them and the attribute the
-   ownership filter toggles would hide nothing. Restated, same reason as .annopop below. */
-.lane[hidden], .card[hidden] { display: none; }
 .lane h2 {
 	margin: 0;
 	display: flex; align-items: center; gap: 0.5rem;
@@ -874,7 +899,7 @@ footer { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); 
 .selpill, .annopop { position: absolute; z-index: 20; }
 /* A class that sets display beats the UA's [hidden] rule, so the attribute stops
    hiding anything. Restate it for the elements this page toggles. */
-.selpill[hidden], .annopop[hidden], #payload[hidden] { display: none; }
+.selpill[hidden], .annopop[hidden], #payload[hidden], .lane[hidden], .card[hidden] { display: none; }
 .selpill {
 	font-family: var(--mono);
 	font-size: 0.72rem;
@@ -1012,7 +1037,7 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 	<nav class="owners" role="group" aria-label="Filter by who owns the PR">${ownerBar}</nav>
 	<nav class="counts">${countBar}</nav>
 	${laneSections}
-	<p class="nothing" id="nothing" hidden data-all="No PRs recorded yet." data-yours="No PRs you authored are in the queue." data-theirs="No PRs from anyone else are in the queue."></p>
+	${nothing}
 	<div class="handoff" id="handoff">
 		<span class="handoff-count" id="handoff-count">Nothing selected yet</span>
 		<button class="btn primary" type="button" id="handoff-copy">Copy comments</button>
