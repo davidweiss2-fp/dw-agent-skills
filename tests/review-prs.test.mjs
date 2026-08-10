@@ -114,7 +114,8 @@ describe('classifyPr', () => {
 		// And the same lifecycle once it has been reviewed.
 		const drafted = lib.classifyPr({...base, authoredByMe: true, pendingReview: {id: 1, draftCount: 3}});
 		assert.equal(drafted.status, 'draft-waiting');
-		assert.equal(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).status, 'not-ready');
+		// Your own PR in draft is still work: draft is not a claim that it was reviewed.
+		assert.equal(lib.isActionable(lib.classifyPr({...base, authoredByMe: true, isDraft: true}).status), true);
 	});
 
 	it('author notes never change how a PR is classified', () => {
@@ -424,12 +425,27 @@ describe('what "already reviewed" resolves to', () => {
 		assert.equal(cls.status, 'answered');
 	});
 
-	it('reads a WIP as not-ready, but unsubmitted drafts still come first', () => {
-		const wip = {...reviewed, isDraft: true, submittedShas: []};
-		assert.equal(lib.classifyPr(wip, undefined).status, 'not-ready');
-		assert.equal(lib.isActionable('not-ready'), false);
+	it('reviews a WIP on the same terms as a ready PR, drafts still coming first', () => {
+		// Draft says how finished the work is, not whether it has been reviewed. Suppressing a
+		// draft let a PR sit unreviewed for as long as its author left it in that state. Review is
+		// requested here so the draft flag is the only thing under test.
+		const wip = {...reviewed, isDraft: true, submittedShas: [], sources: ['requested']};
+		const cls = lib.classifyPr(wip, undefined);
+		assert.equal(cls.status, 'needs-draft');
+		assert.equal(lib.isActionable(cls.status), true);
+		// Unsubmitted drafts of your own still outrank it: that slot has to be resolved first.
 		const wipWithDrafts = {...wip, pendingReview: {id: 1, draftCount: 2}};
 		assert.equal(lib.classifyPr(wipWithDrafts, undefined).status, 'draft-waiting');
+	});
+
+	it('reviews a draft whoever opened it, and a reviewed draft still settles', () => {
+		const wip = {...reviewed, isDraft: true, submittedShas: []};
+		// Somebody else's draft with review requested, and your own draft, are both work.
+		assert.equal(lib.isActionable(lib.classifyPr({...wip, sources: ['requested']}).status), true);
+		assert.equal(lib.isActionable(lib.classifyPr({...wip, authoredByMe: true, sources: ['mine']}).status), true);
+		// Being a draft does not re-queue one already reviewed at this head.
+		const settled = lib.classifyPr({...wip, sources: ['requested'], submittedShas: [wip.headSha]});
+		assert.equal(lib.isActionable(settled.status), false);
 	});
 
 	it('tells a retained-but-closed PR how to clear itself', () => {
