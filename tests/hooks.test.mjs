@@ -91,10 +91,12 @@ describe('fail-open contract (hooks are advisory, never block)', () => {
 describe('emitted envelope is legal for the event that carries it', () => {
 	const {buildEnvelope} = createRequire(import.meta.url)(join(ROOT, 'bin', 'dw-hook.js'));
 
-	// The host validates hookSpecificOutput as a discriminated union on hookEventName.
-	// An event with no branch must not carry the field at all: naming it there fails
-	// validation at the document root, so the host drops systemMessage along with it.
-	const WITH_BRANCH = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolBatch', 'Stop', 'SubagentStop'];
+	// An event with no hookSpecificOutput branch must not carry the field at all; naming
+	// one there drops the whole document, systemMessage included.
+	const WITH_BRANCH = [
+		'SessionStart', 'UserPromptSubmit', 'PreToolUse',
+		'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'Stop', 'SubagentStop',
+	];
 	const NO_BRANCH = EVENTS.filter((e) => !WITH_BRANCH.includes(e));
 
 	for (const event of WITH_BRANCH) {

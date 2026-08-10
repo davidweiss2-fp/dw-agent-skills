@@ -47,10 +47,8 @@ function buildNudge(trigger, path) {
 		`- objective, current state, next steps, decisions, gotchas, pointers; ` +
 		`(2) if a dw-flow is active, persist its state (current phase, approved plan, gate decisions) ` +
 		`to the worktree context dir so the flow can resume at the right phase.`;
-	// systemMessage alone: the host's hookSpecificOutput schema is a discriminated union
-	// on hookEventName with no PreCompact branch, so naming PreCompact there fails
-	// validation at the document root and the host drops the whole document - this text
-	// included - while the hook still exits 0.
+	// systemMessage alone: the host's hookSpecificOutput schema has no PreCompact branch,
+	// and naming one there drops the whole document (see bin/dw-hook.js).
 	return {systemMessage: text};
 }
 
