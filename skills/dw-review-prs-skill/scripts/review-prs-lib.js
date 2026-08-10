@@ -119,12 +119,10 @@ function classifyPr(pr, state) {
 		// An empty pending review still blocks REST comment posting on this PR.
 		return {status: 'draft-empty', reason: 'empty pending review holds the one-per-PR slot'};
 	}
-	// Checked after the drafts: an author who reopens a PR as WIP does not release the
-	// pending-review slot, so submitting or dropping those drafts still comes first.
-	if (pr.isDraft) {
-		return {status: 'not-ready', reason: 'the author has it back in draft'};
-	}
-
+	// A draft PR is classified exactly like a ready one. Draft is the author's signal about how
+	// finished the work is, not a statement about whether it has been reviewed, and suppressing it
+	// here meant a PR could sit unreviewed for as long as its author left it in draft. The row
+	// still carries `isDraftPr`, so the reviewer sees it is a WIP and can pitch the review at that.
 	const submitted = Array.isArray(pr.submittedShas) ? pr.submittedShas : [];
 	if (pr.headSha && submitted.includes(pr.headSha)) {
 		return settledStatus(pr);

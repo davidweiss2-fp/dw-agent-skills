@@ -69,7 +69,6 @@ Statuses:
 | `reviewed` | You reviewed it and it is approved | One line, no work |
 | `undecided` | You reviewed it and nobody has approved it | One line; chase or approve |
 | `changes-requested` | Changes requested and not yet resolved | One line, waiting on the author |
-| `not-ready` | The author has it back in draft | One line; reviewing a WIP is wasted |
 | `watching` | You took part in a thread, but review was never requested of you | One line, no work |
 | `skip` / `closed` | Declined at this head, or gone | One line, no work |
 
@@ -77,6 +76,15 @@ Your **own** PRs are classified on exactly these terms — same statuses, same l
 Authorship is a property of the row (`[yours]` in the listing), not a status, and it changes only
 two things: where the review's context may come from (Step 3), and that GitHub allows only
 `--event COMMENT` when you submit.
+
+A **draft** PR is classified on those terms too, whoever opened it. Draft is the author's signal
+about how finished the work is, not a claim that anyone has looked at it, so it earns the same
+review; the row carries `(draft PR)` in the listing so the review can be pitched at a WIP. There
+used to be a `not-ready` status that suppressed exactly this, which let a PR sit unreviewed for as
+long as its author left it in draft.
+
+The one thing that still keeps a PR out of the work queue on its own is `watching` - review was
+never requested of you and you are not the author. That is about *who asked*, not about draft state.
 
 **Done when** every open request is classified and the actionable ones are reported to the user as
 links, newest work first.
