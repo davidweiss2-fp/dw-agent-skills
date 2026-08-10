@@ -563,18 +563,18 @@ function dashboardClient() {
 
 	// The ownership filter keeps its own storage key, separate from the feedback state above.
 	var FILTER_KEY = 'dw-review-queue-filter-v1';
-	var emptyNote = document.getElementById("empty-note");
-	var sideButtons = document.querySelectorAll(".side-filter");
+	var emptyNote = document.getElementById('empty-note');
+	var sideButtons = document.querySelectorAll('.side-filter');
 	// False when the queue is empty, in which case the server's message stands and is not rewritten.
 	var anyCards = Boolean(document.querySelector('.card'));
 	var filter = 'all';
 
-	// The chips carry every valid filter id, so a stored value is checked against them rather than
+	// The side filters carry every valid id, so a stored value is checked against them rather than
 	// against a second copy of the ids kept here.
 	try {
 		var storedFilter = localStorage.getItem(FILTER_KEY);
-		var known = Array.prototype.some.call(sideButtons, function (chip) {
-			return chip.dataset.filter === storedFilter;
+		var known = Array.prototype.some.call(sideButtons, function (button) {
+			return button.dataset.filter === storedFilter;
 		});
 		if (known) filter = storedFilter;
 	} catch (err) {
@@ -603,16 +603,16 @@ function dashboardClient() {
 		var copy = emptyNote.getAttribute('data-' + filter);
 		if (anyCards && copy !== null) emptyNote.textContent = copy;
 		emptyNote.hidden = visible > 0;
-		Array.prototype.forEach.call(sideButtons, function (chip) {
-			var on = chip.dataset.filter === filter;
-			chip.classList.toggle('on', on);
-			chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+		Array.prototype.forEach.call(sideButtons, function (button) {
+			var on = button.dataset.filter === filter;
+			button.classList.toggle('on', on);
+			button.setAttribute('aria-pressed', on ? 'true' : 'false');
 		});
 	}
 
-	Array.prototype.forEach.call(sideButtons, function (chip) {
-		chip.addEventListener('click', function () {
-			filter = chip.dataset.filter;
+	Array.prototype.forEach.call(sideButtons, function (button) {
+		button.addEventListener('click', function () {
+			filter = button.dataset.filter;
 			try {
 				localStorage.setItem(FILTER_KEY, filter);
 			} catch (err) {
@@ -649,7 +649,7 @@ function renderDashboard(model, opts = {}) {
 		})
 		.join('');
 
-	// Each chip counts over the whole queue, not the active filter. All ships pre-selected so the
+	// Each side filter counts over the whole queue, not the active filter. All ships pre-selected so the
 	// markup is right before the script runs; `applyFilter` moves it when a filter was remembered.
 	const sideFilterBar = FILTERS.map((f) => {
 		const n = model.cards.filter(f.holds).length;

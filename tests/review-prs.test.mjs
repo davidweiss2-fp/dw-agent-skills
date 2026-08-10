@@ -828,11 +828,50 @@ describe('dashboard rendering', () => {
 			}
 		});
 
-		it('keeps the filter on a storage key of its own, so clearing feedback cannot reset it', () => {
-			const keys = [...mixed.matchAll(/'(dw-review-queue-[a-z-]+-v\d+)'/g)].map((m) => m[1]);
-			assert.ok(keys.includes('dw-review-queue-feedback-v1'));
-			assert.ok(keys.includes('dw-review-queue-filter-v1'));
-			assert.equal(new Set(keys).size, 2, 'the filter and the feedback state must not share a key');
+		// The client is serialized into the page, so its selectors and the markup are one contract
+		// held together by matching strings. A rename that lands on only one side leaves a page
+		// that throws on load, and every other assertion here still passes.
+		const clientScript = mixed.slice(mixed.lastIndexOf('<script>'));
+
+		it('looks up only ids and classes the page actually renders', () => {
+			// Every element type at once, so the check tests the contract and not one fixture:
+			// a card of yours with drafts and a handoff brief, and one of theirs with a cta.
+			const everything =
+				mixed +
+				dashboard.renderDashboard(
+					lib.dashboardModel({
+						prs: [
+							{key: 'a/b#8', prState: 'open', mine: true, pendingDrafts: 1, storeStatus: 'drafted'},
+							{key: 'a/b#9', prState: 'open', author: 'someone'},
+						],
+						ledger: '| 2026-08-05T08:00:00Z | a/b#9 | drafted | blocker | a finding |  |',
+						actions: {prs: {'a/b#9': {next: 'Approve it.', cta: 'Approve the PR', notes: ['a note']}}},
+					}),
+				);
+			const ids = [...clientScript.matchAll(/getElementById\('([^']+)'\)/g)].map((m) => m[1]);
+			const selectors = [...clientScript.matchAll(/querySelector(?:All)?\('([^']+)'\)/g)].map((m) => m[1]);
+			// The client builds some of its own nodes, so those classes are never in the markup.
+			const built = new Set([...clientScript.matchAll(/className = '([^']+)'/g)].map((m) => m[1]));
+			assert.ok(ids.length > 0 && selectors.length > 0, 'found no client lookups to check');
+			for (const id of ids) {
+				assert.match(everything, new RegExp(`id="${id}"`), `client reads #${id}, which the page never renders`);
+			}
+			for (const selector of selectors) {
+				// Only the plain leading class of each selector is checked; that is what renames break.
+				const cls = /^\.([\w-]+)/.exec(selector);
+				if (!cls || built.has(cls[1])) continue;
+				assert.match(everything, new RegExp(`class="[^"]*\\b${cls[1]}\\b`), `client queries ${selector}, absent from the page`);
+			}
+		});
+
+		it('reads and writes the filter under its own key, never the feedback key', () => {
+			assert.match(clientScript, /var FILTER_KEY = 'dw-review-queue-filter-v1'/);
+			assert.match(clientScript, /getItem\(FILTER_KEY\)/);
+			assert.match(clientScript, /setItem\(FILTER_KEY, filter\)/);
+			// Sharing the feedback key would write a bare filter id over the stored JSON, and the
+			// next load would throw in the parse and drop every saved comment and decision.
+			const filterBlock = clientScript.slice(clientScript.indexOf('FILTER_KEY'));
+			assert.doesNotMatch(filterBlock, /(get|set)Item\(KEY[,)]/, 'the filter must not touch the feedback key');
 		});
 
 		it('counts each chip over the whole queue, not the filtered view', () => {

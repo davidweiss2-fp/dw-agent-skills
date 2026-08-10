@@ -12,14 +12,14 @@ varies per run is the data below.
 
 ## The ownership filter
 
-Above the lane counts sits a three-state chip row - **All / Yours / Theirs** - splitting the queue
+Above the lane counts sits a three-state side filter - **All / Yours / Theirs** - splitting the queue
 on who authored the PR (`mine` on the card). It opens on **All** the first time and on the side you
-last chose after that, remembered in the browser. Each chip carries its own count, and your own
+last chose after that, remembered in the browser. Each one carries its own count, and your own
 cards wear a `yours` chip so the All view is scannable without reading author logins. Lanes that
 empty out under a filter hide, and a filter matching nothing renders one line saying so.
 
-The chip counts are computed over the whole queue on purpose: the lane counts below recompute to
-whatever is active, so the chips are the only place the page can tell you what is on the other side.
+The side-filter counts are computed over the whole queue on purpose: the lane counts below recompute to
+whatever is active, so the filters are the only place the page can tell you what is on the other side.
 
 Four properties are load-bearing and easy to break by accident:
 
