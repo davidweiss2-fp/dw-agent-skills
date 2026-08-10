@@ -780,11 +780,136 @@ describe('dashboard rendering', () => {
 		// element needs its own [hidden] restatement or the attribute hides nothing.
 		const setsDisplay = [...html.matchAll(/^(\.[\w-]+|#[\w-]+)(?:,\s*(?:\.[\w-]+|#[\w-]+))*\s*\{[^}]*\bdisplay:/gm)]
 			.flatMap((m) => m[0].split('{')[0].split(',').map((s) => s.trim()));
-		for (const sel of ['.annopop', '.selpill', '#payload']) {
+		for (const sel of ['.annopop', '.selpill', '#payload', '.lane', '.card']) {
 			if (!setsDisplay.includes(sel)) continue;
 			assert.match(html, new RegExp(sel.replace('.', '\\.').replace('#', '#') + '\\[hidden\\]'),
 				`${sel} sets display, so it needs a ${sel}[hidden] rule`);
 		}
+	});
+
+	describe('ownership filter', () => {
+		// Deliberately lopsided: with 2 and 1, a count reading the wrong side cannot land on the
+		// right answer by coincidence.
+		const mixed = dashboard.renderDashboard(
+			lib.dashboardModel({
+				prs: [
+					{key: 'a/b#1', prState: 'open', author: 'you', mine: true},
+					{key: 'a/b#2', prState: 'open', author: 'you', mine: true},
+					{key: 'a/b#3', prState: 'open', author: 'someone'},
+				],
+			}),
+		);
+
+		// Attribute order is not the contract, so each card is located then read.
+		function cardTag(html, key) {
+			return html.match(new RegExp(`<article[^>]*data-key="${key.replace('/', '\\/')}"[^>]*>`))[0];
+		}
+
+		it('stamps each card with the side of the split it belongs to', () => {
+			assert.match(cardTag(mixed, 'a/b#1'), /data-side="yours"/);
+			assert.match(cardTag(mixed, 'a/b#2'), /data-side="yours"/);
+			assert.match(cardTag(mixed, 'a/b#3'), /data-side="theirs"/);
+		});
+
+		it('stamps only side values the chips can actually filter to', () => {
+			const stamped = [...mixed.matchAll(/<article[^>]*data-side="([^"]+)"/g)].map((m) => m[1]);
+			const filters = [...mixed.matchAll(/class="side-filter[^"]*"[^>]*data-filter="([^"]+)"/g)].map((m) => m[1]);
+			assert.ok(stamped.length > 0);
+			for (const side of stamped) {
+				assert.ok(filters.includes(side), `no chip can select cards stamped ${side}`);
+			}
+		});
+
+		it('gives every rendered lane a count element the client can find', () => {
+			const lanes = [...mixed.matchAll(/<section class="lane" id="([^"]+)"/g)].map((m) => m[1]);
+			assert.ok(lanes.length > 0);
+			for (const lane of lanes) {
+				assert.match(mixed, new RegExp(`class="count [^"]*" data-lane="${lane}"`), `lane ${lane} has no data-lane count`);
+			}
+		});
+
+		// The client is serialized into the page, so its selectors and the markup are one contract
+		// held together by matching strings. A rename that lands on only one side leaves a page
+		// that throws on load, and every other assertion here still passes.
+		const clientScript = mixed.slice(mixed.lastIndexOf('<script>'));
+
+		it('looks up only ids and classes the page actually renders', () => {
+			// Every element type at once, so the check tests the contract and not one fixture:
+			// a card of yours with drafts and a handoff brief, and one of theirs with a cta.
+			const everything =
+				mixed +
+				dashboard.renderDashboard(
+					lib.dashboardModel({
+						prs: [
+							{key: 'a/b#8', prState: 'open', mine: true, pendingDrafts: 1, storeStatus: 'drafted'},
+							{key: 'a/b#9', prState: 'open', author: 'someone'},
+						],
+						ledger: '| 2026-08-05T08:00:00Z | a/b#9 | drafted | blocker | a finding |  |',
+						actions: {prs: {'a/b#9': {next: 'Approve it.', cta: 'Approve the PR', notes: ['a note']}}},
+					}),
+				);
+			const ids = [...clientScript.matchAll(/getElementById\('([^']+)'\)/g)].map((m) => m[1]);
+			const selectors = [...clientScript.matchAll(/querySelector(?:All)?\('([^']+)'\)/g)].map((m) => m[1]);
+			// The client builds some of its own nodes, so those classes are never in the markup.
+			const built = new Set([...clientScript.matchAll(/className = '([^']+)'/g)].map((m) => m[1]));
+			assert.ok(ids.length > 0 && selectors.length > 0, 'found no client lookups to check');
+			for (const id of ids) {
+				assert.match(everything, new RegExp(`id="${id}"`), `client reads #${id}, which the page never renders`);
+			}
+			for (const selector of selectors) {
+				// Only the plain leading class of each selector is checked; that is what renames break.
+				const cls = /^\.([\w-]+)/.exec(selector);
+				if (!cls || built.has(cls[1])) continue;
+				assert.match(everything, new RegExp(`class="[^"]*\\b${cls[1]}\\b`), `client queries ${selector}, absent from the page`);
+			}
+		});
+
+		it('reads and writes the filter under its own key, never the feedback key', () => {
+			assert.match(clientScript, /var FILTER_KEY = 'dw-review-queue-filter-v1'/);
+			assert.match(clientScript, /getItem\(FILTER_KEY\)/);
+			assert.match(clientScript, /setItem\(FILTER_KEY, filter\)/);
+			// Sharing the feedback key would write a bare filter id over the stored JSON, and the
+			// next load would throw in the parse and drop every saved comment and decision.
+			const filterBlock = clientScript.slice(clientScript.indexOf('FILTER_KEY'));
+			assert.doesNotMatch(filterBlock, /(get|set)Item\(KEY[,)]/, 'the filter must not touch the feedback key');
+		});
+
+		it('counts each chip over the whole queue, not the filtered view', () => {
+			assert.match(mixed, /data-filter="all"[^>]*><span>All<\/span><b>3<\/b>/);
+			assert.match(mixed, /data-filter="yours"[^>]*><span>Yours<\/span><b>2<\/b>/);
+			assert.match(mixed, /data-filter="theirs"[^>]*><span>Theirs<\/span><b>1<\/b>/);
+		});
+
+		it('ships with All selected, both visibly and to assistive tech', () => {
+			// Both halves matter: aria-pressed alone would leave no chip looking active.
+			assert.match(mixed, /class="side-filter on" type="button" data-filter="all" aria-pressed="true"/);
+			assert.match(mixed, /data-filter="yours" aria-pressed="false"/);
+			assert.match(mixed, /data-filter="theirs" aria-pressed="false"/);
+		});
+
+		it('marks your own cards, only your own, and ahead of the state chips', () => {
+			assert.equal((mixed.match(/<span class="chip yours">/g) || []).length, 2);
+			const withState = dashboard.renderDashboard(
+				lib.dashboardModel({prs: [{key: 'a/b#1', prState: 'open', mine: true, pendingDrafts: 2, storeStatus: 'drafted'}]}),
+			);
+			assert.match(withState, /<div class="chips"><span class="chip yours">yours<\/span><span class="chip accent">/);
+		});
+
+		it('renders the empty queue message server-side, so a client that never runs still explains itself', () => {
+			const bare = dashboard.renderDashboard(lib.dashboardModel({prs: []}));
+			assert.match(bare, /<p class="empty-note"[^>]*>No PRs recorded yet\.<\/p>/);
+			// With cards present the same element ships hidden and blank; the client fills it.
+			assert.match(mixed, /<p class="empty-note"[^>]* hidden><\/p>/);
+		});
+
+		it('carries a distinct empty message per side, and none for All', () => {
+			const el = mixed.match(/<p class="empty-note"[^>]*>/)[0];
+			const messages = ['yours', 'theirs'].map((id) => (el.match(new RegExp(`data-${id}="([^"]+)"`)) || [])[1]);
+			for (const message of messages) assert.ok(message && message.length > 0);
+			assert.equal(new Set(messages).size, 2, 'a shared message tells the reviewer the wrong thing about why the page is empty');
+			// All can never show a filtered-empty state, so copy for it here would be dead.
+			assert.doesNotMatch(el, /data-all=/);
+		});
 	});
 
 	it('renders both themes through tokens, not one theme with an inverted copy', () => {

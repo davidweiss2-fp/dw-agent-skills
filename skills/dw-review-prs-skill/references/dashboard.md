@@ -10,6 +10,38 @@ behaviour (select-to-comment, the per-PR button, the copy handoff). Never hand-w
 whole point is that every reviewer on this skill gets the same interface, and the only thing that
 varies per run is the data below.
 
+## The ownership filter
+
+Above the lane counts sits a three-state side filter - **All / Yours / Theirs** - splitting the queue
+on who authored the PR (`mine` on the card). It opens on **All** the first time and on the side you
+last chose after that, remembered in the browser. Each one carries its own count, and your own
+cards wear a `yours` chip so the All view is scannable without reading author logins. Lanes that
+empty out under a filter hide, and a filter matching nothing renders one line saying so.
+
+The side-filter counts are computed over the whole queue on purpose: the lane counts below recompute to
+whatever is active, so the filters are the only place the page can tell you what is on the other side.
+
+Four properties are load-bearing and easy to break by accident:
+
+- **The feedback payload ignores the filter.** A decision or comment recorded on a card that is
+  now hidden still lands in **Copy comments**, and the sticky bar counts it. A filter is a view;
+  the payload is the record of what the reviewer decided. Scoping the payload to visible cards
+  drops an instruction with nothing in the output to say it existed.
+- **Lane counts follow the filter, the feedback count does not.** They count different nouns -
+  cards in view versus decisions recorded - and the inconsistency is chosen, not overlooked.
+- **The filter has its own storage key**, separate from the feedback state. `Clear` replaces the
+  whole feedback object, and clearing comments must not reset which slice the reviewer was reading.
+- **The `yours` chip is not a `stateChip`.** That function's concern is the PR's state - drafts
+  waiting, approved, conflicting, checks failing - and who wrote the PR is not a state. Folding it
+  in there makes `stateChip` a grab bag; it is prepended where the chips row is assembled instead.
+
+An empty queue and an empty side of it are different messages, and the empty queue wins: the server
+renders that one, because it is the case it knows for certain, and the client leaves it alone. A
+remembered filter therefore never claims the slice is why a page with nothing in it is bare.
+
+Nothing about the filter comes through `--actions`; it is entirely the reviewer's view of data the
+model already carries. No run needs to think about it.
+
 ## The actions file
 
 `--actions` takes JSON. One entry per PR key, all fields optional:

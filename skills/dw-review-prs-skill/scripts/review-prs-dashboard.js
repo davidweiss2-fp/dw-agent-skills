@@ -12,6 +12,31 @@ const LANE_META = {
 	done: {label: 'Closed out', hint: 'merged or closed'},
 };
 
+// Ownership is orthogonal to the lanes: a card is on exactly one side of the split, and the
+// side's id is what gets stamped on the card, so the client filters on one string comparison.
+const SIDES = [
+	{
+		id: 'yours',
+		label: 'Yours',
+		empty: 'No PRs you authored are in the queue.',
+		holds: (card) => Boolean(card.mine),
+	},
+	{
+		id: 'theirs',
+		label: 'Theirs',
+		empty: 'No PRs from anyone else are in the queue.',
+		holds: (card) => !card.mine,
+	},
+];
+
+// Not a side: the absence of a filter, so it holds every card.
+const ALL = {id: 'all', label: 'All', empty: 'No PRs recorded yet.', holds: () => true};
+const FILTERS = [ALL, ...SIDES];
+
+function sideOf(card) {
+	return SIDES.find((side) => side.holds(card)).id;
+}
+
 // The published page's identity, fixed here rather than chosen per run: a title or
 // favicon that moves between runs reads as a different page in the tab and the
 // gallery, and every user of this skill should get the same one.
@@ -129,9 +154,11 @@ function renderHandoff(card) {
 }
 
 function renderCard(card) {
-	const chips = stateChip(card)
-		.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
-		.join('');
+	const chips =
+		(card.mine ? '<span class="chip yours">yours</span>' : '') +
+		stateChip(card)
+			.map((c) => `<span class="chip ${c.tone}">${esc(c.text)}</span>`)
+			.join('');
 	const comments = card.comments.length
 		? `<ul class="findings">${card.comments
 				.map((c) => {
@@ -145,7 +172,7 @@ function renderCard(card) {
 	const notes = card.notes.length
 		? `<ul class="notes">${card.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
 		: '';
-	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}">
+	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-side="${esc(sideOf(card))}">
 	<header>
 		<div class="ident">
 			<a class="key" href="${esc(card.filesUrl)}">${esc(card.key)}</a>
@@ -534,8 +561,70 @@ function dashboardClient() {
 		refresh();
 	});
 
+	// The ownership filter keeps its own storage key, separate from the feedback state above.
+	var FILTER_KEY = 'dw-review-queue-filter-v1';
+	var emptyNote = document.getElementById('empty-note');
+	var sideButtons = document.querySelectorAll('.side-filter');
+	// False when the queue is empty, in which case the server's message stands and is not rewritten.
+	var anyCards = Boolean(document.querySelector('.card'));
+	var filter = 'all';
+
+	// The side filters carry every valid id, so a stored value is checked against them rather than
+	// against a second copy of the ids kept here.
+	try {
+		var storedFilter = localStorage.getItem(FILTER_KEY);
+		var known = Array.prototype.some.call(sideButtons, function (button) {
+			return button.dataset.filter === storedFilter;
+		});
+		if (known) filter = storedFilter;
+	} catch (err) {
+		// A blocked localStorage costs the remembered slice, not the filter.
+	}
+
+	// Hides what the filter excludes, then re-derives the lane counts from what is left. The
+	// feedback count in `refresh` is not touched: it ranges over every recorded decision.
+	function applyFilter() {
+		var visible = 0;
+		Array.prototype.forEach.call(document.querySelectorAll('.card'), function (card) {
+			var show = filter === 'all' || card.dataset.side === filter;
+			card.hidden = !show;
+			if (show) visible++;
+		});
+		Array.prototype.forEach.call(document.querySelectorAll('.lane'), function (lane) {
+			var shown = lane.querySelectorAll('.card:not([hidden])').length;
+			lane.hidden = shown === 0;
+			var count = document.querySelector('.count[data-lane="' + lane.id + '"]');
+			if (!count) return;
+			var num = count.querySelector('b');
+			if (num) num.textContent = String(shown);
+			count.classList.toggle('zero', shown === 0);
+		});
+		// Only a side carries copy here; on All the server's empty-queue text stands.
+		var copy = emptyNote.getAttribute('data-' + filter);
+		if (anyCards && copy !== null) emptyNote.textContent = copy;
+		emptyNote.hidden = visible > 0;
+		Array.prototype.forEach.call(sideButtons, function (button) {
+			var on = button.dataset.filter === filter;
+			button.classList.toggle('on', on);
+			button.setAttribute('aria-pressed', on ? 'true' : 'false');
+		});
+	}
+
+	Array.prototype.forEach.call(sideButtons, function (button) {
+		button.addEventListener('click', function () {
+			filter = button.dataset.filter;
+			try {
+				localStorage.setItem(FILTER_KEY, filter);
+			} catch (err) {
+				/* nothing to do - the filter still applies for this visit */
+			}
+			applyFilter();
+		});
+	});
+
 	state.comments.forEach(renderComment);
 	refresh();
+	applyFilter();
 }
 
 function renderDashboard(model, opts = {}) {
@@ -556,9 +645,23 @@ function renderDashboard(model, opts = {}) {
 	const countBar = model.lanes
 		.map((lane) => {
 			const n = model.counts[lane] || 0;
-			return `<a class="count ${esc(lane)}${n ? '' : ' zero'}" href="#${esc(lane)}"><b>${n}</b><span>${esc(LANE_META[lane].label)}</span></a>`;
+			return `<a class="count ${esc(lane)}${n ? '' : ' zero'}" data-lane="${esc(lane)}" href="#${esc(lane)}"><b>${n}</b><span>${esc(LANE_META[lane].label)}</span></a>`;
 		})
 		.join('');
+
+	// Each side filter counts over the whole queue, not the active filter. All ships pre-selected so the
+	// markup is right before the script runs; `applyFilter` moves it when a filter was remembered.
+	const sideFilterBar = FILTERS.map((f) => {
+		const n = model.cards.filter(f.holds).length;
+		const on = f === ALL;
+		return `<button class="side-filter${n ? '' : ' zero'}${on ? ' on' : ''}" type="button" data-filter="${esc(f.id)}" aria-pressed="${on ? 'true' : 'false'}"><span>${esc(f.label)}</span><b>${n}</b></button>`;
+	}).join('');
+
+	// One element for both ways the page comes up empty. The empty-queue case is rendered here and
+	// the client leaves it alone; only a side carries copy the client swaps in, so only sides get
+	// an attribute. Read back with getAttribute, not dataset, so a hyphenated id still resolves.
+	const emptyNoteAttrs = SIDES.map((side) => `data-${side.id}="${esc(side.empty)}"`).join(' ');
+	const emptyNote = `<p class="empty-note" id="empty-note" role="status" ${emptyNoteAttrs}${model.cards.length ? ' hidden' : ''}>${model.cards.length ? '' : esc(ALL.empty)}</p>`;
 
 	return `<title>${esc(title)}</title>
 <style>
@@ -647,6 +750,24 @@ body {
 	text-wrap: balance;
 }
 .stamp { font-family: var(--mono); font-size: 0.75rem; color: var(--ink-faint); }
+.side-filters { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.side-filter {
+	display: flex; align-items: baseline; gap: 0.4rem;
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--rule);
+	background: var(--surface);
+	color: var(--ink-soft);
+	cursor: pointer;
+}
+.side-filter b { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.side-filter.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.side-filter.on b { color: var(--accent); }
+.side-filter.zero { opacity: 0.55; }
+.side-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty-note { margin: 0; color: var(--ink-faint); font-style: italic; }
 .counts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .count {
 	display: flex; align-items: baseline; gap: 0.45rem;
@@ -708,6 +829,7 @@ body {
 	border: 1px solid currentColor;
 	color: var(--ink-soft);
 }
+.chip.yours { color: var(--ink-faint); }
 .chip.accent { color: var(--accent); background: var(--accent-soft); }
 .chip.good { color: var(--good); }
 .chip.crit { color: var(--crit); }
@@ -772,7 +894,7 @@ footer { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); 
 .selpill, .annopop { position: absolute; z-index: 20; }
 /* A class that sets display beats the UA's [hidden] rule, so the attribute stops
    hiding anything. Restate it for the elements this page toggles. */
-.selpill[hidden], .annopop[hidden], #payload[hidden] { display: none; }
+.selpill[hidden], .annopop[hidden], #payload[hidden], .lane[hidden], .card[hidden] { display: none; }
 .selpill {
 	font-family: var(--mono);
 	font-size: 0.72rem;
@@ -907,8 +1029,10 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 		<h1>${esc(title)}</h1>
 		<span class="stamp">${esc(model.generatedAt)}${reviewer}</span>
 	</div>
+	<div class="side-filters" role="group" aria-label="Filter by who owns the PR">${sideFilterBar}</div>
 	<nav class="counts">${countBar}</nav>
-	${laneSections || '<p>No PRs recorded yet.</p>'}
+	${laneSections}
+	${emptyNote}
 	<div class="handoff" id="handoff">
 		<span class="handoff-count" id="handoff-count">Nothing selected yet</span>
 		<button class="btn primary" type="button" id="handoff-copy">Copy comments</button>
