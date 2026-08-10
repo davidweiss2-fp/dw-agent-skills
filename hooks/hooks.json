@@ -32,7 +32,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Edit|Write|NotebookEdit|AskUserQuestion|LSP|PowerShell|Skill|ToolSearch|Grep|Monitor",
         "hooks": [
           {
             "type": "command",

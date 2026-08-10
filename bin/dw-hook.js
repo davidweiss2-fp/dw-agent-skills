@@ -6,9 +6,10 @@
 // hooks/hooks.json points all events here; the payload's hook_event_name picks
 // the behavior. Two behaviors:
 //   INJECT   - recall saved knowledge (or build a skill's hint/nudge in-process)
-//              and emit one hookSpecificOutput.additionalContext JSON document.
+//              and emit one JSON document carrying that text.
 //              SessionStart: knowledge indexes; UserPromptSubmit: prompt recall;
-//              PreToolUse(Bash): runbook hint; PostToolUseFailure: gotcha recall;
+//              PreToolUse: runbook hint + pre-call recall, for the tools
+//              hooks/hooks.json matches; PostToolUseFailure: gotcha recall;
 //              PreCompact: handoff nudge.
 //   LOG-ONLY - append a one-line JSONL record to the project's run-notes session
 //              log (<store>/run-notes/<slug>/session-log.jsonl); no injection.
@@ -40,6 +41,37 @@ const TOOL_RECALL_LIMIT = 3;
 const INDEX_CAP_BYTES = 4000;
 const WINDOW_DAYS = 90;
 
+// Events whose hookSpecificOutput has a branch in the host's schema. The schema is a
+// discriminated union on hookEventName: a name with no branch fails validation at the
+// document ROOT, so the host drops the whole document - systemMessage included - while
+// the hook still exits 0. Whitelisted, so an unlisted event degrades to systemMessage
+// rather than to nothing.
+const ADDITIONAL_CONTEXT_EVENTS = new Set([
+	'SessionStart',
+	'UserPromptSubmit',
+	'PreToolUse',
+	'PostToolUse',
+	'PostToolUseFailure',
+	'PostToolBatch',
+	'Stop',
+	'SubagentStop',
+]);
+
+// Tools carrying a command string, which is dense enough to earn the full recall limit.
+// Every other tool hooks.json matches queries on a path, a pattern, or a few keywords,
+// and gets one memory.
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'Monitor']);
+const WEAK_QUERY_RECALL_LIMIT = 1;
+
+// tool_input keys that describe what a call is FOR. Payload-carrying keys (content,
+// new_string, old_string) stay out: a file body swamps the query. Each value is capped -
+// Skill's args and a heredoc Bash command both run to thousands of characters.
+const INPUT_VALUE_CAP = 2000;
+const INTENT_INPUT_KEYS = [
+	'command', 'description', 'file_path', 'notebook_path', 'path',
+	'pattern', 'glob', 'query', 'skill', 'args', 'symbol', 'prompt',
+];
+
 // --- payload / io ------------------------------------------------------------
 
 function readStdin() {
@@ -63,15 +95,21 @@ function payloadCwd(payload) {
 	return typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
 }
 
-// Emit the single JSON document a context-injecting hook is allowed to print.
-// systemMessage rides along because not every event honors additionalContext
-// (PreToolUse/PreCompact read systemMessage); hosts ignore the field they don't use.
+// The single JSON document a context-injecting hook is allowed to print, or null when
+// there is nothing to say. systemMessage always carries the text; additionalContext,
+// the channel the model reads, only for events in ADDITIONAL_CONTEXT_EVENTS.
+function buildEnvelope(event, text) {
+	if (!text) return null;
+	const out = {systemMessage: text};
+	if (ADDITIONAL_CONTEXT_EVENTS.has(event)) {
+		out.hookSpecificOutput = {hookEventName: event, additionalContext: text};
+	}
+	return out;
+}
+
 function emitContext(event, text) {
-	if (!text) return;
-	process.stdout.write(JSON.stringify({
-		systemMessage: text,
-		hookSpecificOutput: {hookEventName: event, additionalContext: text},
-	}));
+	const envelope = buildEnvelope(event, text);
+	if (envelope) process.stdout.write(JSON.stringify(envelope));
 }
 
 // --- session dedupe cache ------------------------------------------------------
@@ -85,19 +123,36 @@ function cachePath(payload) {
 	return path.join(kmPaths.storeRoot(), 'run-notes', '.cache', `${sanitizeId(payload.session_id)}.json`);
 }
 
+// One injected memory path per line. Append-only: parallel tool calls in a single block
+// each fire their own hook process against the same session file, and a read-modify-write
+// there loses whichever update lands second, re-injecting a memory already seen. Tolerates
+// the older whole-file JSON array so a session spanning an upgrade keeps its history.
 function loadInjected(payload) {
+	let raw;
 	try {
-		const arr = JSON.parse(fs.readFileSync(cachePath(payload), 'utf8'));
-		return Array.isArray(arr) ? arr : [];
+		raw = fs.readFileSync(cachePath(payload), 'utf8');
 	} catch {
 		return [];
 	}
+	const out = [];
+	for (const line of raw.split('\n')) {
+		if (!line) continue;
+		let legacy = null;
+		try {
+			legacy = JSON.parse(line);
+		} catch {
+			// a plain path, not a legacy JSON array
+		}
+		if (Array.isArray(legacy)) out.push(...legacy.filter((f) => typeof f === 'string'));
+		else out.push(line);
+	}
+	return out;
 }
 
 function saveInjected(payload, files) {
 	const file = cachePath(payload);
 	kmPaths.ensureDir(path.dirname(file));
-	fs.writeFileSync(file, JSON.stringify(files));
+	fs.appendFileSync(file, files.map((f) => `${f}\n`).join(''));
 }
 
 // --- recall -------------------------------------------------------------------
@@ -119,7 +174,7 @@ function recallDeduped(queryText, payload, limit) {
 	const seen = new Set(loadInjected(payload));
 	const fresh = items.filter((it) => !seen.has(it.file)).slice(0, limit);
 	if (fresh.length === 0) return '';
-	saveInjected(payload, [...seen, ...fresh.map((it) => it.file)]);
+	saveInjected(payload, fresh.map((it) => it.file));
 	return kmRecall.renderAdvisory(fresh);
 }
 
@@ -198,22 +253,35 @@ function handoffNudge(payload) {
 		const nudge = require(skillScript('dw-handoff-skill', 'dw-handoff-nudge.js'));
 		const {derive} = require(skillScript('dw-handoff-skill', 'dw-handoff-path.js'));
 		const out = nudge.buildNudge(payload.trigger, derive({}).path);
-		const text = out && out.hookSpecificOutput && out.hookSpecificOutput.additionalContext;
+		const text = out && out.systemMessage;
 		return typeof text === 'string' ? text : '';
 	} catch {
 		return '';
 	}
 }
 
-// Query text for a failed tool call: the command/path that failed + the error.
-function failureQuery(payload) {
+// Query text describing what a tool call is about to do, from its input alone.
+// AskUserQuestion carries its intent one level down, in the questions it is about to ask.
+function toolQuery(payload) {
 	const bits = [];
 	const input = payload.tool_input;
 	if (input && typeof input === 'object') {
-		for (const key of ['command', 'file_path', 'description', 'query']) {
-			if (typeof input[key] === 'string') bits.push(input[key]);
+		for (const key of INTENT_INPUT_KEYS) {
+			if (typeof input[key] === 'string') bits.push(input[key].slice(0, INPUT_VALUE_CAP));
+		}
+		if (Array.isArray(input.questions)) {
+			for (const q of input.questions) {
+				if (q && typeof q.question === 'string') bits.push(q.question);
+				if (q && typeof q.header === 'string') bits.push(q.header);
+			}
 		}
 	}
+	return bits.join(' ');
+}
+
+// Query text for a failed tool call: what it was doing + how it failed.
+function failureQuery(payload) {
+	const bits = [toolQuery(payload)];
 	for (const key of ['error', 'error_message']) {
 		if (typeof payload[key] === 'string') bits.push(payload[key]);
 	}
@@ -234,11 +302,19 @@ function dispatch(event, payload) {
 				payload, PROMPT_RECALL_LIMIT,
 			));
 			return;
-		case 'PreToolUse':
-			// Runbook hint only; store recall on this path happens at PostToolUseFailure.
-			if (payload.tool_name !== 'Bash') return;
-			emitContext(event, runbookHint(payload));
+		case 'PreToolUse': {
+			// hooks.json's matcher decides which tools reach here; runbookHint stays
+			// Bash-shaped internally and returns '' for the rest.
+			const limit = SHELL_TOOLS.has(payload.tool_name)
+				? TOOL_RECALL_LIMIT
+				: WEAK_QUERY_RECALL_LIMIT;
+			const parts = [
+				runbookHint(payload),
+				recallDeduped(toolQuery(payload), payload, limit),
+			];
+			emitContext(event, parts.filter(Boolean).join('\n\n'));
 			return;
+		}
 		case 'PostToolUseFailure':
 			logEvent(payload, event);
 			emitContext(event, recallDeduped(failureQuery(payload), payload, TOOL_RECALL_LIMIT));
@@ -277,3 +353,5 @@ if (require.main === module) {
 	}
 	process.exit(0);
 }
+
+module.exports = {buildEnvelope, toolQuery, ADDITIONAL_CONTEXT_EVENTS};
