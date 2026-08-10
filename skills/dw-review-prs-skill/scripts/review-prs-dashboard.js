@@ -12,30 +12,16 @@ const LANE_META = {
 	done: {label: 'Closed out', hint: 'merged or closed'},
 };
 
-// Ownership is orthogonal to the lanes: a card is on exactly one side of the split, and the
-// side's id is what gets stamped on the card, so the client filters on one string comparison.
-const SIDES = [
-	{
-		id: 'yours',
-		label: 'Yours',
-		empty: 'No PRs you authored are in the queue.',
-		holds: (card) => Boolean(card.mine),
-	},
-	{
-		id: 'theirs',
-		label: 'Theirs',
-		empty: 'No PRs from anyone else are in the queue.',
-		holds: (card) => !card.mine,
-	},
-];
+// How each side of the ownership split is presented. Which side a card is on, and how many are on
+// each, come from the model (`card.side`, `model.sideCounts`); this is only the wording. `all` is
+// not a side, it is the absence of a filter, and it leads the row.
+const SIDE_META = {
+	all: {label: 'All', empty: 'No PRs recorded yet.'},
+	yours: {label: 'Yours', empty: 'No PRs you authored are in the queue.'},
+	theirs: {label: 'Theirs', empty: 'No PRs from anyone else are in the queue.'},
+};
 
-// Not a side: the absence of a filter, so it holds every card.
-const ALL = {id: 'all', label: 'All', empty: 'No PRs recorded yet.', holds: () => true};
-const FILTERS = [ALL, ...SIDES];
-
-function sideOf(card) {
-	return SIDES.find((side) => side.holds(card)).id;
-}
+const NO_SIDE = 'all';
 
 // The published page's identity, fixed here rather than chosen per run: a title or
 // favicon that moves between runs reads as a different page in the tab and the
@@ -172,7 +158,7 @@ function renderCard(card) {
 	const notes = card.notes.length
 		? `<ul class="notes">${card.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
 		: '';
-	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-side="${esc(sideOf(card))}">
+	return `<article class="card ${esc(card.lane)}" data-key="${esc(card.key)}" data-side="${esc(card.side)}">
 	<header>
 		<div class="ident">
 			<a class="key" href="${esc(card.filesUrl)}">${esc(card.key)}</a>
@@ -228,6 +214,7 @@ function dashboardClient() {
 	var popInput = document.getElementById('annopop-input');
 	var bar = document.getElementById('handoff');
 	var barCount = document.getElementById('handoff-count');
+	var reveal = document.getElementById('reveal-hidden');
 	var payloadBox = document.getElementById('payload');
 
 	function cardOf(node) {
@@ -490,6 +477,23 @@ function dashboardClient() {
 		return lines.join('\n');
 	}
 
+	// Feedback recorded against a card the filter is hiding still ships, and its own card is the
+	// only place it can be read or removed. Counted so the bar can say it is there and offer the
+	// way back to it, rather than the reviewer copying an instruction they cannot see.
+	function hiddenKeys() {
+		var keys = {};
+		state.comments.forEach(function (c) {
+			keys[c.key] = true;
+		});
+		Object.keys(state.decisions).forEach(function (k) {
+			keys[k] = true;
+		});
+		return Object.keys(keys).filter(function (k) {
+			var card = cardFor(k);
+			return card && card.hidden;
+		});
+	}
+
 	function refresh() {
 		var n = state.comments.length;
 		var d = Object.keys(state.decisions).length;
@@ -498,6 +502,9 @@ function dashboardClient() {
 		if (n) parts.push(n + (n === 1 ? ' comment' : ' comments'));
 		barCount.textContent = parts.length ? parts.join(' \u00b7 ') : 'Nothing selected yet';
 		bar.classList.toggle('ready', Boolean(n || d));
+		var buried = hiddenKeys().length;
+		reveal.hidden = buried === 0;
+		reveal.textContent = buried + (buried === 1 ? ' PR hidden by the filter' : ' PRs hidden by the filter');
 		if (!payloadBox.hidden) payloadBox.value = payload();
 	}
 
@@ -608,17 +615,27 @@ function dashboardClient() {
 			button.classList.toggle('on', on);
 			button.setAttribute('aria-pressed', on ? 'true' : 'false');
 		});
+		// What is buried changes with the filter, so the bar is re-derived here too.
+		refresh();
 	}
+
+	function setFilter(next) {
+		filter = next;
+		try {
+			localStorage.setItem(FILTER_KEY, filter);
+		} catch (err) {
+			/* nothing to do - the filter still applies for this visit */
+		}
+		applyFilter();
+	}
+
+	reveal.addEventListener('click', function () {
+		setFilter('all');
+	});
 
 	Array.prototype.forEach.call(sideButtons, function (button) {
 		button.addEventListener('click', function () {
-			filter = button.dataset.filter;
-			try {
-				localStorage.setItem(FILTER_KEY, filter);
-			} catch (err) {
-				/* nothing to do - the filter still applies for this visit */
-			}
-			applyFilter();
+			setFilter(button.dataset.filter);
 		});
 	});
 
@@ -649,19 +666,23 @@ function renderDashboard(model, opts = {}) {
 		})
 		.join('');
 
-	// Each side filter counts over the whole queue, not the active filter. All ships pre-selected so the
-	// markup is right before the script runs; `applyFilter` moves it when a filter was remembered.
-	const sideFilterBar = FILTERS.map((f) => {
-		const n = model.cards.filter(f.holds).length;
-		const on = f === ALL;
-		return `<button class="side-filter${n ? '' : ' zero'}${on ? ' on' : ''}" type="button" data-filter="${esc(f.id)}" aria-pressed="${on ? 'true' : 'false'}"><span>${esc(f.label)}</span><b>${n}</b></button>`;
-	}).join('');
+	// Counts come from the model, over the whole queue rather than the active filter. All ships
+	// pre-selected so the markup is right before the script runs; `applyFilter` moves it when a
+	// filter was remembered.
+	const filters = [NO_SIDE, ...model.sides];
+	const sideFilterBar = filters
+		.map((id) => {
+			const n = model.sideCounts[id] || 0;
+			const on = id === NO_SIDE;
+			return `<button class="side-filter${n ? '' : ' zero'}${on ? ' on' : ''}" type="button" data-filter="${esc(id)}" aria-pressed="${on ? 'true' : 'false'}"><span>${esc(SIDE_META[id].label)}</span><b>${n}</b></button>`;
+		})
+		.join('');
 
 	// One element for both ways the page comes up empty. The empty-queue case is rendered here and
 	// the client leaves it alone; only a side carries copy the client swaps in, so only sides get
 	// an attribute. Read back with getAttribute, not dataset, so a hyphenated id still resolves.
-	const emptyNoteAttrs = SIDES.map((side) => `data-${side.id}="${esc(side.empty)}"`).join(' ');
-	const emptyNote = `<p class="empty-note" id="empty-note" role="status" ${emptyNoteAttrs}${model.cards.length ? ' hidden' : ''}>${model.cards.length ? '' : esc(ALL.empty)}</p>`;
+	const emptyNoteAttrs = model.sides.map((id) => `data-${id}="${esc(SIDE_META[id].empty)}"`).join(' ');
+	const emptyNote = `<p class="empty-note" id="empty-note" role="status" ${emptyNoteAttrs}${model.cards.length ? ' hidden' : ''}>${model.cards.length ? '' : esc(SIDE_META[NO_SIDE].empty)}</p>`;
 
 	return `<title>${esc(title)}</title>
 <style>
@@ -1004,6 +1025,8 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 }
 .handoff.ready { border-color: var(--accent); }
 .handoff-count { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-soft); margin-right: auto; font-variant-numeric: tabular-nums; }
+.btn.reveal { border-color: var(--warn); color: var(--warn); }
+.btn.reveal:hover { background: var(--inset); }
 .handoff-note { font-family: var(--mono); font-size: 0.7rem; color: var(--good); flex-basis: 100%; }
 #payload {
 	flex-basis: 100%;
@@ -1035,6 +1058,7 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 	${emptyNote}
 	<div class="handoff" id="handoff">
 		<span class="handoff-count" id="handoff-count">Nothing selected yet</span>
+		<button class="btn reveal" type="button" id="reveal-hidden" hidden></button>
 		<button class="btn primary" type="button" id="handoff-copy">Copy comments</button>
 		<button class="btn" type="button" id="handoff-clear">Clear</button>
 		<span class="handoff-note" id="handoff-note"></span>
@@ -1055,4 +1079,4 @@ mark.anno { background: var(--accent-soft); color: inherit; border-bottom: 2px s
 <script>(${dashboardClient.toString()})();</script>`;
 }
 
-module.exports = {renderDashboard, esc, LANE_META, ARTIFACT};
+module.exports = {renderDashboard, esc, LANE_META, ARTIFACT, dashboardClient};

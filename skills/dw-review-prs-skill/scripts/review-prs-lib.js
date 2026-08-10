@@ -536,6 +536,15 @@ function parseLedger(text) {
 
 const LANES = ['needs-you', 'waiting-author', 'delegated', 'done'];
 
+// Ownership, orthogonal to the lanes: a card is on exactly one side of the split. The model owns
+// which side a card is on and how many are on each, the same way it owns lanes and their counts;
+// the page owns what the sides are called and what they say when empty.
+const SIDES = ['yours', 'theirs'];
+
+function sideOf(card) {
+	return card && card.mine ? 'yours' : 'theirs';
+}
+
 // Which lane a PR sits in when the reviewer has not named one: an unsubmitted draft
 // is the only thing that strictly needs a human click, a declined PR belongs to
 // someone else's routine, and a merged or closed PR is history.
@@ -569,16 +578,22 @@ function dashboardModel({prs, ledger, actions, generatedAt} = {}) {
 			// Only your own PR gets one: it is the card where the next move is someone else
 			// doing the work, so the page's job is to hand that person a brief.
 			handoffPrompt: pr.mine ? authorHandoffPrompt(pr) : '',
+			side: sideOf(pr),
 		};
 	});
 	const rank = Object.fromEntries(LANES.map((l, i) => [l, i]));
 	cards.sort((a, b) => (rank[a.lane] - rank[b.lane]) || a.key.localeCompare(b.key));
 	const counts = Object.fromEntries(LANES.map((l) => [l, cards.filter((c) => c.lane === l).length]));
+	// `all` counts alongside the sides because the page offers it as a third choice, and deriving
+	// it here keeps every number on the page coming from one place.
+	const sideCounts = {all: cards.length, ...Object.fromEntries(SIDES.map((s) => [s, cards.filter((c) => c.side === s).length]))};
 	return {
 		generatedAt: generatedAt || '',
 		cards,
 		counts,
+		sideCounts,
 		lanes: LANES,
+		sides: SIDES,
 		needsYou: cards.filter((c) => c.lane === 'needs-you').length,
 		missingNext: cards.filter((c) => !c.next).map((c) => c.key),
 		// A card with no CTA has no button, so the reviewer cannot hand that decision
@@ -613,6 +628,8 @@ module.exports = {
 	isOuterDraft,
 	cleanupAuthorization,
 	authorHandoffPrompt,
+	SIDES,
+	sideOf,
 	settledStatus,
 	hasSource,
 	ACTIONABLE,
