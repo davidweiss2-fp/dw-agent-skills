@@ -229,9 +229,9 @@ A drafted review is half a conversation, and the queue does not stop moving when
 node scripts/review-prs.js watch
 ```
 
-It takes no options and **loops until the process is stopped** - there is no single-pass mode. It
-polls every PR in scope for new comments every two minutes, and re-runs the queue every fifteen so
-a PR whose review was requested after the run still reaches you.
+It takes no options and **loops until the process is stopped** - there is no single-pass mode. Every
+two minutes it polls every PR in scope for new comments and re-runs the queue, so a PR whose review
+was requested after the run reaches you in the same pass as a new comment would.
 
 Which of the two you reach for is decided by the session, not by a flag:
 
@@ -242,7 +242,7 @@ Which of the two you reach for is decided by the session, not by a flag:
   every actionable PR, so a restarted session opens on the whole backlog rather than on the delta
   since the last one.
 
-How to arm it, what it polls, what stays quiet, and why the two clocks differ: `references/watch.md`.
+How to arm it, what it polls, and what stays quiet: `references/watch.md`.
 
 Everything it reports re-enters at Step 2 — a comment means read the thread and draft the reply
 through `reply`; a `[queue]` line means a full review, Steps 2-4.

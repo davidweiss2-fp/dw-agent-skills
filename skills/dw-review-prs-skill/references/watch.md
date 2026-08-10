@@ -4,12 +4,12 @@
 node scripts/review-prs.js watch
 ```
 
-Two jobs on two clocks: it polls known PRs for **new comments**, and it re-runs the **queue** to
+Two jobs on one clock: it polls known PRs for **new comments**, and it re-runs the **queue** to
 catch PRs that became work after the run ended.
 
-It takes no options. Comments poll every 2 minutes, the queue sweeps every 15, bots never report,
-and every PR state is polled. Those were flags once; none earned its surface, and a generic
-`--key value` parser turned a typo'd flag into a silent default rather than an error.
+It takes no options. Both run every 2 minutes, bots never report, and every PR state is polled.
+Those were flags once; none earned its surface, and a generic `--key value` parser turned a typo'd
+flag into a silent default rather than an error.
 
 ## Arming it in a resident session
 
@@ -52,11 +52,14 @@ waiting on you. Plus every open PR the last queue sweep saw, which is how a PR t
 - **A high-water mark per PR per surface** lives in `watch-state.json`. The first pass on a PR seeds
   those marks and reports nothing, rather than replaying its whole history. The mark advances past
   filtered comments too, so a bot comment is seen-but-unshown and no later pass re-examines it.
-- **The queue sweep is throttled separately** because it re-resolves every review request through
-  the PR endpoint and costs far more than a comment poll. Only actionable rows report, keyed on
+- **The queue sweep runs on the comment clock**, even though it re-resolves every review request
+  through the PR endpoint and so costs far more than a comment poll. It was throttled to fifteen
+  minutes once; the cost that bought was a review requested a minute after a sweep sitting unseen
+  for the rest of the window, which is worse than the calls. Only actionable rows report, keyed on
   `status@headSha`: a PR resurfaces when it is pushed to or moves `needs-draft` → `answered`, and a
   quiet one stays quiet. A PR that leaves the actionable set is forgotten, so returning to it
-  reports again.
+  reports again. The `[queue] N new of M classified` summary is suppressed when nothing is new, so
+  the faster clock does not turn every pass into two lines.
 - **The first sweep of a process runs at once and reports everything actionable.** It fires before
   the first comment pass, and it ignores the stored marks rather than deduping against them, because
   `queueSeen` outlives the process: a restart that deduped would open blind to exactly the work the
