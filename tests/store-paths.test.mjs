@@ -1,7 +1,7 @@
 import {describe, it, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync, lstatSync, readFileSync, existsSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync, lstatSync, readFileSync, existsSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -69,6 +69,74 @@ describe('store root resolution', () => {
 			return fn;
 		});
 		for (const p of prefers.slice(1)) assert.equal(p, prefers[0]);
+	});
+});
+
+describe('project slug resolves a git worktree to its main checkout', () => {
+	// dw-git-ops cuts every branch into <repo>/.claude/worktrees/<branch>, so without this
+	// a session in a worktree keys to a store that dies when the PR merges.
+	let base, main, worktree;
+
+	before(() => {
+		// realpath first: on macOS $TMPDIR is a symlink, and a child's cwd resolves through it.
+		base = realpathSync(mkdtempSync(join(tmpdir(), 'dw-wt-')));
+		main = join(base, 'repo');
+		worktree = join(main, '.claude', 'worktrees', 'some-branch');
+		mkdirSync(join(main, '.git', 'worktrees', 'some-branch'), {recursive: true});
+		mkdirSync(join(worktree, 'skills'), {recursive: true});
+		writeFileSync(join(worktree, '.git'), `gitdir: ${join(main, '.git', 'worktrees', 'some-branch')}\n`);
+	});
+
+	after(() => rmSync(base, {recursive: true, force: true}));
+
+	it('a worktree - and any dir under it - keys to the main checkout', () => {
+		assert.equal(kmPaths.mainCheckoutRoot(worktree), main);
+		assert.equal(kmPaths.mainCheckoutRoot(join(worktree, 'skills')), main);
+		assert.equal(kmPaths.projectSlug(worktree), kmPaths.projectSlug(main));
+	});
+
+	it('the main checkout and a plain subdirectory are left alone', () => {
+		assert.equal(kmPaths.mainCheckoutRoot(main), main);
+		const sub = join(main, 'skills');
+		mkdirSync(sub, {recursive: true});
+		assert.equal(kmPaths.mainCheckoutRoot(sub), sub, 'a subdir keeps its own slug - only worktrees move');
+	});
+
+	it('a relative gitdir pointer resolves the same as an absolute one', () => {
+		const rel = join(main, '.claude', 'worktrees', 'rel-branch');
+		mkdirSync(rel, {recursive: true});
+		writeFileSync(join(rel, '.git'), 'gitdir: ../../../.git/worktrees/rel-branch\n');
+		assert.equal(kmPaths.mainCheckoutRoot(rel), main);
+	});
+
+	it('a .git file that is not a worktree pointer, and a dir with no repo, are untouched', () => {
+		const sub = join(base, 'submodule');
+		mkdirSync(sub, {recursive: true});
+		writeFileSync(join(sub, '.git'), `gitdir: ${join(main, '.git', 'modules', 'sub')}\n`);
+		assert.equal(kmPaths.mainCheckoutRoot(sub), sub);
+		assert.equal(kmPaths.mainCheckoutRoot(base), base);
+	});
+
+	it('runbook-paths resolves identically, so a runbook saved in a worktree is found from the repo', () => {
+		assert.equal(rbPaths.mainCheckoutRoot(worktree), main);
+		assert.equal(rbPaths.projectSlug(worktree), rbPaths.projectSlug(main));
+		assert.equal(rbPaths.projectSlug(worktree), kmPaths.projectSlug(worktree));
+	});
+
+	it('mirrored mainCheckoutRoot/projectSlug stay byte-identical across their two owners', () => {
+		const OWNERS = [
+			'skills/dw-knowledge-skill/scripts/km-paths.js',
+			'skills/dw-runbook-skill/scripts/runbook-paths.js',
+		];
+		for (const fn of ['mainCheckoutRoot', 'projectSlug']) {
+			const bodies = OWNERS.map((f) => {
+				const src = readFileSync(join(ROOT, f), 'utf8');
+				const m = src.match(new RegExp(`function ${fn}[\\s\\S]*?\\n}\\n`));
+				assert.ok(m, `${fn} found in ${f}`);
+				return m[0];
+			});
+			assert.equal(bodies[1], bodies[0], `${fn} drifted between its two owners`);
+		}
 	});
 });
 
