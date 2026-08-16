@@ -189,14 +189,15 @@ function shouldUpdateBranch(summary, state, gate) {
 	return false;
 }
 
-function unseenComments(prNumber, comments, state, directiveLogins) {
+// Every comment - directives included - is tracked in the seen set and fires once, when it is
+// new. Directives used to bypass the seen set and re-fire on every poll until the thread was
+// resolved; but the agent is told never to resolve a thread it did not open (SKILL.md), so an
+// unresolved directive re-interrupted forever - a storm of identical user-directive interrupts
+// with no exit. A new directive is a new comment id, which is unseen on its own; that is all the
+// stickiness this needs. Do not re-add a directive branch here.
+function unseenComments(prNumber, comments, state) {
 	const seen = new Set(state.seenCommentIds[String(prNumber)] ?? []);
-	return comments.filter((comment) => {
-		if (isUserDirective(comment, directiveLogins) && comment.kind === 'review-thread') {
-			return !comment.isResolved;
-		}
-		return !seen.has(comment.id);
-	});
+	return comments.filter((comment) => !seen.has(comment.id));
 }
 
 function unseenFailures(prNumber, failures, state) {
@@ -204,11 +205,10 @@ function unseenFailures(prNumber, failures, state) {
 	return failures.filter((failure) => !seen.has(failure.key));
 }
 
-function rememberComments(prNumber, comments, state, directiveLogins) {
+function rememberComments(prNumber, comments, state) {
 	const key = String(prNumber);
 	const existing = new Set(state.seenCommentIds[key] ?? []);
 	for (const comment of comments) {
-		if (isUserDirective(comment, directiveLogins) && comment.kind === 'review-thread') continue;
 		existing.add(comment.id);
 	}
 	state.seenCommentIds[key] = [...existing];

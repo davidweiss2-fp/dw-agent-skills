@@ -423,7 +423,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 	const actionableComments = lib.collectActionableComments(threads, issueComments, reviews, pendingDrafts);
 	const failures = lib.collectFailures(checks, summary.headRefOid);
 	const pendingCount = lib.collectPending(checks);
-	const newComments = lib.unseenComments(summary.number, actionableComments, state, directiveLogins);
+	const newComments = lib.unseenComments(summary.number, actionableComments, state);
 	const newFailures = lib.unseenFailures(summary.number, failures, state);
 	const gate = lib.canUpdateBranch(summary, {mergeQueueEnabled});
 
@@ -479,7 +479,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 		const userDirectives = newComments.filter((c) => lib.isUserDirective(c, directiveLogins));
 		const reason = userDirectives.length > 0 ? 'user-directive' : 'new-comment';
 		const comments = userDirectives.length > 0 ? userDirectives : newComments;
-		lib.rememberComments(summary.number, newComments, state, directiveLogins);
+		lib.rememberComments(summary.number, newComments, state);
 		markPriorIssue(state, summary.number);
 		return {summary, owner, repo, reason, comments, failures: [], gateReason: gate.reason};
 	}
@@ -490,7 +490,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 		return {summary, owner, repo, reason: 'ci-failure', comments: [], failures: newFailures, gateReason: gate.reason};
 	}
 
-	lib.rememberComments(summary.number, actionableComments, state, directiveLogins);
+	lib.rememberComments(summary.number, actionableComments, state);
 	lib.rememberFailures(summary.number, failures, state);
 
 	const prKey = String(summary.number);
