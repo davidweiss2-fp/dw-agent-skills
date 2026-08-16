@@ -111,6 +111,12 @@ call for the step — judgment, not mere relevance. Use them and **narrate what 
 `verify` - nothing runnable here"); keep it to those. Discover skills live so the set stays
 current as the skill set changes.
 
+The survey picks among **model-invoked** skills only. A skill carrying
+`disable-model-invocation: true` — `dw-skill-authoring` among them — can be run by nothing but a
+human typing its name, so invoking one is a call that quietly does nothing. When the survey lands on
+one, name it to the dev as a recommendation ("`/dw-skill-authoring` is the right tool for this — it's
+user-invoked, so run it yourself") and carry on with the step.
+
 ## Root cause (bug tasks)
 
 Ground every cause in evidence before editing. Search our APM (Coralogix) for the real error /
