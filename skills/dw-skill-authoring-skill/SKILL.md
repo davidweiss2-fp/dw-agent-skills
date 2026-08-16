@@ -51,6 +51,16 @@ the situations that should **trigger** it.
 If a skill should only ever be run by hand, set `disable-model-invocation: true`; the description
 then becomes a human-facing one-liner and stops costing context every turn.
 
+**A user-invoked skill cannot be reached by any skill, including yours.** The flag stops the model
+from firing it — and a skill's own steps are the model. So a step that says "call the Skill tool
+with `x`" for a user-invoked `x` is a no-op the agent gets no error from, which is worst in exactly
+the flows that run unattended. When a step depends on one, write it as an instruction to hand back
+to the human — "if `<precondition>` is missing, tell the user to run `/x`; it's user-invoked, so you
+can't call it yourself" — and prefer removing a hand-off that rarely fires over softening it. The
+same holds for a **skill survey**: a conductor that picks skills at each step is picking among
+model-invoked skills only, and a user-invoked one belongs in its output as a recommendation, not a
+call.
+
 ## Progressive disclosure
 
 Rank everything by how immediately the agent needs it, and put it at the matching tier:
@@ -201,6 +211,12 @@ Adapted from mattpocock/skills (skills/productivity/writing-great-skills), MIT L
 for this repo's conventions; vocabulary and failure-mode taxonomy credit the original. The
 **negation** failure mode follows upstream's addition of the same concept (mattpocock/skills
 PR #463, 2026-07-06).
+
+The rule that **no skill can reach a user-invoked skill** follows upstream's carve-out in
+`.agents/invocation.md` (mattpocock/skills PR #880, commit `1dab9829`, 2026-08-15), added after the
+convention "call the Skill tool with `name`" went in without being reconciled against the
+user-invoked invariant and produced dead calls at six sites — including one in an unattended
+bug-fixing flow with no human present to notice the call had failed.
 
 The **Rationalizations** technique — an excuse/reality table at the point of temptation,
 preserving a guard's argument once its prose is pruned — is adapted from obra/superpowers

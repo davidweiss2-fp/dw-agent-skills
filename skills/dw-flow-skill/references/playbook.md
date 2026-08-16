@@ -133,3 +133,7 @@ written (file path shown) or the write gate's refusal reason is stated.
 At each phase, survey the in-scope skills and use the ones that are a genuinely good call —
 narrate what you use, flag a notable skip in one line, keep it to those, and discover skills live.
 The skill you invoke is itself the evidence the survey happened.
+
+A **user-invoked** skill (`disable-model-invocation: true`) is not a candidate for invocation — no
+skill can reach one, so the call would silently do nothing. Hand it to the dev as a named
+recommendation instead, and let the phase continue.

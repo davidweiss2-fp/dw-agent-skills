@@ -17,6 +17,7 @@ attribution footer in the corresponding `SKILL.md` for specifics.
 | `dw-handoff-skill` | mattpocock/skills — `skills/productivity/handoff` | https://github.com/mattpocock/skills |
 | `dw-skill-authoring-skill` | mattpocock/skills — `skills/productivity/writing-great-skills` | https://github.com/mattpocock/skills |
 | `dw-deslop-skill` | getsentry `deslop` (mirrored in davila7/claude-code-templates) | https://github.com/davila7/claude-code-templates |
+| `dw-deslop-skill` | Conor Bronsdon `avoid-ai-writing` (mirrored in davila7/claude-code-templates) | https://github.com/conorbronsdon/avoid-ai-writing |
 | `dw-skill-authoring-skill` | obra/superpowers — rationalization-table form | https://github.com/obra/superpowers |
 | `dw-flow-skill` | obra/superpowers — review-loop round ceiling | https://github.com/obra/superpowers |
 | `dw-knowledge-skill` | Cabinet | https://github.com/hilash/cabinet |
