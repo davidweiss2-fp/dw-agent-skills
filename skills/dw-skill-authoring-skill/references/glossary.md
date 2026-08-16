@@ -35,7 +35,10 @@ design; keeping the words consistent is itself a predictability move.
 - **Model-invoked** — the skill keeps a `description`, so the agent can fire it on its own and other
   skills can reach it. Costs context every turn the description is loaded.
 - **User-invoked** — `disable-model-invocation: true`; only a human typing the name can run it. Zero
-  context cost, but you must remember it exists.
+  context cost, but you must remember it exists. *Only a human* includes every agent: no skill can
+  reach it either, so a step that names it as a Skill-tool call is a call that silently does nothing.
+  Write such a step as an instruction to tell the human — "tell the user to run `/dw-skill-authoring`"
+  — never as an invocation.
 
 ## Scripts vs. prose
 
