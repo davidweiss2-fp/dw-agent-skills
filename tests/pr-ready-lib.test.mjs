@@ -12,6 +12,8 @@ import {
 	emptyState,
 	resolveDirectiveLogins,
 	isUserDirective,
+	unseenComments,
+	rememberComments,
 } from '../skills/dw-pr-ready-skill/scripts/pr-ready-lib.js';
 
 describe('parsePrUrl', () => {
@@ -196,5 +198,32 @@ describe('what counts as a directive from the user', () => {
 	it('still ignores everyone who is not a directive author', () => {
 		assert.equal(isUserDirective({authorLogin: 'someone-else', body: 'do this'}, logins), false);
 		assert.equal(isUserDirective({authorLogin: 'davidweiss2-fp', body: 'x'}, new Set()), false);
+	});
+});
+
+describe('a handled directive is not re-reported every poll', () => {
+	// An unsigned review-thread comment from the directive author on an unresolved thread. It used
+	// to bypass the seen set and re-interrupt forever, because the agent may never resolve the
+	// thread. It must now fire once, like every other comment.
+	const directive = {
+		id: 'PRRC_1', kind: 'review-thread', authorLogin: 'davidweiss2-fp',
+		body: 'please also handle the null case', isResolved: false,
+	};
+
+	it('fires an unresolved directive once, then treats it as seen', () => {
+		const state = emptyState();
+		const first = unseenComments(57198, [directive], state);
+		assert.deepEqual(first.map((c) => c.id), ['PRRC_1']);
+		rememberComments(57198, first, state);
+		const second = unseenComments(57198, [directive], state);
+		assert.deepEqual(second, [], 'the same unresolved directive must not re-fire on the next poll');
+	});
+
+	it('still surfaces a genuinely new directive in the same thread', () => {
+		const state = emptyState();
+		rememberComments(57198, [directive], state);
+		const next = {...directive, id: 'PRRC_2', body: 'and also this'};
+		const unseen = unseenComments(57198, [directive, next], state);
+		assert.deepEqual(unseen.map((c) => c.id), ['PRRC_2']);
 	});
 });
