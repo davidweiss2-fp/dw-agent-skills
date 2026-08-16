@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {existsSync, readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
+import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -53,8 +54,11 @@ describe('hooks/hooks.json shape', () => {
 		}
 	});
 
-	it('scopes the PreToolUse hook to Bash', () => {
-		assert.equal(config.hooks.PreToolUse[0].matcher, 'Bash');
+	it('scopes the PreToolUse hook to the tools whose input describes intent', () => {
+		assert.equal(
+			config.hooks.PreToolUse[0].matcher,
+			'Bash|Edit|Write|NotebookEdit|AskUserQuestion|LSP|PowerShell|Skill|ToolSearch|Grep|Monitor',
+		);
 	});
 
 	it('every command points at a script that exists in the repo', () => {
@@ -82,6 +86,36 @@ describe('fail-open contract (hooks are advisory, never block)', () => {
 			assert.equal(r.status, 0, r.stdout + r.stderr);
 		});
 	}
+});
+
+describe('emitted envelope is legal for the event that carries it', () => {
+	const {buildEnvelope} = createRequire(import.meta.url)(join(ROOT, 'bin', 'dw-hook.js'));
+
+	// An event with no hookSpecificOutput branch must not carry the field at all; naming
+	// one there drops the whole document, systemMessage included.
+	const WITH_BRANCH = [
+		'SessionStart', 'UserPromptSubmit', 'PreToolUse',
+		'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'Stop', 'SubagentStop',
+	];
+	const NO_BRANCH = EVENTS.filter((e) => !WITH_BRANCH.includes(e));
+
+	for (const event of WITH_BRANCH) {
+		it(`${event} carries additionalContext`, () => {
+			const out = buildEnvelope(event, 'text');
+			assert.equal(out.systemMessage, 'text');
+			assert.deepEqual(out.hookSpecificOutput, {hookEventName: event, additionalContext: 'text'});
+		});
+	}
+
+	for (const event of NO_BRANCH) {
+		it(`${event} carries systemMessage only`, () => {
+			assert.deepEqual(buildEnvelope(event, 'text'), {systemMessage: 'text'});
+		});
+	}
+
+	it('emits nothing when there is no text', () => {
+		assert.equal(buildEnvelope('PreCompact', ''), null);
+	});
 });
 
 describe('dw-handoff-nudge.js --self-test (PreCompact fixtures)', () => {
