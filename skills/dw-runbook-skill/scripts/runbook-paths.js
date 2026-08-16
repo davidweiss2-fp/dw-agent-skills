@@ -14,8 +14,8 @@
 //   _lib/setups/<n>.sh  _lib/cleanups/<n>.sh    reusable, edited once
 //   .locks/  .results/  .runs/                  runtime (lock dirs, result cache, logs)
 
-const {mkdirSync, existsSync} = require('node:fs');
-const {join} = require('node:path');
+const {mkdirSync, existsSync, statSync, readFileSync} = require('node:fs');
+const {join, dirname, resolve} = require('node:path');
 const os = require('node:os');
 
 // Store root for all durable dw-* data: DW_STORE_ROOT env override, else
@@ -44,9 +44,45 @@ function globalStoreDir() {
 	);
 }
 
+// Resolve a cwd inside a linked git worktree back to the MAIN checkout's root, so a
+// worktree keys to the same project as the repo it was cut from. A linked worktree's
+// `.git` is a FILE holding `gitdir: <main>/.git/worktrees/<name>`; a normal checkout's
+// is a directory. Anything else - the main checkout, a plain subdirectory, a submodule,
+// no repo at all - returns `cwd` untouched, so only worktree sessions change store.
+// (MIRROR: keep mainCheckoutRoot/projectSlug byte-identical across km-paths.js and
+// runbook-paths.js.)
+function mainCheckoutRoot(cwd) {
+	let dir = String(cwd);
+	for (;;) {
+		let pointer = null;
+		try {
+			const dotGit = join(dir, '.git');
+			if (!statSync(dotGit).isFile()) return cwd; // a real checkout root
+			pointer = readFileSync(dotGit, 'utf8').trim().replace(/^gitdir:\s*/, '');
+		} catch {
+			// No `.git` here (or it is unreadable) - keep walking up.
+		}
+		if (pointer !== null) {
+			// <main>/.git/worktrees/<name> -> <main>. Git may write the pointer relative
+			// to the worktree, so resolve it before slicing. A `.git` file that is not a
+			// worktree pointer has no such segment and is left alone.
+			const parts = resolve(dir, pointer).split(/[\\/]/);
+			const marker = parts.indexOf('worktrees');
+			if (marker < 1) return cwd;
+			return parts.slice(0, marker - 1).join('/') || cwd;
+		}
+		const parent = dirname(dir);
+		if (parent === dir) return cwd; // hit the filesystem root
+		dir = parent;
+	}
+}
+
 // Slug for a project root: cwd with every non-alphanumeric char replaced by '-'.
+// e.g. /Users/x/.claude/p -> -Users-x--claude-p
+// A git worktree resolves to its main checkout first, so knowledge captured while
+// working in one is filed under the project rather than under a dir that dies with the PR.
 function projectSlug(cwd = process.cwd()) {
-	return String(cwd).replace(/[^a-zA-Z0-9]/g, '-');
+	return String(mainCheckoutRoot(cwd)).replace(/[^a-zA-Z0-9]/g, '-');
 }
 
 function projectStoreDir(cwd = process.cwd()) {
@@ -107,6 +143,7 @@ module.exports = {
 	storeRoot,
 	preferLegacy,
 	globalStoreDir,
+	mainCheckoutRoot,
 	projectSlug,
 	projectStoreDir,
 	resolveStoreDir,
