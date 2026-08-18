@@ -40,10 +40,15 @@ function watchStatePath(env = process.env) {
 	return join(reviewNotesDir(env), 'watch-state.json');
 }
 
-// The published dashboard's Artifact URL. Persisted so every later run updates that
-// same page instead of minting a new link the reviewer has to re-find.
+// dashboard.json records where the reviewer opens the status page (local path and/or legacy
+// Claude artifact URL). Persisted so every later run overwrites the same file.
 function dashboardStatePath(env = process.env) {
 	return join(reviewNotesDir(env), 'dashboard.json');
+}
+
+// Default HTML output for `dashboard` when --out is omitted.
+function dashboardHtmlPath(env = process.env) {
+	return join(reviewNotesDir(env), 'queue.html');
 }
 
 // Create a directory (recursive); ignore EEXIST.
@@ -71,5 +76,6 @@ module.exports = {
 	commentsLogPath,
 	watchStatePath,
 	dashboardStatePath,
+	dashboardHtmlPath,
 	ensureDir,
 };

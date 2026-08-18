@@ -33,8 +33,8 @@ Requires `gh` authenticated (`gh auth status`). Run the script from this skill d
 | `… log <pr> --status S --weight W --finding TEXT` | Append to the comment ledger |
 | `… cleanup <pr>` | List what a converged discussion can remove from your OWN PR — superseded inner drafts and your published comments; removing needs `--delete --authorized-by <comment-id>` |
 | `… watch` | Long-running: new comments on every PR in scope, and newly actionable PRs from the queue (Step 7) |
-| `… dashboard --out FILE [--actions FILE]` | Build the reviewer's status page (Step 5) |
-| `… dashboard-url [--set URL]` | The artifact URL that page is published to |
+| `… dashboard [--actions FILE] [--open]` | Build the status page at the store's `queue.html`; `--open` launches the browser |
+| `… dashboard-url [--set PATH\|URL]` | Read or record the dashboard location (local path or legacy artifact URL) |
 
 Store (read at the start, write at the end): `<DW_STORE_ROOT or ~/Documents/dw-agent-store>/run-notes/dw-review-prs/`
 — `state.md` (head SHA per PR: same SHA means handled, different SHA means review the delta) and
@@ -199,28 +199,30 @@ is its `Ask:` line, and nothing is submitted.
 
 ## Step 5 — Hand over: refresh the status page, then report
 
-The reviewer's own surface is one published page, re-published to the same URL every run — every PR
+The reviewer's own surface is one self-contained HTML page at a stable path in the store — every PR
 the store records, its state, and the single next step waiting on them.
 
 ```bash
-node scripts/review-prs.js dashboard --out queue.html --actions actions.json
+node scripts/review-prs.js dashboard --actions actions.json --open
 ```
 
+`--out` overrides the default (`<store>/run-notes/dw-review-prs/queue.html`). Field contract and
+legacy Claude artifact publishing: `references/dashboard.md`.
+
 You write `actions.json`: per PR the free-text `next`, a short `cta`, and a `lane` when the derived
-one is wrong. Field contract, how a card with unsubmitted drafts differs, and the publishing rules
-that keep the URL stable: `references/dashboard.md`.
+one is wrong.
 
 Then report in chat as well: per PR the `/files` link, what was drafted with one line each, what was
 dropped and why, and anything that does not belong on a PR at all. Say explicitly that the review is
-unsubmitted and how to submit it.
+unsubmitted and how to submit it. Give the `file://` path from the build output.
 
 The page hands feedback back as a pasted block, and each comment in it re-enters at Step 2. A
 `Do these` line is the reviewer's instruction, and it is **the one route by which `submit` is
 authorized without them naming the event in chat** — `submit them as APPROVE` names it, so run
 `submit --event APPROVE` on that PR and nothing else.
 
-**Done when** the page is republished to its recorded URL, every card carries a next step and a
-button, and the chat report says the review is unsubmitted.
+**Done when** `queue.html` is rebuilt at the store path (and opened when `--open` was passed), every
+card carries a next step and a button, and the chat report says the review is unsubmitted.
 
 ## Step 6 — Close out
 
@@ -270,6 +272,7 @@ monitor.
 | "The PR is unchanged since the last run, but another look can't hurt" | A matching head SHA in `state.md` means handled. Re-reviewing it re-delivers findings the author already has. |
 | "No findings — I should write something so the run isn't empty" | An empty queue or a clean PR is a real result. Say so in one line. |
 | "I'll write the status page HTML myself, it's just one page" | The page's markup, themes and behaviour live in `scripts/review-prs-dashboard.js` so every reviewer on this skill gets the same interface and the same fixes. Hand-written HTML is a private one-off that drifts on the next run. Pass data through `--actions`; change the renderer if the page itself is wrong. |
+| "I need to publish the dashboard to a Claude artifact" | Local `queue.html` in the store is the default in Cursor. Artifact publishing is optional for Claude Code; see `references/dashboard.md`. |
 | "I went through the quality list and none of it applies, so there is nothing to flag" | The list names the defects that already have names; it cannot be the complete set, because the next one has not been named yet. What binds is the question asked of each thing the diff adds — what does this cost the next person to touch it? A clean pass over the examples with the question never asked is not a clean review, it is an unread one. |
 | "I'll read `scripts/review-prs.js` to see what this command actually does" | Every fact you need about a command is in this file or behind one of its pointers, and reading the implementation instead costs a few thousand tokens to re-derive it. Worse, the installed copy you would grep can be a different version from the one you are running. If the answer genuinely is not written down, that is a defect in this skill: say so, and it gets written down once for every future run. |
 | "It's a nit — the ask is obvious from the label, an `Ask:` line is overhead" | Obvious to you, inferred by the author. "Worth restoring the clause" reads as an observation to file away; `Ask: restore the when-clause` reads as a thread to close. The smaller the finding, the cheaper its ask is to state. |

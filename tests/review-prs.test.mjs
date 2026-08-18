@@ -1041,3 +1041,34 @@ describe('cli store writes', () => {
 		rmSync(store, {recursive: true, force: true});
 	});
 });
+
+const paths = require(join(SKILL, 'review-prs-paths.js'));
+
+describe('dashboard location', () => {
+	it('defaults queue.html into the review notes dir', () => {
+		const store = join(tmpdir(), 'dw-dash-paths');
+		const htmlPath = paths.dashboardHtmlPath({DW_STORE_ROOT: store});
+		assert.match(htmlPath, /queue\.html$/);
+		assert.match(htmlPath, /dw-review-prs/);
+	});
+
+	it('records and reads a local path through dashboard-url', () => {
+		const store = mkdtempSync(join(tmpdir(), 'dw-review-dash-'));
+		const env = {DW_STORE_ROOT: store};
+		const target = join(store, 'run-notes', 'dw-review-prs', 'queue.html');
+		const set = runCli(['dashboard-url', '--set', target], env);
+		assert.equal(set.status, 0, set.stderr);
+		const get = runCli(['dashboard-url'], env);
+		assert.equal(get.status, 0, get.stderr);
+		assert.equal(get.stdout.trim(), target);
+		rmSync(store, {recursive: true, force: true});
+	});
+
+	it('rejects a relative path for dashboard-url --set', () => {
+		const store = mkdtempSync(join(tmpdir(), 'dw-review-dash-'));
+		const env = {DW_STORE_ROOT: store};
+		const res = runCli(['dashboard-url', '--set', 'queue.html'], env);
+		assert.equal(res.status, 1);
+		rmSync(store, {recursive: true, force: true});
+	});
+});
