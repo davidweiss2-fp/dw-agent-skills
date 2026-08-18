@@ -9,6 +9,8 @@
 
 const {spawnSync} = require('node:child_process');
 const {readFileSync, writeFileSync, existsSync, appendFileSync} = require('node:fs');
+const {resolve} = require('node:path');
+const {fileURLToPath} = require('node:url');
 const lib = require('./review-prs-lib.js');
 const paths = require('./review-prs-paths.js');
 const dash = require('./review-prs-dashboard.js');
@@ -33,8 +35,9 @@ const USAGE = `dw-review-prs - draft [dev-review-ai] comments as an unsubmitted 
                                      list (default) what can come off your OWN PR: superseded inner
                                      drafts + your published comments in finished threads. Removing
                                      needs the id of the comment that asked for the cleanup
-  dashboard --out FILE [--actions FILE] [--title T]   build the status page
-  dashboard-url [--set URL]          the artifact url the page is published to
+  dashboard [--actions FILE] [--open] [--out FILE] [--title T]
+                                     build the status page (default: store queue.html)
+  dashboard-url [--set PATH|URL]     read or record the dashboard location
 
 <pr> is a PR URL, owner/repo#123, or owner/repo/123.`;
 
@@ -954,9 +957,34 @@ function readJsonOr(file, fallback) {
 	}
 }
 
+function normalizeDashboardSetArg(value) {
+	const v = String(value || '').trim();
+	if (/^https:\/\/\S+$/.test(v)) return {url: v};
+	if (v.startsWith('file://')) return {path: resolve(fileURLToPath(v))};
+	if (v.startsWith('/') || /^[A-Za-z]:[\\/]/.test(v)) return {path: resolve(v)};
+	fail('--set expects https:// artifact URL or absolute path to queue.html');
+}
+
+function writeDashboardState(patch) {
+	paths.ensureDir(paths.reviewNotesDir());
+	const file = paths.dashboardStatePath();
+	const stored = readJsonOr(file, {});
+	writeFileSync(
+		file,
+		JSON.stringify({...stored, ...patch, at: new Date().toISOString()}, null, '\t') + '\n',
+	);
+}
+
+function openLocalDashboard(filePath) {
+	const platform = process.platform;
+	if (platform === 'darwin') spawnSync('open', [filePath], {stdio: 'ignore'});
+	else if (platform === 'win32') spawnSync('cmd', ['/c', 'start', '', filePath], {stdio: 'ignore'});
+	else spawnSync('xdg-open', [filePath], {stdio: 'ignore'});
+}
+
 function cmdDashboard(flags) {
-	const out = flags.out;
-	if (typeof out !== 'string') fail('--out FILE is required (where to write the dashboard HTML)');
+	const out = resolve(typeof flags.out === 'string' ? flags.out : paths.dashboardHtmlPath());
+	paths.ensureDir(paths.reviewNotesDir());
 	const login = me();
 	const stateFile = paths.statePath();
 	const entries = existsSync(stateFile) ? lib.parseStateMd(readFileSync(stateFile, 'utf8')) : {};
@@ -973,6 +1001,7 @@ function cmdDashboard(flags) {
 	const model = lib.dashboardModel({prs, ledger, actions, generatedAt: new Date().toISOString()});
 	const html = dash.renderDashboard(model, {title: flags.title || 'Review queue', reviewer: login});
 	writeFileSync(out, html);
+	writeDashboardState({path: out});
 
 	const stored = readJsonOr(paths.dashboardStatePath(), {});
 	process.stdout.write(`dashboard: ${out} (${model.cards.length} PRs, ${model.needsYou} waiting on you)\n`);
@@ -982,31 +1011,35 @@ function cmdDashboard(flags) {
 	if (model.missingCta.length) {
 		process.stdout.write(`dashboard: no cta button for ${model.missingCta.join(', ')}\n`);
 	}
-	// Printed rather than left to the agent's judgment: the identity of this page has
-	// to be the same for every user on every run, or the tab and the gallery card move.
-	process.stdout.write('\npublish with exactly:\n');
-	process.stdout.write(`  file_path:   ${out}\n`);
-	process.stdout.write(`  title:       ${dash.ARTIFACT.title}\n`);
-	process.stdout.write(`  description: ${dash.ARTIFACT.description}\n`);
-	process.stdout.write(`  favicon:     ${dash.ARTIFACT.favicon}\n`);
-	process.stdout.write(
-		stored.url
-			? `  url:         ${stored.url}\n`
-			: '  url:         (none yet - after publishing, run: dashboard-url --set <url>)\n',
-	);
+	process.stdout.write('\nopen locally:\n');
+	process.stdout.write(`  path:     ${out}\n`);
+	process.stdout.write(`  file url: file://${out}\n`);
+	if (flags.open === true || process.env.DW_REVIEW_OPEN_DASHBOARD === '1') {
+		openLocalDashboard(out);
+		process.stdout.write('  opened:   yes\n');
+	}
+	if (stored.url && /^https:\/\//.test(stored.url)) {
+		process.stdout.write('\nlegacy claude artifact (optional):\n');
+		process.stdout.write(`  file_path:   ${out}\n`);
+		process.stdout.write(`  title:       ${dash.ARTIFACT.title}\n`);
+		process.stdout.write(`  description: ${dash.ARTIFACT.description}\n`);
+		process.stdout.write(`  favicon:     ${dash.ARTIFACT.favicon}\n`);
+		process.stdout.write(`  url:         ${stored.url}\n`);
+	}
 }
 
 function cmdDashboardUrl(flags) {
 	const file = paths.dashboardStatePath();
 	if (typeof flags.set === 'string') {
-		if (!/^https:\/\/\S+$/.test(flags.set)) fail('--set expects the published artifact https URL');
-		paths.ensureDir(paths.reviewNotesDir());
-		writeFileSync(file, JSON.stringify({url: flags.set, at: new Date().toISOString()}, null, '\t') + '\n');
-		process.stdout.write(`dashboard url recorded: ${flags.set}\n`);
+		const loc = normalizeDashboardSetArg(flags.set);
+		writeDashboardState(loc);
+		process.stdout.write(`dashboard location recorded: ${loc.path || loc.url}\n`);
 		return;
 	}
 	const stored = readJsonOr(file, {});
-	process.stdout.write(stored.url ? `${stored.url}\n` : '(none recorded)\n');
+	if (stored.path) process.stdout.write(`${stored.path}\n`);
+	else if (stored.url) process.stdout.write(`${stored.url}\n`);
+	else process.stdout.write('(none recorded)\n');
 }
 
 function cmdLog(arg, flags) {

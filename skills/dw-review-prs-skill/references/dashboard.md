@@ -1,7 +1,7 @@
 # The status page
 
-One published page per reviewer, re-published to the same URL every run. `dashboard` builds the
-HTML; the Artifact tool publishes it.
+One self-contained HTML page per reviewer, rebuilt at the same store path every run. `dashboard`
+writes the file; the reviewer opens it in a browser.
 
 ## Who owns what
 
@@ -88,32 +88,41 @@ the reviewer cannot act on.
 
 ## Publishing
 
-The build prints the exact identity to publish with — `title`, `description`, `favicon`, and the
-stored `url`. Pass them verbatim: a title or favicon that moves between runs reads as a different
-page in the browser tab and the artifact gallery. On the first publish there is no stored URL, so
-record the one you get:
+### Local (default — Cursor and Claude Code)
+
+```bash
+node scripts/review-prs.js dashboard --actions actions.json --open
+```
+
+- **Default output:** `<DW_STORE_ROOT or ~/Documents/dw-agent-store>/run-notes/dw-review-prs/queue.html`
+- **`--open`** launches the system browser (`open` on macOS, `xdg-open` on Linux, `start` on Windows).
+  `DW_REVIEW_OPEN_DASHBOARD=1` has the same effect.
+- Every build records `path` in `dashboard.json` beside the rest of the store.
+- Bookmark the `file://` path from the build output, or reopen with `--open` each run.
+
+`dashboard-url` without `--set` prints the recorded local path (or legacy artifact URL if no path).
+
+### Legacy Claude artifact (optional)
+
+Claude Code users who still publish to an artifact can record it once:
 
 ```bash
 node scripts/review-prs.js dashboard-url --set https://claude.ai/code/artifact/<id>
 ```
 
-Every later run reads it back and publishes over the same link, so the reviewer's bookmark holds.
-The URL lives in `dashboard.json` beside the rest of the store.
+When `dashboard.json` carries a `url`, later builds print the artifact identity alongside the local
+path so the Artifact tool can still update the same gallery card. Local HTML remains the source of
+truth for Cursor.
 
 ## Across runs, sessions, and users
 
-- **Every run against the same store updates the same page** — a later session, another terminal, or
-  the scheduled hourly task all read the URL out of `dashboard.json` and publish over it. Passing
-  that URL is what makes it an update; a run that omits it mints a second page and the reviewer's
-  bookmark goes stale.
+- **Every run against the same store overwrites the same `queue.html`** — a later session, another
+  terminal, or the scheduled hourly task all write to the path in `dashboard.json`.
 - **One page per reviewer, not one page globally.** Another person installing this skill starts with
-  no `dashboard.json`, so their first run publishes their own page under their own account, and their
-  runs update that. Artifacts can only be updated by the account that owns them, so this is the only
-  shape available — and the right one, since the queue is per-reviewer. The interface is identical
-  because the renderer ships with the skill.
-- **A run that cannot publish still builds.** The HTML is written by the script; only the publish
-  step needs the Artifact tool. In a headless or unauthenticated run, keep the built file, say
-  plainly that the page was not refreshed, and report in chat instead.
+  a fresh store and their own `queue.html`. The interface is identical because the renderer ships
+  with the skill.
+- **A run that cannot open a browser still builds.** The HTML is written by the script; only `--open`
+  needs a desktop. In a headless run, report the `file://` path in chat instead.
 - **Carry the live page's `next` and `notes` forward.** Everything else on a card is derived from
   the store, but those two are written by the run that touched that PR. A later run that builds a
   fresh `actions.json` from its own work therefore strips them off every card it did not touch, and

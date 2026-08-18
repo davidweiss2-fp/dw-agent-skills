@@ -2,6 +2,16 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.4.21
+
+### Changed
+
+- **dw-review-prs: local dashboard is the default publish target.** `dashboard` now writes to
+  `<store>/run-notes/dw-review-prs/queue.html` when `--out` is omitted, records `path` in
+  `dashboard.json`, and accepts `--open` to launch the system browser. Claude artifact publishing
+  remains optional for users who record a `url` in `dashboard.json`. Step 5 and
+  `references/dashboard.md` updated accordingly.
+
 ## 0.4.6
 
 ### Added
