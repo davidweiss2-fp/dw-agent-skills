@@ -27,22 +27,6 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 - **Overlap** → when a `dw-*` skill is invoked directly (`/dw-grill`, `/dw-deslop`, …), that
   skill wins; the conductor yields to it.
 
-## How to talk
-
-| Context | Mode |
-|---|---|
-| thinking / model-facing (reasoning, subagents, internal narration) | caveman **ultra** |
-| talking to the dev | caveman **full** |
-| commit messages, PR title/body, `dw-team-communication` drafts, code comments | **no caveman** — professional prose, always |
-
-Caveman = compressed: drop articles, filler, hedging, tool-call narration; keep code blocks,
-exact error strings, and function/API names intact; fragment pattern; revert to normal phrasing
-for security warnings, irreversible actions, or ambiguous multi-step sequences; the mode itself
-stays invisible. Full spec and the mode mapping: `references/communication.md`.
-
-User rules win over this section. Communication, caveman, and context-summary behavior are
-already locked. Never grill them. On a conflict, follow the user rule.
-
 ## The four gates — the only stops
 
 1. 🚪 **Intent** — restate the ask only when it is ambiguous or the scope changed, plus a
@@ -141,12 +125,6 @@ stays limited to what the design needs. Editing this paragraph is free; revertin
 design is costly.
 What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-specialist`.
 
-## Product / UX calls
-
-When a product or UI/UX decision is missing and it passes the `dw-grilling` question bar,
-surface it via `dw-team-communication` (drafts only) at three points: **Ground**, **after
-the plan during Implement**, and **Review**. Skip calls that fail the bar.
-
 ## Operating principles
 
 Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence it wins; update there.
@@ -186,7 +164,7 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
   true source of truth, not the first plausible gate.
 - Review runs **blind to approval** - the reviewer's whole input is the artifact and the method,
   so it judges correctness fresh; wrong is wrong regardless of sign-off (`references/review.md`).
-- Artifacts (commit / PR / team-communication drafts) are always professional prose.
+- Commit messages, PR title/body, and code comments are always professional prose.
 - Delegate to the skills; lean on each as-is.
 - Restate the intent and confirm before changing scope.
 - Claim a phase done only with artifact proof - a runbook result envelope (JSON), a PR URL,

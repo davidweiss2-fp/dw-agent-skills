@@ -21,8 +21,6 @@ code that governs the behaviour (the true source of truth, not the first plausib
 reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies on
 staging.
 
-Surface a product/UX call here via `dw-team-communication` (drafts only) only when it passes the `dw-grilling` question bar.
-
 *Done when:* knowledge recalled, ticket context in hand, a recommended approach posted in the chat
 (and, for bugs, a trace-backed cause located or explicitly requested from the dev).
 
@@ -59,8 +57,7 @@ are all written to the worktree context dir.
 
 Build to the approved plan — minimal diff, no churn. Scope discipline: touch only the files the
 task names, confirm before expanding scope, and preserve TODO/context comments. Auto-fix
-behavior-preserving lint/test failures. If a product/UX call appears mid-build and it passes
-the `dw-grilling` question bar, surface it via `dw-team-communication` and keep going where you can. *Done when:* the diff implements the
+behavior-preserving lint/test failures. *Done when:* the diff implements the
 plan and behavior-preserving checks pass.
 
 ## 6. Simplify the diff
@@ -79,8 +76,7 @@ Run `/code-review` (or `fp-cdp-review` in that scope) by the **review method**
 (`references/review.md`): design-first and unit-by-unit, run **blind to what was approved**, and
 re-run after every fix until a fresh pass is clean. Recall `dw-knowledge` for the repo's specific
 reviewer patterns and feed them in as things to check. Re-check the regressions that bite late:
-permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface a product/UX
-call that review exposes via `dw-team-communication` only when it passes the `dw-grilling` question bar. Iterate for **at most five rounds** — a loop
+permission/RBAC gating, namespace/constant collisions, duplicate imports. Iterate for **at most five rounds** — a loop
 still blocking on round five escalates to the dev with a brief (recurring findings, fixes tried,
 the call needed) rather than opening round six. *Done when:* a fresh review pass finds nothing new,
 its findings are triaged, and the blocking ones fixed — **or** the ceiling was hit and the dev has

@@ -28,10 +28,4 @@ skippable; only four gates stop it.
    proves the change worked in prod.
 4. **Post-PR** — read the draft PR, then decide on `dw-pr-ready`.
 
-## How to talk
-
-Caveman **ultra** for thinking/model-facing, **full** for talking to the dev, **off** for
-commit/PR/product-draft wording (professional prose, always). User rules win over this.
-Never grill communication, caveman, or context-summary behavior.
-
-Full engine: this skill's `SKILL.md`, `references/playbook.md`, `references/communication.md`.
+Full engine: this skill's `SKILL.md` and `references/playbook.md`.
