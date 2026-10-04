@@ -34,9 +34,8 @@ One decision, real options, a clear lean, a one-word answer.
 - **It's consistent with what already exists** in the codebase unless there's a reason to
   diverge — and if there is, say what the reason is.
 - **It reflects the user's known preferences.** Where a recalled `dw-knowledge` memory
-  (e.g. `david-working-rules`) speaks to the decision, lead with the option it points to and
-  name the source - "you generally prefer X, so I'd…". A preference-grounded lean earns the
-  one-word "yep" faster than a generic best-practice one.
+  (e.g. `david-working-rules`) already picks the outcome, apply it and list it under
+  Assumed. Ask only when the plan would override that preference.
 
 ## When you genuinely have no lean
 
@@ -54,8 +53,8 @@ Rare, but real. Then:
   pushes the work back onto the user. Bring options and a recommendation.
 - **Asking what the environment already answers.** A config value, an existing type, or a
   prior decision is a *fact* — look it up and report it rather than spending a question on it.
-- **Deciding from a pattern the user never picked.** An established pattern is evidence for
-  your recommended default, not a substitute for the user's call. Lead with it, and still ask.
+- **Re-asking a closed decision.** A user rule, preference, prior decision, or established
+  pattern closes it. Apply it, list it under Assumed, and ask only to override it.
 - **Questions out of dependency order.** Settle whether there's a response at all before
   asking about its format. Re-prune after each answer.
 - **Fake binaries.** Match the options to the real decision; when the honest answer space

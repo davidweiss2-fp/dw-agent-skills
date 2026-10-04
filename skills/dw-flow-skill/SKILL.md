@@ -40,14 +40,18 @@ exact error strings, and function/API names intact; fragment pattern; revert to 
 for security warnings, irreversible actions, or ambiguous multi-step sequences; the mode itself
 stays invisible. Full spec and the mode mapping: `references/communication.md`.
 
+User rules win over this section. Communication, caveman, and context-summary behavior are
+already locked. Never grill them. On a conflict, follow the user rule.
+
 ## The four gates — the only stops
 
-1. 🚪 **Intent** — restate the ask in expanded form (clear wording, fixed grammar/spelling, an
-   explicit call-to-action) plus a one-line **desired output**, then confirm. Fire on a new task
-   or a scope change, **or any message over 20 words**; skip trivial steering replies (one-word
-   answers, "go", redirects). On a model-invoke, this gate also carries the engage y/n.
-2. 🚪 **Grill** — **invoke `dw-grilling`** and hand fully into it; let its inline text
-   interview run to completion before moving on.
+1. 🚪 **Intent** — restate the ask only when it is ambiguous or the scope changed, plus a
+   one-line **desired output**, then confirm. A clear ask with a clear output is already
+   confirmed; continue. Skip trivial steering replies (one-word answers, "go", redirects).
+   On a model-invoke, this gate also carries the engage y/n.
+2. 🚪 **Grill** — **invoke `dw-grilling`**. It asks only questions that pass its bar. Zero
+   questions means the grill is finished; continue. Do not invent a question. The Plan gate
+   is the confirm.
 3. 🚪 **Plan** - approve before any code. Approvable only when the plan carries a **traced
    cause** (bug tasks) and a **placement contract** (both below), plus a clean **design-review**
    pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. Lock
@@ -66,8 +70,8 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 
 1. **Ground** — recall `dw-knowledge`; gather codebase + ticket context (derive the ticket from
    the branch); recommend an approach. Bug tasks: establish root cause (below).
-2. 🚪 **Grill** - **invoke `dw-grilling`** (delegate to it wholesale); hand fully in and let its
-   inline text interview run uninterrupted to completion.
+2. 🚪 **Grill** - **invoke `dw-grilling`**. It asks only questions that pass its bar. Zero
+   questions means the grill is finished; continue. Do not invent a question.
 3. **Simplify the plan** — `/simplify` the drafted plan before it goes to the gate; cut steps and
    scope beyond what the change needs.
 4. 🚪 **Plan** - resolved-design summary → approve; it must carry the **traced cause** (bug
@@ -139,9 +143,9 @@ What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-spe
 
 ## Product / UX calls
 
-When a clear, non-trivial product or UI/UX decision is missing, surface it via
-`dw-team-communication` (drafts only) at three points: **Ground**, **after the plan during
-Implement**, and **Review**. Skip the trivial or obvious calls.
+When a product or UI/UX decision is missing and it passes the `dw-grilling` question bar,
+surface it via `dw-team-communication` (drafts only) at three points: **Ground**, **after
+the plan during Implement**, and **Review**. Skip calls that fail the bar.
 
 ## Operating principles
 
@@ -175,9 +179,9 @@ gate decisions. On resume, read it first and re-enter at that phase. Full sessio
 ## Hard rules
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
-- At the Grill gate, **invoke `dw-grilling`** and hand fully into it — inline chat text, one
-  question at a time, uninterrupted; hold flow narration, data, and plans until the grill
-  finishes (`dw-grilling` holds context to the end).
+- At the Grill gate, **invoke `dw-grilling`**. It asks only questions that pass its bar,
+  one at a time, inline. Zero questions means the grill is finished; continue. Hold flow
+  narration while a real question is in flight. Do not invent a question.
 - Edit only on a proven cause - established from a real trace (APM or the dev) and traced to the
   true source of truth, not the first plausible gate.
 - Review runs **blind to approval** - the reviewer's whole input is the artifact and the method,

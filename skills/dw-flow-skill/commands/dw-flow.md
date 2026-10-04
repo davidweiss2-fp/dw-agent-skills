@@ -20,9 +20,10 @@ skippable; only four gates stop it.
 
 ## Gates (the only stops)
 
-1. **Intent** — restate the ask expanded (clear wording, fixed grammar, explicit call-to-action)
-   plus a one-line desired output → confirm.
-2. **Grill** — **invoke `dw-grilling`**; run its inline text interview to completion, uninterrupted.
+1. **Intent** — restate the ask only when it is ambiguous or the scope changed, plus a one-line
+   desired output, then confirm. A clear ask with a clear output is already confirmed; continue.
+2. **Grill** — **invoke `dw-grilling`**. It asks only questions that pass its bar. Zero questions
+   means the grill is finished; continue. Do not invent a question. The Plan gate is the confirm.
 3. **Plan** — approve the resolved-design summary before any code; lock the success metric that
    proves the change worked in prod.
 4. **Post-PR** — read the draft PR, then decide on `dw-pr-ready`.
@@ -30,6 +31,7 @@ skippable; only four gates stop it.
 ## How to talk
 
 Caveman **ultra** for thinking/model-facing, **full** for talking to the dev, **off** for
-commit/PR/product-draft wording (professional prose, always).
+commit/PR/product-draft wording (professional prose, always). User rules win over this.
+Never grill communication, caveman, or context-summary behavior.
 
 Full engine: this skill's `SKILL.md`, `references/playbook.md`, `references/communication.md`.
