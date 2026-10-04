@@ -21,18 +21,16 @@ code that governs the behaviour (the true source of truth, not the first plausib
 reproduce it where you can. A fix aimed at the wrong source of truth passes review and dies on
 staging.
 
-Surface any clear, non-trivial product/UX call here via `dw-team-communication` (drafts only).
-
 *Done when:* knowledge recalled, ticket context in hand, a recommended approach posted in the chat
 (and, for bugs, a trace-backed cause located or explicitly requested from the dev).
 
 ## 2. 🚪 Grill
 
-**Invoke `dw-grilling`** and hand fully into it - delegate its loop wholesale. Its interview runs
-inline as plain chat text: one question at a time, each led by a recommended default. Let it run
-uninterrupted - hold flow's own narration, data, and plans until the grill is done (`dw-grilling`
-holds context to the end). *Done when:* every material decision in the resolved-design summary is
-settled.
+**Invoke `dw-grilling`.** It asks only questions that pass its bar, one at a time, inline, each
+led by a recommended default. Zero questions means the grill is finished; continue. Do not invent
+a question. Hold flow narration while a real question is in flight (`dw-grilling` holds context
+until that question is done). *Done when:* each question that passed the bar is answered, or the
+grill reported no product decision open.
 
 ## 3. Simplify the plan
 
@@ -59,8 +57,7 @@ are all written to the worktree context dir.
 
 Build to the approved plan — minimal diff, no churn. Scope discipline: touch only the files the
 task names, confirm before expanding scope, and preserve TODO/context comments. Auto-fix
-behavior-preserving lint/test failures. If a clear product/UX call appears mid-build, surface it
-via `dw-team-communication` and keep going where you can. *Done when:* the diff implements the
+behavior-preserving lint/test failures. *Done when:* the diff implements the
 plan and behavior-preserving checks pass.
 
 ## 6. Simplify the diff
@@ -79,8 +76,7 @@ Run `/code-review` (or `fp-cdp-review` in that scope) by the **review method**
 (`references/review.md`): design-first and unit-by-unit, run **blind to what was approved**, and
 re-run after every fix until a fresh pass is clean. Recall `dw-knowledge` for the repo's specific
 reviewer patterns and feed them in as things to check. Re-check the regressions that bite late:
-permission/RBAC gating, namespace/constant collisions, duplicate imports. Surface any product/UX
-call that review exposes via `dw-team-communication`. Iterate for **at most five rounds** — a loop
+permission/RBAC gating, namespace/constant collisions, duplicate imports. Iterate for **at most five rounds** — a loop
 still blocking on round five escalates to the dev with a brief (recurring findings, fixes tried,
 the call needed) rather than opening round six. *Done when:* a fresh review pass finds nothing new,
 its findings are triaged, and the blocking ones fixed — **or** the ceiling was hit and the dev has

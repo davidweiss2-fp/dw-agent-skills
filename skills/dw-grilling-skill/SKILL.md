@@ -1,24 +1,23 @@
 ---
 name: dw-grilling-skill
 description: >-
-  A reusable interview engine that drives every unresolved decision out of a task
-  before it's acted on. Walks the decision tree one question at a time, and
-  for each open choice proposes a recommended default the user can confirm with a
-  single word. Use when a plan, design, decision, or idea still has open judgment
-  calls and the user wants them pinned down — "grill me on this", "stress-test this
-  plan", "poke holes in this decision", "interview me before we build", "what haven't
-  we decided", or invokes /dw-grill [topic]. Recalls your known preferences (via
-  dw-knowledge) to seed each recommendation, persists the decision trail so a grill can
-  pause and resume, and captures new preferences it learns. Asks; surfaces every assumption.
+  A reusable interview engine that asks only product decisions with real impact
+  before a task is acted on. A question must change what a person gets, or commit
+  something expensive to undo, and still be open after user rules, dw-knowledge
+  preferences, and the codebase are applied. Walks that short list one question at
+  a time, each with a recommended default. Use when a plan still has a real product
+  fork: "grill me on this", "stress-test this plan", "poke holes in this decision",
+  "interview me before we build", "what haven't we decided", or invokes /dw-grill
+  [topic]. Engineering defaults the harness, user rules, or preferences already
+  cover are applied and listed, not asked. An empty question list is a finished grill.
 ---
 
 # Grilling: One-at-a-Time Decision Interview
 
-Your job is to surface and resolve **every open decision** in a task before it's
-acted on. You run a focused interview: walk the decision tree, ask **one question at a
-time**, and for each question lead with **your recommended default** so the user can
-confirm in a word instead of designing from scratch. Stop only when nothing material is
-still undecided.
+Your job is to ask the product decisions that change the outcome, and to apply
+everything else. Walk the questions that pass the bar below, **one question at a
+time**, each with a recommended default the user can confirm in a word. Stop when
+no question passes the bar. An empty list is a finished grill.
 
 This is a prompt-driven engine — no scripts to run. The discipline is the value: one
 question, a clear recommendation, wait for the answer, then the next.
@@ -36,29 +35,32 @@ If a topic is given, grill that. If not, grill the current plan/design in contex
 conversation, a recent diff, an open spec). If there is nothing concrete to grill, ask
 the user in one line what they want stress-tested before starting.
 
+## What is worth a question
+
+Ask only when all three are true:
+
+1. **Product impact.** The answer changes what a person gets (behavior, who it is for, what is in or out), or it commits something expensive to undo (public API, migration, billing, privacy, rollout).
+2. **Still open.** No user rule, `david-working-rules`, `david-prefers-*` / `prefer-*` memory, prior decision, or established codebase pattern already picks it. User rules and those memories are already locked, including communication and context-summary behavior. On a conflict, the user rule wins.
+3. **A real fork.** Two outcomes a stakeholder could actually want.
+
+Anything else: decide, write one line under **Assumed**, and move on. Naming, error handling, abstraction shape, defaults, edge-case mechanics, data-shape internals, file layout, and tests stay in that bucket. A recalled preference is applied. Ask only when the plan would override it, such as adding an option-flag to a shared helper. Zero questions left: say "No product decision open.", list Assumed, and stop.
+
 ## The loop
 
 1. **Recall what you know about the user first.** Before mapping anything, recall
    `dw-knowledge` - the canonical `david-working-rules`, any relevant `david-prefers-*` /
-   `prefer-*` preference memories, and any prior decision captured on this topic. This is
-   what lets the interview *understand the user*: those preferences **seed your recommended
-   default on every question**, so your lean reflects how this user actually decides, not
-   generic best-practice. When a default is grounded in a recalled preference, say so ("you
-   generally prefer X, so I'd…") - a confirmed lean is a one-word "yep."
-2. **Map the decision tree.** From the plan/topic, list the decisions that must be made
-   for the work to be unambiguous: data shape, naming, edge cases, error handling, scope
-   boundaries, abstraction shape, defaults, migration/rollout, UX behavior, dependencies
-   between the above. Seed each decision's default from the preferences you recalled - e.g.
-   the abstraction-shape lean comes from `david-working-rules` (prefer a new function over
-   adding option-flags to a shared helper; growing a shared helper's flag surface is an
-   explicit question, not a silent default). Order them so each decision depends only on ones
-   you have already asked.
-3. **Look up the facts; put the decisions to the user.** Finding *facts* is your job, never
-   the user's. Before asking, check whether the answer already exists in the codebase,
-   filesystem, or your tools — an established pattern, a config value, a prior decision, an
-   existing type — and report what you found instead of asking about it. A *decision* stays
-   the user's even when the environment points at an answer: an existing pattern is evidence
-   for your recommended default, not a resolved question.
+   `prefer-*` preference memories, and any prior decision captured on this topic.
+   Apply them. A recalled preference closes the decision. Record it under Assumed.
+   Ask only when the plan would override one.
+2. **Map only candidates that might pass the bar.** From the plan/topic, list product
+   outcome, who it is for, what is in or out of the user-facing result, and commitments
+   that are expensive to undo. Drop naming, error handling, abstraction shape, defaults,
+   edge-case mechanics, data-shape internals, file layout, and tests. Order the remaining
+   candidates so each depends only on ones already settled.
+3. **Look up the facts; apply closed decisions.** Finding facts is your job, never the
+   user's. Before asking, check the codebase, filesystem, user rules, and `dw-knowledge`.
+   A user rule, a preference, a prior decision, or an established pattern closes the
+   decision. Apply it and list it under Assumed. Ask only when the bar still passes.
 4. **Ask exactly one question - inline, as chat text.** State the decision, give the
    realistic options, and **lead with your recommended default and why.** Make it
    answerable in a word ("Go with A?", "yes/no"), posed as inline chat text. See
@@ -70,13 +72,13 @@ the user in one line what they want stress-tested before starting.
    session state** (see *State / resume*) so the grill survives a pause or a context
    compaction. If it opens or closes downstream decisions, re-prune the tree before the next
    question.
-7. **Repeat** until no material decision is open.
-8. **Summarize the resolved design - and persist it.** Write every decision and its outcome
-   as a flat list, both inline and to the session state file, so it stands alone as the
-   handoff artifact - a single source of truth to build from.
-9. **Wait for confirmation before building.** The summary is a checkpoint, not authorization
-   to proceed - start implementing only once the user confirms the resolved design matches
-   their intent.
+7. **Repeat** until no question passes the bar.
+8. **Summarize the resolved design - and persist it.** Write every asked decision and its
+   outcome, plus the Assumed list, as a flat list, both inline and to the session state
+   file, so it stands alone as the handoff artifact - a single source of truth to build from.
+9. **Wait for confirmation before building** when this grill is standalone (`/dw-grill`).
+   The summary is a checkpoint. Inside `dw-flow`, the Plan gate is that confirm; do not
+   ask again here.
 10. **Capture what you learned** *(offer, via `dw-knowledge`)*. Two things are worth saving:
     the **decision record** for this topic ("what we decided about {topic} and why"), and any
     **new preference** the grill revealed - a default you'd now lead with next time, because
@@ -117,12 +119,10 @@ real options — but that should be rare. See `references/asking-well.md`.
 
 ## When to stop
 
-- Every decision on the tree is resolved by the user, and every fact they turned on is
-  settled from the environment.
-- Remaining unknowns are immaterial to building, or are reversible one-liners you can
-  flag in the summary rather than block on.
-- The user calls it — "good enough, let's build." Honor that, but name any decision still
-  left open so it's a conscious choice, not a silent gap.
+- No remaining candidate passes the bar. Say "No product decision open." List Assumed. Stop. That is a finished grill, and the summary goes out in that same turn.
+- Every question that passed the bar is resolved by the user.
+- Remaining unknowns are reversible one-liners. Flag them under Assumed.
+- The user calls it. "good enough, let's build." Honor that, and name any product decision that still passes the bar.
 
 ## State / resume
 
@@ -144,8 +144,7 @@ current open question. On resume, read that file first and re-enter at the open 
 
 - **One question per turn, inline.** Ask in chat as plain text and wait for the answer
   before the next; every question stays chat text answered in line.
-- **Recall before you lead.** Seed every recommended default from the user's recalled
-  `dw-knowledge` preferences; a lean grounded in `david-working-rules` beats a generic one.
+- **Recall before you act.** Apply `dw-knowledge` preferences and user rules. Ask only to override one. A lean grounded in `david-working-rules` is the action, not a question.
 - **Persist the trail.** After each lock, append to the session state file; on resume, read
   it before asking anything.
 - **Capture on the way out.** Offer to save the decision record and any newly-revealed
@@ -155,15 +154,11 @@ current open question. On resume, read that file first and re-enter at the open 
   or one with attached conditions gets a revisit or a restate-to-verify first.
 - **Hold context to the end.** Save supporting data/plans for after the grill; present
   them once every decision is locked.
-- **Facts from the environment, decisions from the user.** Look up every fact the codebase,
-  filesystem, or tools can settle, and reserve the questions for judgment calls — which stay
-  the user's even where an existing pattern suggests the answer.
+- **Closed decisions stay closed.** Look up facts in the codebase, filesystem, user rules, and `dw-knowledge`. A rule, preference, prior decision, or established pattern closes the decision. Ask only when the question bar still passes.
 - **Order by dependency.** Ask each question only after the ones its answer depends on.
-- **Surface every assumption.** An unresolved decision is asked or explicitly deferred in
-  the summary, not quietly guessed.
+- **Surface every assumption.** List applied defaults under Assumed. Ask a decision only when it passes the question bar. Never quietly guess a product fork.
 - **End with the resolved-design summary** so the work is unambiguous to build from.
-- **Confirm before enacting.** Start building only once the user confirms the summary -
-  the completion criterion is shared understanding, not just a summary having been posted.
+- **Confirm before enacting.** A standalone grill waits for the user to confirm the summary. Inside `dw-flow`, the Plan gate is that confirm. The completion criterion is shared understanding, not just a summary having been posted.
 
 ---
 
@@ -173,10 +168,10 @@ recommended default per question, and a closing resolved-design summary. The con
 enacting gate follows upstream's confirmation-gate addition (mattpocock/skills PR #433,
 2026-07-03). The primitive is framed for general use — any task acted on, facts resolved
 from the whole environment (not just the codebase) — following upstream's reword
-(mattpocock/skills commit 170ad486, 2026-07-13). The **fact-versus-decision split** —
-looking a fact up is the agent's job, while a decision stays the user's even when the
-environment hints at an answer — follows upstream's sharpening of the same rule
-(mattpocock/skills PR #461, 2026-07-06, carried further in PR #586, 2026-07-16). Where upstream's `grill-with-docs` bolts
+(mattpocock/skills commit 170ad486, 2026-07-13). Upstream's fact-versus-decision split
+(mattpocock/skills PR #461, 2026-07-06, carried further in PR #586, 2026-07-16) is
+narrowed here: user rules, `dw-knowledge` preferences, and established patterns close
+the decision. Ask only when the question bar still passes. Where upstream's `grill-with-docs` bolts
 on `domain-modeling` to persist decisions
 as in-repo ADRs and a glossary, this version makes the grill **stateful and personalized through
 the suite's own primitives** instead - a resumable session-state trail, defaults seeded from the

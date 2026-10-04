@@ -1,0 +1,21 @@
+{
+  "name": "dw-agent-skills",
+  "interface": {
+    "displayName": "dw-agent-skills"
+  },
+  "plugins": [
+    {
+      "name": "dw-agent-skills",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/davidweiss2-fp/dw-agent-skills",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
