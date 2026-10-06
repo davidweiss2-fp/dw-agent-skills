@@ -3,17 +3,12 @@
 
 // dw-hook.js - the single dispatcher behind every dw plugin hook event.
 //
-// hooks/hooks.json points all events here; the payload's hook_event_name picks
-// the behavior. Two behaviors:
-//   INJECT   - recall saved knowledge (or build a skill's hint/nudge in-process)
-//              and emit one JSON document carrying that text.
-//              SessionStart: knowledge indexes; UserPromptSubmit: prompt recall;
-//              PreToolUse: runbook hint + pre-call recall, for the tools
-//              hooks/hooks.json matches; PostToolUseFailure: gotcha recall;
-//              PreCompact: handoff nudge.
-//   LOG-ONLY - append a one-line JSONL record to the project's run-notes session
-//              log (<store>/run-notes/<slug>/session-log.jsonl); no injection.
-//              The log feeds the flow's capture step and future recall ranking.
+// hooks/hooks.json wires only the two events that earn their tokens:
+//   SessionStart - knowledge indexes, once per session.
+//   PreCompact   - handoff nudge, only when the session is about to be summarized.
+// The dispatcher still handles the other events (prompt recall, runbook hint,
+// failure recall, session log) when something wires them by hand. Those are not
+// in hooks.json, because firing them on every prompt or tool call burns tokens.
 // A session-keyed cache (<store>/run-notes/.cache/<session_id>.json) dedupes
 // injections so the same memory is never re-injected within one session.
 // The skill modules are require()d lazily: the log-only majority of fires
@@ -294,6 +289,7 @@ function dispatch(event, payload) {
 	switch (event) {
 		case 'SessionStart':
 			logEvent(payload, event);
+			pruneCache();
 			emitContext(event, sessionStartContext(payload));
 			return;
 		case 'UserPromptSubmit':

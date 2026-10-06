@@ -8,11 +8,7 @@ import {fileURLToPath} from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
-const EVENTS = [
-	'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
-	'PostToolUseFailure', 'PostToolBatch', 'Stop', 'StopFailure', 'SubagentStop',
-	'PreCompact', 'PostCompact', 'PermissionDenied', 'CwdChanged',
-];
+const EVENTS = ['SessionStart', 'PreCompact'];
 
 const config = JSON.parse(readFileSync(join(ROOT, 'hooks', 'hooks.json'), 'utf8'));
 
@@ -44,7 +40,7 @@ function parseCommand(command) {
 }
 
 describe('hooks/hooks.json shape', () => {
-	it('declares exactly the fourteen plugin hook events', () => {
+	it('declares only the two plugin hook events that earn their tokens', () => {
 		assert.deepEqual(Object.keys(config.hooks).sort(), [...EVENTS].sort());
 	});
 
@@ -52,13 +48,6 @@ describe('hooks/hooks.json shape', () => {
 		for (const {command} of flattenCommands(config)) {
 			assert.match(command, /bin\/dw-hook\.js/, command);
 		}
-	});
-
-	it('scopes the PreToolUse hook to the tools whose input describes intent', () => {
-		assert.equal(
-			config.hooks.PreToolUse[0].matcher,
-			'Bash|Edit|Write|NotebookEdit|AskUserQuestion|LSP|PowerShell|Skill|ToolSearch|Grep|Monitor',
-		);
 	});
 
 	it('every command points at a script that exists in the repo', () => {
