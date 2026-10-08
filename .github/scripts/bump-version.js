@@ -1,6 +1,7 @@
 'use strict';
 
-// Set every file that declares the package version to one patch above a base version.
+// Set every file that declares the package version to one patch above a base version, unless
+// the tree already declares a higher version.
 //
 // The target is computed from `main`, never from the branch: a bump relative to the branch
 // would climb on every CI run, while `main + 1` is the same answer however many times this
@@ -25,6 +26,28 @@ function nextPatch(version) {
 	const m = SEMVER.exec(String(version || '').trim());
 	if (!m) throw new Error(`not a plain major.minor.patch version: ${JSON.stringify(version)}`);
 	return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
+}
+
+function compareSemver(a, b) {
+	const ma = SEMVER.exec(String(a || '').trim());
+	if (!ma) throw new Error(`not a plain major.minor.patch version: ${JSON.stringify(a)}`);
+	const mb = SEMVER.exec(String(b || '').trim());
+	if (!mb) throw new Error(`not a plain major.minor.patch version: ${JSON.stringify(b)}`);
+	for (let i = 1; i <= 3; i++) {
+		const na = Number(ma[i]);
+		const nb = Number(mb[i]);
+		if (na < nb) return -1;
+		if (na > nb) return 1;
+	}
+	return 0;
+}
+
+function resolveTarget(base, current) {
+	const patch = nextPatch(base);
+	if (!current || !String(current).trim()) return patch;
+	const mc = SEMVER.exec(String(current).trim());
+	if (!mc) throw new Error(`not a plain major.minor.patch version: ${JSON.stringify(current)}`);
+	return compareSemver(current, patch) > 0 ? String(current).trim() : patch;
 }
 
 // Rewrites only the version line, so formatting and key order elsewhere survive untouched -
@@ -87,6 +110,14 @@ function selfTest() {
 	assert.throws(() => nextPatch('0.4'), /not a plain major\.minor\.patch/);
 	assert.throws(() => nextPatch('1.2.3-rc.1'), /not a plain major\.minor\.patch/);
 
+	assert.equal(resolveTarget('0.4.23', '0.5.0'), '0.5.0');
+	assert.equal(resolveTarget('0.4.23', '0.4.23'), '0.4.24');
+	assert.equal(resolveTarget('0.4.23', '0.4.24'), '0.4.24');
+	assert.equal(resolveTarget('0.4.23', '0.4.22'), '0.4.24');
+	assert.equal(resolveTarget('0.4.23', ''), '0.4.24');
+	assert.equal(compareSemver('0.5.0', '0.4.24'), 1);
+	assert.equal(compareSemver('0.4.24', '0.4.24'), 0);
+
 	const src = '{\n  "name": "x",\n  "version": "0.4.6",\n  "bin": {"x": "./b.js"}\n}\n';
 	const out = setVersion(src, '0.4.7');
 	assert.match(out, /"version": "0\.4\.7"/);
@@ -120,7 +151,11 @@ function main(argv) {
 		process.exit(1);
 	}
 	const root = rootArg === -1 ? process.cwd() : argv[rootArg + 1];
-	const target = nextPatch(argv[i + 1]);
+	const pkgPath = join(root, 'package.json');
+	const pkgText = readFileSync(pkgPath, 'utf8');
+	const currentMatch = /^\s*"version"\s*:\s*"([^"]*)"/m.exec(pkgText);
+	if (!currentMatch) throw new Error('no "version" field in package.json');
+	const target = resolveTarget(argv[i + 1], currentMatch[1]);
 	const changed = applyVersion(root, target);
 	// Consumed by the workflow: an unchanged tree must not produce an empty amend.
 	const out = process.env.GITHUB_OUTPUT;
@@ -141,4 +176,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = {nextPatch, setVersion, applyVersion, check, VERSION_FILES};
+module.exports = {nextPatch, compareSemver, resolveTarget, setVersion, applyVersion, check, VERSION_FILES};

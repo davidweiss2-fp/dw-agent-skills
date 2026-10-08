@@ -2,6 +2,14 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.5.0
+
+### Changed
+
+- **dw-flow: the parent delegates implementation.** Step 5 names a Task call (`generalPurpose`, `composer-2.5`). The parent does not edit source and applies only the subagent's summary. The operating principles gain that rule, a stop-at-the-first-existing-solution list, and a preference for deletion over a new abstraction.
+- **dw-flow: implementation survives a dead agent.** Before the first edit Task the conductor calls CreateGoal once. The goal covers steps 5 through 12, not step 5 alone. The objective names every deliverable, the evidence that proves them, and the paths of the approved plan, the grill record, the knowledge files, and `implement-<scope>.md`. That file lists the subtasks. A replacement agent inspects the tree and continues the next open subtask. The goal is complete only when the draft PR is green and Bugbot's review has no comments.
+- **Version bump keeps an intentional minor.** CI still moves a PR to one patch above `main`, and leaves the version untouched when the branch already declares something higher, so a `0.5.0` release is not rewritten to the next patch.
+
 ## 0.4.21
 
 ### Changed

@@ -34,7 +34,8 @@ jobs:
       # Consequence to know: the PR's head commit ends with no completed check (mergeStateStatus
       # UNSTABLE). Harmless while `verify` is not a required status check; if it ever becomes one,
       # push with a PAT or App token instead of GITHUB_TOKEN so the run actually executes.
-      - name: Version bump to one patch above main
+      # An intentional higher version already on the branch, such as a minor bump, is left as-is.
+      - name: Version bump, keeping an intentional higher version
         id: bump
         # Pull requests only, and only from a branch in this repo - a fork's head is not
         # pushable and GITHUB_TOKEN is read-only there.
