@@ -62,7 +62,7 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
-5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source.
+5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source. Before the first Task, restate the objective with every deliverable and the evidence that will prove it, then call CreateGoal exactly once. Do not write a goal file by hand and do not retry creation. Put no time limit, token budget, or turn budget in the objective. The objective lists absolute paths to the approved plan, the grill record, the knowledge files in force, and the progress file. Keep that full objective intact across turns. Do not shrink it because the turn is ending. Write `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md` with the subtasks that execute the approved plan, and update it as each finishes. If the work is multi-step, keep a TodoWrite list current too. Updating that list is not a substitute for the work. A replacement agent reads the progress file and those paths, inspects the working tree before trusting them, and continues the next open subtask. It does not re-plan. Call UpdateGoal complete only after a completion audit of the current tree proves every deliverable. Do not call UpdateGoal because the turn is ending.
 6. **Ship it as a draft, and start keeping it ready** — `dw-git-ops` (`ops.sh cap "<message>"`
    then `ops.sh pr --title "<t>" --body "<b>"`, draft by default), then launch **`dw-pr-ready`** on
    it straight away. This runs *before* the quality passes on purpose: CI and the review bots start
@@ -153,9 +153,7 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 
 ## State / resume
 
-At each gate, write a few lines to the worktree context dir — current phase, the approved plan,
-gate decisions. On resume, read it first and re-enter at that phase. Full session handoff →
-`dw-handoff`.
+At each gate, write a few lines to the worktree context dir — current phase, the approved plan, gate decisions. On resume, read it first and re-enter at that phase. During Implement, `implement-<scope>.md` in that dir lists the subtasks and the one in progress. A new agent reads that file and the paths named in the goal, inspects the working tree, and continues the next open subtask. It does not re-grill or re-plan. The goal stays active until a completion audit proves every deliverable. Full session handoff → `dw-handoff`.
 
 ## Hard rules
 
