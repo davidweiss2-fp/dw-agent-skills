@@ -352,9 +352,15 @@ function recommendedNextCommands(owner, repo, prNumber, reason) {
 	}
 }
 
-// States that mean "nothing to do yet". In loop mode the watcher holds through them; in
-// --run get-all it still reports and exits 0, because a single poll has nothing to wait for.
+// States that mean "nothing to do yet". watch-for-new holds through both; get-all holds only
+// through waiting-checks (the current CI run), then exits with the resolved result.
 const WAITING_REASONS = ['waiting-review', 'waiting-checks'];
+
+function shouldHoldForWaiting(attention, options) {
+	if (attention.reason === 'waiting-checks') return true;
+	if (attention.reason === 'waiting-review' && !options.once) return true;
+	return false;
+}
 
 function writeInterruptArtifact(prUrl, payload) {
 	const dir = defaultInterruptDir(prUrl);
@@ -513,9 +519,7 @@ function inspectPr(owner, repo, summary, state, options, mergeQueueEnabled, dire
 		&& actionableComments.length === 0
 		&& failures.length === 0
 	) {
-		// watch-for-new keeps polling quietly while checks run; get-all surfaces
-		// a calm "still waiting" interrupt (exit 0), never a premature pr-ready.
-		if (!options.once) return null;
+		// Both modes hold while checks run; get-all exits when that run finishes.
 		return {
 			summary, owner, repo,
 			reason: 'waiting-checks',
@@ -639,7 +643,9 @@ async function main() {
 				// watch-for-new behave like a single poll for the whole early life of a PR,
 				// so the watcher could not be started before the work that produces the events.
 				// It now holds, and says so once per change of state rather than every poll.
-				if (WAITING_REASONS.includes(attention.reason) && !options.once) {
+				// get-all holds only for waiting-checks (the current CI run), then exits with
+				// the resolved result; waiting-review still exits immediately in get-all mode.
+				if (shouldHoldForWaiting(attention, options)) {
 					if (lastWaiting !== attention.reason) {
 						lastWaiting = attention.reason;
 						console.log(

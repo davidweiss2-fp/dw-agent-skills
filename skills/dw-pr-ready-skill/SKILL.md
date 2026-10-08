@@ -38,7 +38,7 @@ node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update 
 ```
 
 `--run` values:
-- `get-all` — one full poll, then exit.
+- `get-all` — one call that waits until the current check run finishes, then exits with the result.
 - `watch-for-new` — keep looping, polling for new events.
 
 `--branch-update` values:
@@ -66,7 +66,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Leave the branch as-is. In `watch-for-new` the watcher holds and keeps polling. |
-| `waiting-checks` | CI still running. `watch-for-new` keeps polling; with `--run get-all`, re-run when checks finish. |
+| `waiting-checks` | CI still running. The call waits; it does not ask the agent to re-run while checks are still going. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
 
@@ -89,8 +89,7 @@ does not mark it ready.
 That is what makes it worth launching the moment the branch is pushed, while the PR is still a
 draft and before the local quality passes run: CI and the review bots start on the pushed code and
 their findings arrive **in parallel** with `/simplify`, `dw-deslop` and `/code-review`, instead of
-serially after them. `--run get-all` still reports a waiting state and exits, because a single poll
-has nothing to wait for.
+serially after them.
 
 ## Agent work loop
 
