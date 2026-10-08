@@ -55,10 +55,7 @@ are all written to the worktree context dir.
 
 ## 5. Implement
 
-Build to the approved plan — minimal diff, no churn. Scope discipline: touch only the files the
-task names, confirm before expanding scope, and preserve TODO/context comments. Auto-fix
-behavior-preserving lint/test failures. *Done when:* the diff implements the
-plan and behavior-preserving checks pass.
+One Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source. The subagent builds to the approved plan — minimal diff, no churn. Scope discipline: touch only the files the task names, confirm before expanding scope, and preserve TODO/context comments. Auto-fix behavior-preserving lint/test failures. *Done when:* the diff implements the plan and behavior-preserving checks pass.
 
 ## 6. Simplify the diff
 

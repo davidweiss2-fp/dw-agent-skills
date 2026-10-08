@@ -62,7 +62,7 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
-5. **Implement**.
+5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source.
 6. **Ship it as a draft, and start keeping it ready** — `dw-git-ops` (`ops.sh cap "<message>"`
    then `ops.sh pr --title "<t>" --body "<b>"`, draft by default), then launch **`dw-pr-ready`** on
    it straight away. This runs *before* the quality passes on purpose: CI and the review bots start
@@ -146,6 +146,9 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Worktree per ticket: persist to `~/Documents/dw-agent-store/run-notes/<project-slug>/` and read it first.
 - Skill overlap → the `dw-` skill wins.
 - Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`) - the single persistence path.
+- Before writing code, stop at the first step that already solves it: it does not need to exist; it is already in the codebase; the standard library; a native platform feature; an installed dependency; a one-liner; then the minimum code.
+- Prefer deleting code over adding it. Do not add an abstraction the task did not ask for.
+- Code edits are a Task: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source and applies only the summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
 - Comments describe what/how; the why lives in the PR or commit.
 
 ## State / resume
