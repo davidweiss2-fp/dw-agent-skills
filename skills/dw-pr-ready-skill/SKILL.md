@@ -61,7 +61,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | reason | Action |
 |--------|--------|
 | `new-comment` (bot) | Report the comment and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules. |
-| `new-comment` (human) / `user-directive` | Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
+| `new-comment` (human) / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
 | `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
