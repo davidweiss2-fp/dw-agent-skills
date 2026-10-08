@@ -14,13 +14,8 @@ Your job is to keep one PR merge-ready. User gives a **full PR URL** (e.g. `http
 ## Agent with a goal
 
 An agent with a goal waits on CI for an open pull request by running this watcher (`--run watch-for-new`).
-It holds through `waiting-checks` and `waiting-draft`. It does not merge. It does not mark the PR ready.
-Mark ready only when the user asks.
-
-When the watcher exits for a bot comment (Bugbot, fullpath-aroma, OX Security, github-actions, and other
-bots): report the comment and stop. This skill does not reply and does not resolve. `dw-flow` owns the nit
-rules. Human threads stay as they are: reply as an unsubmitted draft signed `[dev-author-ai]`, and do not
-resolve a thread you did not open.
+It holds through `waiting-checks` and `waiting-draft`. It does not merge or mark the PR ready; mark ready
+only when the user asks.
 
 ## Start
 
@@ -121,7 +116,6 @@ Recall the map before selecting tests; this loop is what grows it.
 ## Hard rules
 
 - PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, then reply as an unsubmitted draft.
-- Bot comments (Bugbot, fullpath-aroma, OX Security, github-actions, and other bots): report and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules.
 - Add new replies rather than editing existing PR comments.
 
 ## Replying is drafting, never publishing

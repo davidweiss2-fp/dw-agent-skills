@@ -71,20 +71,18 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    arrive in parallel instead of serially after ship. The watcher holds through `waiting-draft`, so
    a draft PR is watchable from the moment it exists. Fold whatever it reports into the passes below
    rather than opening a second round after them.
-7. **Simplify the diff** — `/simplify` the diff via a Task (`generalPurpose`, `composer-2.5`); the
-   parent does not apply the simplify patch. Then hand to Deslop.
+7. **Simplify the diff** — `/simplify` the diff via Task. Then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.
 9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
    (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
    for at most five rounds, then escalate to the dev with a brief.
 10. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
-    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff via a
-    Task (`generalPurpose`, `composer-2.5`); the parent does not apply the `fmt` patch. The proof of
+    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff via
+    Task. The proof of
     a green preflight is the result envelope from `run.js`, not a bare claim. Recall `dw-knowledge`
     for the repo's verify recipe (which runbook, how it runs, what it tolerates) rather than
     re-deriving or asking.
-11. **Simplify before ship** — a final `/simplify` pass via a Task (`generalPurpose`, `composer-2.5`);
-    the parent does not apply the simplify patch.
+11. **Simplify before ship** — a final `/simplify` pass via Task.
 12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and the step 12
     finish line met. The PR stays draft; the dev decides when it flips to ready (gate 4). The watcher
     is already running; it carries on from here.
@@ -158,7 +156,7 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`) - the single persistence path.
 - Before writing code, stop at the first step that already solves it: it does not need to exist; it is already in the codebase; the standard library; a native platform feature; an installed dependency; a one-liner; then the minimum code.
 - Prefer deleting code over adding it. Do not add an abstraction the task did not ask for.
-- Code edits are a Task: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source and applies only the summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
+- Code edits, simplify, and fmt are Tasks: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source or apply those patches; it applies only the subagent's summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
 - Comments describe what/how; the why lives in the PR or commit.
 
 ## State / resume
