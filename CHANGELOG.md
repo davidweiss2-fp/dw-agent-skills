@@ -2,6 +2,13 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## 0.5.1
+
+### Changed
+
+- **dw-flow owns bot nits and leaves the PR a draft.** Easy nits get a commit fix with no reply or resolve. Complex Bugbot nits get a short reply and resolve. Complex nits from other bots stay unanswered. Step 12 finishes when checks are green, Bugbot has reviewed, and those nit rules are satisfied. The agent does not flip the PR out of draft.
+- **dw-pr-ready is how a goal waits on CI.** The watcher holds through `waiting-checks` and `waiting-draft`, reports bot comments and stops without replying, and does not mark the PR ready. Simplify and fmt patches in the flow are Tasks; the parent does not apply them.
+
 ## 0.5.0
 
 ### Changed

@@ -11,6 +11,17 @@ description: >-
 
 Your job is to keep one PR merge-ready. User gives a **full PR URL** (e.g. `https://github.com/org/repo/pull/123`).
 
+## Agent with a goal
+
+An agent with a goal waits on CI for an open pull request by running this watcher (`--run watch-for-new`).
+It holds through `waiting-checks` and `waiting-draft`. It does not merge. It does not mark the PR ready.
+Mark ready only when the user asks.
+
+When the watcher exits for a bot comment (Bugbot, fullpath-aroma, OX Security, github-actions, and other
+bots): report the comment and stop. This skill does not reply and does not resolve. `dw-flow` owns the nit
+rules. Human threads stay as they are: reply as an unsubmitted draft signed `[dev-author-ai]`, and do not
+resolve a thread you did not open.
+
 ## Start
 
 From this skill directory, run the watcher. `--run` and `--branch-update` are **required** — the watcher exits non-zero with a usage error if either is missing or set to an unrecognized value:
@@ -54,7 +65,8 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 
 | reason | Action |
 |--------|--------|
-| `new-comment` / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
+| `new-comment` (bot) | Report the comment and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules. |
+| `new-comment` (human) / `user-directive` | Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
 | `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
@@ -109,7 +121,7 @@ Recall the map before selecting tests; this loop is what grows it.
 ## Hard rules
 
 - PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, then reply as an unsubmitted draft.
-- Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
+- Bot comments (Bugbot, fullpath-aroma, OX Security, github-actions, and other bots): report and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules.
 - Add new replies rather than editing existing PR comments.
 
 ## Replying is drafting, never publishing
