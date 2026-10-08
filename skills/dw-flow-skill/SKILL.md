@@ -68,8 +68,8 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    it straight away. **`dw-pr-ready` is how an agent with a goal waits on CI.** This runs *before*
    the quality passes on purpose: CI and the review bots start
    working the pushed code while `/simplify`, `dw-deslop` and `/code-review` run, so their findings
-   arrive in parallel instead of serially after ship. The watcher holds through `waiting-draft`, so
-   a draft PR is watchable from the moment it exists. Fold whatever it reports into the passes below
+   arrive in parallel instead of serially after ship. One `dw-pr-ready` `watch-for-new` call is the
+   wait, including while the PR is a draft. Fold whatever it reports into the passes below
    rather than opening a second round after them.
 7. **Simplify the diff** — `/simplify` the diff via Task. Then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.

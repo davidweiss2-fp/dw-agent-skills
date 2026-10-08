@@ -14,8 +14,8 @@ Your job is to keep one PR merge-ready. User gives a **full PR URL** (e.g. `http
 ## Agent with a goal
 
 An agent with a goal waits on CI for an open pull request by running this watcher (`--run watch-for-new`).
-It holds through `waiting-checks` and `waiting-draft`. It does not merge or mark the PR ready; mark ready
-only when the user asks.
+One `watch-for-new` call holds until a real event (comment, CI failure, conflict), including while the PR
+is a draft. It does not merge and it does not mark the PR ready.
 
 ## Start
 
@@ -66,7 +66,6 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Leave the branch as-is. In `watch-for-new` the watcher holds and keeps polling. |
-| `waiting-draft` | Resolve comments only, leaving the branch as-is. Mark ready when user wants. The watcher holds; a draft PR is watchable from the moment it exists. |
 | `waiting-checks` | CI still running. `watch-for-new` keeps polling; with `--run get-all`, re-run when checks finish. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
@@ -83,8 +82,9 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 ## Start it early, on the draft
 
 A waiting state is the absence of an event, not one, so in `watch-for-new` the watcher **holds
-through** `waiting-draft` / `waiting-review` / `waiting-checks` and keeps polling, announcing each
-change of state once rather than every poll. Only a real event exits it.
+through** `waiting-review` / `waiting-checks` and keeps polling, announcing each change of state
+once rather than every poll. Only a real event exits it. A draft PR uses the same hold; the watcher
+does not mark it ready.
 
 That is what makes it worth launching the moment the branch is pushed, while the PR is still a
 draft and before the local quality passes run: CI and the review bots start on the pushed code and
