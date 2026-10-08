@@ -62,28 +62,30 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
-5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source. Before the first Task, restate the objective with every deliverable and the evidence that will prove it, then call CreateGoal exactly once. The objective covers steps 5 through 12, not step 5 alone. Do not write a goal file by hand and do not retry creation. Put no time limit, token budget, or turn budget in the objective. The objective lists absolute paths to the approved plan, the grill record, the knowledge files in force, and the progress file. Keep that full objective intact across turns. Do not shrink it because the turn is ending, and do not mark it complete when implementation alone is done. Write `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md` with one checkbox for each of these, and update it as each finishes: 5 implement, 6 ship the draft and start keeping it ready, 7 simplify the diff, 8 deslop, 9 review, 10 verify, 11 simplify before ship, 12 the PR is still draft, its checks are green, and Bugbot's review has no comments. If Bugbot has not reviewed yet, step 12 is open. If the work is multi-step, keep a TodoWrite list current too. Updating that list is not a substitute for the work. A replacement agent reads the progress file and those paths, inspects the working tree and the PR before trusting them, and continues the next open step. It does not re-plan. Call UpdateGoal complete only after a completion audit proves step 12. Do not call UpdateGoal because the turn is ending, and do not flip the PR out of draft to finish the goal.
+5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source. Before the first Task, restate the objective with every deliverable and the evidence that will prove it, then call CreateGoal exactly once. The objective covers steps 5 through 12, not step 5 alone. Do not write a goal file by hand and do not retry creation. Put no time limit, token budget, or turn budget in the objective. The objective lists absolute paths to the approved plan, the grill record, the knowledge files in force, and the progress file. Keep that full objective intact across turns. Do not shrink it because the turn is ending, and do not mark it complete when implementation alone is done. Write `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md` with one checkbox for each of these, and update it as each finishes: 5 implement, 6 ship the draft and start keeping it ready, 7 simplify the diff, 8 deslop, 9 review, 10 verify, 11 simplify before ship, 12 the PR is still draft, its checks are green, Bugbot has reviewed, every easy nit is fixed, and every complex Bugbot nit has a short reply and the thread is resolved. If Bugbot has not reviewed yet, step 12 is open. If the work is multi-step, keep a TodoWrite list current too. Updating that list is not a substitute for the work. A replacement agent reads the progress file and those paths, inspects the working tree and the PR before trusting them, and continues the next open step. It does not re-plan. Call UpdateGoal complete only after a completion audit proves step 12. Do not call UpdateGoal because the turn is ending, and do not flip the PR out of draft to finish the goal.
 6. **Ship it as a draft, and start keeping it ready** — `dw-git-ops` (`ops.sh cap "<message>"`
    then `ops.sh pr --title "<t>" --body "<b>"`, draft by default), then launch **`dw-pr-ready`** on
-   it straight away. This runs *before* the quality passes on purpose: CI and the review bots start
+   it straight away. **`dw-pr-ready` is how an agent with a goal waits on CI.** This runs *before*
+   the quality passes on purpose: CI and the review bots start
    working the pushed code while `/simplify`, `dw-deslop` and `/code-review` run, so their findings
-   arrive in parallel instead of serially after ship. The watcher holds through `waiting-draft`, so
-   a draft PR is watchable from the moment it exists. Fold whatever it reports into the passes below
+   arrive in parallel instead of serially after ship. One `dw-pr-ready` `watch-for-new` call is the
+   wait, including while the PR is a draft. Fold whatever it reports into the passes below
    rather than opening a second round after them.
-7. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
+7. **Simplify the diff** — `/simplify` the diff via Task. Then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.
 9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
    (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
    for at most five rounds, then escalate to the dev with a brief.
 10. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
-    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
-    folding the `fmt` patch into the commit; the proof of a green preflight is the result
-    envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
-    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
-11. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
-12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and everything
-    `dw-pr-ready` surfaced answered → flip the PR out of draft (`ops.sh pr-ready`). The watcher is
-    already running; it carries on from here.
+    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff via
+    Task. The proof of
+    a green preflight is the result envelope from `run.js`, not a bare claim. Recall `dw-knowledge`
+    for the repo's verify recipe (which runbook, how it runs, what it tolerates) rather than
+    re-deriving or asking.
+11. **Simplify before ship** — a final `/simplify` pass via Task.
+12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and the step 12
+    finish line met. The PR stays draft; the dev decides when it flips to ready (gate 4). The watcher
+    is already running; it carries on from here.
 13. **Post-merge verify** *(offered)* — once the PR merges, delegate to
     `dw-post-merge-verification`; it reads the plan-time success metric from the worktree context
     and rules the fix confirmed / no-effect / inconclusive.
@@ -125,6 +127,12 @@ stays limited to what the design needs. Editing this paragraph is free; revertin
 design is costly.
 What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-specialist`.
 
+## Bot nits
+
+- Easy nit, any bot: fix it in a commit. No reply. No resolve. Easy means a one-commit fix that does not change the design.
+- Complex nit, and the bot is Bugbot: reply with a short reason and resolve the thread. Complex means the nit is wrong, or the fix would change the design.
+- Complex nit, any other bot: leave it unanswered and unresolved.
+
 ## Operating principles
 
 Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence it wins; update there.
@@ -148,12 +156,12 @@ Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence
 - Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`) - the single persistence path.
 - Before writing code, stop at the first step that already solves it: it does not need to exist; it is already in the codebase; the standard library; a native platform feature; an installed dependency; a one-liner; then the minimum code.
 - Prefer deleting code over adding it. Do not add an abstraction the task did not ask for.
-- Code edits are a Task: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source and applies only the summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
+- Code edits, simplify, and fmt are Tasks: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source or apply those patches; it applies only the subagent's summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
 - Comments describe what/how; the why lives in the PR or commit.
 
 ## State / resume
 
-At each gate, write a few lines to the worktree context dir — current phase, the approved plan, gate decisions. On resume, read it first and re-enter at that phase. During Implement, `implement-<scope>.md` in that dir lists the subtasks and the one in progress. A new agent reads that file and the paths named in the goal, inspects the working tree, and continues the next open subtask. It does not re-grill or re-plan. The goal stays active through steps 5 to 12. Step 12 is a draft PR whose checks are green and whose Bugbot review has no comments. No Bugbot review yet means it is not done. Full session handoff → `dw-handoff`.
+At each gate, write a few lines to the worktree context dir — current phase, the approved plan, gate decisions. On resume, read it first and re-enter at that phase. During Implement, `implement-<scope>.md` in that dir lists the subtasks and the one in progress. A new agent reads that file and the paths named in the goal, inspects the working tree, and continues the next open subtask. It does not re-grill or re-plan. The goal stays active through steps 5 to 12. Step 12 is a draft PR whose checks are green, Bugbot has reviewed, every easy nit is fixed, and every complex Bugbot nit has a short reply and the thread is resolved. No Bugbot review yet means it is not done. Do not flip the PR out of draft to finish the goal. Full session handoff → `dw-handoff`.
 
 ## Hard rules
 
