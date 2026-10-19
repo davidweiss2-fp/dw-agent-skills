@@ -11,6 +11,12 @@ description: >-
 
 Your job is to keep one PR merge-ready. User gives a **full PR URL** (e.g. `https://github.com/org/repo/pull/123`).
 
+## Agent with a goal
+
+An agent with a goal waits on CI for an open pull request by running this watcher (`--run watch-for-new`).
+One `watch-for-new` call holds until a real event (comment, CI failure, conflict), including while the PR
+is a draft. It does not merge and it does not mark the PR ready.
+
 ## Start
 
 From this skill directory, run the watcher. `--run` and `--branch-update` are **required** — the watcher exits non-zero with a usage error if either is missing or set to an unrecognized value:
@@ -32,7 +38,7 @@ node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update 
 ```
 
 `--run` values:
-- `get-all` — one full poll, then exit.
+- `get-all` — one call that waits until the current check run finishes, then exits with the result.
 - `watch-for-new` — keep looping, polling for new events.
 
 `--branch-update` values:
@@ -54,13 +60,13 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 
 | reason | Action |
 |--------|--------|
-| `new-comment` / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
+| `new-comment` (bot) | Report the comment and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules. |
+| `new-comment` (human) / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
 | `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Leave the branch as-is. In `watch-for-new` the watcher holds and keeps polling. |
-| `waiting-draft` | Resolve comments only, leaving the branch as-is. Mark ready when user wants. The watcher holds; a draft PR is watchable from the moment it exists. |
-| `waiting-checks` | CI still running. `watch-for-new` keeps polling; with `--run get-all`, re-run when checks finish. |
+| `waiting-checks` | CI still running. The call waits; it does not ask the agent to re-run while checks are still going. |
 | `pr-ready` | PR green and triaged. Report status. |
 | `auth-api-failed` | Fix `gh auth`. |
 
@@ -76,14 +82,14 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 ## Start it early, on the draft
 
 A waiting state is the absence of an event, not one, so in `watch-for-new` the watcher **holds
-through** `waiting-draft` / `waiting-review` / `waiting-checks` and keeps polling, announcing each
-change of state once rather than every poll. Only a real event exits it.
+through** `waiting-review` / `waiting-checks` and keeps polling, announcing each change of state
+once rather than every poll. Only a real event exits it. A draft PR uses the same hold; the watcher
+does not mark it ready.
 
 That is what makes it worth launching the moment the branch is pushed, while the PR is still a
 draft and before the local quality passes run: CI and the review bots start on the pushed code and
 their findings arrive **in parallel** with `/simplify`, `dw-deslop` and `/code-review`, instead of
-serially after them. `--run get-all` still reports a waiting state and exits, because a single poll
-has nothing to wait for.
+serially after them.
 
 ## Agent work loop
 
@@ -109,7 +115,6 @@ Recall the map before selecting tests; this loop is what grows it.
 ## Hard rules
 
 - PR review comments from the directive author(s) (gh-authenticated user, or `DW_PR_DIRECTIVE_LOGINS`) = agent directives. Implement, push, then reply as an unsubmitted draft.
-- Filter noise bots (github-actions, codecov, dependabot). Act on Bugbot only when valid.
 - Add new replies rather than editing existing PR comments.
 
 ## Replying is drafting, never publishing

@@ -62,13 +62,13 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
 5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The
-   parent does not edit source; it applies only the subagent's summary (overrides "edit yourself"
-   and "don't delegate a few-step change"; on hosts without Task, use that host's subagent).
-   Before the first Task, call **CreateGoal** exactly once: one deliverable, a **draft pull
-   request**; evidence is the **PR URL**. No time, token, or turn budget. Do not write a goal file
-   by hand; do not retry creation. Do not mark the goal complete because the turn is ending or
-   because implementation alone is done. The objective lists absolute paths to the approved plan,
-   the grill record, the knowledge files in force, and
+   parent does not edit source or apply simplify/fmt patches; it applies only the subagent's
+   summary (overrides "edit yourself" and "don't delegate a few-step change"; on hosts without
+   Task, use that host's subagent). Before the first Task, call **CreateGoal** exactly once: one
+   deliverable, a **draft pull request**; evidence is the **PR URL**. No time, token, or turn
+   budget. Do not write a goal file by hand; do not retry creation. Do not mark the goal complete
+   because the turn is ending or because implementation alone is done. The objective lists absolute
+   paths to the approved plan, the grill record, the knowledge files in force, and
    `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md`. Write that progress
    file with one checkbox per spine step 5–12 and update it as each finishes; the goal is not those
    checkboxes. Multi-step work may keep TodoWrite current; updating lists is not the work. On
@@ -82,20 +82,22 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    keeping `--branch-update never` and no goal until the PR's checks are green. CI and review bots
    work the pushed code while steps 7–11 run; fold watcher output into those passes. The watcher
    holds through `waiting-draft`, so a draft PR is watchable from the moment it exists.
-7. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
+7. **Simplify the diff** — `/simplify` the diff via Task. Then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.
 9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
    (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
    for at most five rounds, then escalate to the dev with a brief.
 10. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
-    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff,
-    folding the `fmt` patch into the commit; the proof of a green preflight is the result
-    envelope from `run.js`, not a bare claim. Recall `dw-knowledge` for the repo's verify recipe
-    (which runbook, how it runs, what it tolerates) rather than re-deriving or asking.
-11. **Simplify before ship** — a final `/simplify` pass so the PR is the smallest correct change.
-12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and everything
-    `dw-pr-ready` surfaced answered → flip the PR out of draft (`ops.sh pr-ready`). The watcher is
-    already running; it carries on from here.
+    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff via
+    Task. The proof of
+    a green preflight is the result envelope from `run.js`, not a bare claim. Recall `dw-knowledge`
+    for the repo's verify recipe (which runbook, how it runs, what it tolerates) rather than
+    re-deriving or asking.
+11. **Simplify before ship** — a final `/simplify` pass via Task so the PR is the smallest correct
+    change.
+12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and the step 12
+    finish line met. The PR stays draft; the dev decides when it flips to ready (gate 4). The watcher
+    is already running; it carries on from here.
 13. **Post-merge verify** *(offered)* — once the PR merges, delegate to
     `dw-post-merge-verification`; it reads the plan-time success metric from the worktree context
     and rules the fix confirmed / no-effect / inconclusive.
@@ -132,6 +134,12 @@ Approving the plan means approving a one-paragraph placement contract: **which u
 state, who writes it, who reads it, and its lifecycle.** Editing this paragraph is free; reverting
 an implemented design is costly. What is gated vs. deferred: dw-knowledge
 `david-grill-defers-architecture-to-specialist`.
+
+## Bot nits
+
+- Easy nit, any bot: fix it in a commit. No reply. No resolve. Easy means a one-commit fix that does not change the design.
+- Complex nit, and the bot is Bugbot: reply with a short reason and resolve the thread. Complex means the nit is wrong, or the fix would change the design.
+- Complex nit, any other bot: leave it unanswered and unresolved.
 
 ## Operating principles
 

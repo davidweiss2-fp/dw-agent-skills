@@ -55,9 +55,12 @@ are all written to the worktree context dir.
 
 ## 5. Implement
 
-One Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source; it applies only the subagent's summary (overrides "edit yourself" / "don't delegate a few-step change"; on hosts without Task, use that host's subagent).
+One Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit
+source or apply simplify/fmt patches; it applies only the subagent's summary (overrides "edit
+yourself" / "don't delegate a few-step change"; on hosts without Task, use that host's subagent).
 
-**CreateGoal, progress file, and goal lifecycle:** canonical wording is SKILL.md spine steps **5** and **6** — follow that; do not duplicate it here.
+**CreateGoal, progress file, and goal lifecycle:** canonical wording is SKILL.md spine steps **5** and
+**6** — follow that; do not duplicate it here.
 
 The subagent builds to the approved plan — minimal diff, no churn. *Done when:* the diff matches the approved plan and the implement checkbox (step 5) is checked.
 
@@ -69,8 +72,7 @@ Run `dw-git-ops` to cap, push, and open a **draft** PR. *Done when:* the draft P
 
 ## 7. Simplify the diff
 
-Run `/simplify` on the diff before deslop — collapse needless indirection and dead scope while
-the change is fresh. *Done when:* the simplify pass is applied (or it reports nothing to cut).
+Run `/simplify` on the diff before deslop via Task. *Done when:* the simplify pass is applied (or it reports nothing to cut).
 
 ## 8. Deslop
 
@@ -97,21 +99,20 @@ and say so.
 Before shipping, run the mandatory preflight regardless of whether the offered `verify` run
 happens: recall `dw-knowledge` for the repo's verify recipe (which runbook, how it runs, what it
 tolerates) rather than re-deriving or asking; run the repo's lint/typecheck/test on the diff via
-`dw-runbook`; then `fmt` the diff and fold the resulting `fmt` patch into the commit. *Done when:*
-the dev declines the offered `verify` run (or behavior is confirmed against a real run), **and**
-the preflight's green result envelope (the JSON from `run.js`) is pasted, with `fmt` applied.
+`dw-runbook`; then `fmt` the diff via Task. *Done when:* the dev declines the offered `verify` run (or behavior is
+confirmed against a real run), **and** the preflight's green result envelope (the JSON from
+`run.js`) is pasted, with `fmt` applied.
 
 ## 11. Simplify before ship
 
-A final `/simplify` pass so the PR is the smallest correct change — the last chance to cut
-before a reviewer reads it. *Done when:* the pass is applied (or reports nothing to cut).
+A final `/simplify` pass via Task. *Done when:* the pass is applied (or reports nothing to cut).
 
 ## 12. 🚪 Ready
 
 Propose a layer-split if large (keep PRs ~300 LOC, split beyond ~500). Preflight green, `fmt`
-applied, and everything `dw-pr-ready` surfaced answered → flip the PR out of draft (`ops.sh
-pr-ready`). The watcher is already running. *Done when:* checks are green and the dev decides at
-the Post-PR gate whether to flip to ready.
+applied, and the step 12 finish line met (checks green; bot nits per SKILL.md "Bot nits"). The PR
+stays draft; the dev decides when it flips to ready (gate 4). The watcher is already running.
+*Done when:* the step 12 checkbox is satisfied and the dev decides at the Post-PR gate.
 
 ## 13. Post-merge verify *(offered)*
 
