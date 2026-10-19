@@ -33,9 +33,9 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
    one-line **desired output**, then confirm. A clear ask with a clear output is already
    confirmed; continue. Skip trivial steering replies (one-word answers, "go", redirects).
    On a model-invoke, this gate also carries the engage y/n.
-2. 🚪 **Grill** — **invoke `dw-grilling`**. It asks only questions that pass its bar. Zero
-   questions means the grill is finished; continue. Do not invent a question. The Plan gate
-   is the confirm.
+2. 🚪 **Grill** — **invoke `dw-grilling`**. It asks only questions that pass its bar, one at a
+   time, inline. Zero questions means the grill is finished; continue. Hold flow narration while a
+   real question is in flight. Do not invent a question. The Plan gate is the confirm.
 3. 🚪 **Plan** - approve before any code. Approvable only when the plan carries a **traced
    cause** (bug tasks) and a **placement contract** (both below), plus a clean **design-review**
    pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. Lock
@@ -54,22 +54,34 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 
 1. **Ground** — recall `dw-knowledge`; gather codebase + ticket context (derive the ticket from
    the branch); recommend an approach. Bug tasks: establish root cause (below).
-2. 🚪 **Grill** - **invoke `dw-grilling`**. It asks only questions that pass its bar. Zero
-   questions means the grill is finished; continue. Do not invent a question.
+2. 🚪 **Grill** — gate 2 (Grill); playbook §2 for *done when*.
 3. **Simplify the plan** — `/simplify` the drafted plan before it goes to the gate; cut steps and
    scope beyond what the change needs.
 4. 🚪 **Plan** - resolved-design summary → approve; it must carry the **traced cause** (bug
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
    (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
    write it, the placement contract, and the plan to the worktree context. Suggest a capture.
-5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source. Before the first Task, restate the objective with every deliverable and the evidence that will prove it, then call CreateGoal exactly once. The objective covers steps 5 through 12, not step 5 alone. Do not write a goal file by hand and do not retry creation. Put no time limit, token budget, or turn budget in the objective. The objective lists absolute paths to the approved plan, the grill record, the knowledge files in force, and the progress file. Keep that full objective intact across turns. Do not shrink it because the turn is ending, and do not mark it complete when implementation alone is done. Write `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md` with one checkbox for each of these, and update it as each finishes: 5 implement, 6 ship the draft and start keeping it ready, 7 simplify the diff, 8 deslop, 9 review, 10 verify, 11 simplify before ship, 12 the PR is still draft, its checks are green, and Bugbot's review has no comments. If Bugbot has not reviewed yet, step 12 is open. If the work is multi-step, keep a TodoWrite list current too. Updating that list is not a substitute for the work. A replacement agent reads the progress file and those paths, inspects the working tree and the PR before trusting them, and continues the next open step. It does not re-plan. Call UpdateGoal complete only after a completion audit proves step 12. Do not call UpdateGoal because the turn is ending, and do not flip the PR out of draft to finish the goal.
+5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The
+   parent does not edit source; it applies only the subagent's summary (overrides "edit yourself"
+   and "don't delegate a few-step change"; on hosts without Task, use that host's subagent).
+   Before the first Task, call **CreateGoal** exactly once: one deliverable, a **draft pull
+   request**; evidence is the **PR URL**. No time, token, or turn budget. Do not write a goal file
+   by hand; do not retry creation. Do not mark the goal complete because the turn is ending or
+   because implementation alone is done. The objective lists absolute paths to the approved plan,
+   the grill record, the knowledge files in force, and
+   `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md`. Write that progress
+   file with one checkbox per spine step 5–12 and update it as each finishes; the goal is not those
+   checkboxes. Multi-step work may keep TodoWrite current; updating lists is not the work. On
+   resume, read the progress file and those paths, inspect the working tree and PR, and continue
+   the next open step — no re-plan.
 6. **Ship it as a draft, and start keeping it ready** — `dw-git-ops` (`ops.sh cap "<message>"`
-   then `ops.sh pr --title "<t>" --body "<b>"`, draft by default), then launch **`dw-pr-ready`** on
-   it straight away. This runs *before* the quality passes on purpose: CI and the review bots start
-   working the pushed code while `/simplify`, `dw-deslop` and `/code-review` run, so their findings
-   arrive in parallel instead of serially after ship. The watcher holds through `waiting-draft`, so
-   a draft PR is watchable from the moment it exists. Fold whatever it reports into the passes below
-   rather than opening a second round after them.
+   then `ops.sh pr --title "<t>" --body "<b>"`, draft by default). When the draft PR exists, call
+   **UpdateGoal complete** — the goal's only completion. Immediately run **`dw-pr-ready`** from that
+   skill's directory:
+   `node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run watch-for-new --branch-update never`,
+   keeping `--branch-update never` and no goal until the PR's checks are green. CI and review bots
+   work the pushed code while steps 7–11 run; fold watcher output into those passes. The watcher
+   holds through `waiting-draft`, so a draft PR is watchable from the moment it exists.
 7. **Simplify the diff** — `/simplify` the diff, then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.
 9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
@@ -117,50 +129,28 @@ staging. Confirm this traced, reproduced cause at the Plan gate before any code.
 ## Placement contract (before code)
 
 Approving the plan means approving a one-paragraph placement contract: **which unit owns the
-state, who writes it, who reads it, and its lifecycle.** Architecture is gated here with the dev:
-the specialist advises the mechanism (signal vs store, exact match, method names), and the gate
-decides the concern boundaries - one unit owns one
-concern (SRP), a presentation unit reads state from a light dependency-free holder, and state
-stays limited to what the design needs. Editing this paragraph is free; reverting an implemented
-design is costly.
-What is gated vs. deferred: dw-knowledge `david-grill-defers-architecture-to-specialist`.
+state, who writes it, who reads it, and its lifecycle.** Editing this paragraph is free; reverting
+an implemented design is costly. What is gated vs. deferred: dw-knowledge
+`david-grill-defers-architecture-to-specialist`.
 
 ## Operating principles
 
 Canonical source is `dw-knowledge`'s `david-working-rules` — on any divergence it wins; update there.
 
-- Recall knowledge before starting any task.
-- Guard the code: push back on hacks and recommend the better approach.
-- Gather context and recommend an approach before asking.
-- Iterate cheap - settle the design on paper (traced cause, placement contract, design review)
-  before code, and hold staging deploys until the design is approved and reviewed: one deploy,
-  after sign-off.
-- A fix that guards a symptom is a design smell - treat it as a signal to redesign, and label a
-  review idea as a *suggestion* or a *constraint* so a symptom-patch suggestion becomes a redesign
-  trigger.
-- Only touch files the task names; confirm before expanding scope; preserve TODO/context comments.
-- Get approval before any product UI/UX change.
-- Auto-fix behavior-preserving lint/test failures.
-- Keep PRs small and reviewable; slice by layer (~300 LOC, split beyond ~500).
-- Branch `{ticket}-{context}`; in the plan phase, derive the ticket from the branch.
-- Worktree per ticket: persist to `~/Documents/dw-agent-store/run-notes/<project-slug>/` and read it first.
-- Skill overlap → the `dw-` skill wins.
-- Memory only via `dw-knowledge` (global store `~/Documents/dw-agent-store/knowledge/`) - the single persistence path.
-- Before writing code, stop at the first step that already solves it: it does not need to exist; it is already in the codebase; the standard library; a native platform feature; an installed dependency; a one-liner; then the minimum code.
-- Prefer deleting code over adding it. Do not add an abstraction the task did not ask for.
-- Code edits are a Task: `subagent_type: generalPurpose`, `model: composer-2.5`, one batch per call. The parent does not edit source and applies only the summary. This overrides editing in the parent, including a few-step change. On a host with no Task tool, delegate to a subagent that host provides.
-- Comments describe what/how; the why lives in the PR or commit.
-
 ## State / resume
 
-At each gate, write a few lines to the worktree context dir — current phase, the approved plan, gate decisions. On resume, read it first and re-enter at that phase. During Implement, `implement-<scope>.md` in that dir lists the subtasks and the one in progress. A new agent reads that file and the paths named in the goal, inspects the working tree, and continues the next open subtask. It does not re-grill or re-plan. The goal stays active through steps 5 to 12. Step 12 is a draft PR whose checks are green and whose Bugbot review has no comments. No Bugbot review yet means it is not done. Full session handoff → `dw-handoff`.
+At each gate, write a few lines to the worktree context dir — current phase, the approved plan, gate
+decisions. On resume, read it first and re-enter at that phase. During Implement through Ready,
+`implement-<scope>.md` under `~/Documents/dw-agent-store/run-notes/<project-slug>/` lists spine
+steps and checkboxes; the **goal ends when the draft PR exists** (step 6). The watcher has no goal.
+A replacement agent reads the progress file and the paths named in the completed goal objective,
+inspects the working tree and PR, and continues the next open checkbox — no re-grill or re-plan.
+Full session handoff → `dw-handoff`.
 
 ## Hard rules
 
 - Only the four gates stop the flow; everything else runs and stays interruptible.
-- At the Grill gate, **invoke `dw-grilling`**. It asks only questions that pass its bar,
-  one at a time, inline. Zero questions means the grill is finished; continue. Hold flow
-  narration while a real question is in flight. Do not invent a question.
+- At the Grill gate, follow gate 2 (Grill).
 - Edit only on a proven cause - established from a real trace (APM or the dev) and traced to the
   true source of truth, not the first plausible gate.
 - Review runs **blind to approval** - the reviewer's whole input is the artifact and the method,
