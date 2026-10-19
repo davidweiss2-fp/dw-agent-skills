@@ -55,22 +55,31 @@ are all written to the worktree context dir.
 
 ## 5. Implement
 
-One Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit source or apply simplify/fmt patches. It applies only the subagent's summary. This overrides "do the first edit yourself" and "don't delegate a few-step change." On a host with no Task tool, delegate the edit to a subagent that host provides; the parent still does not edit source.
+One Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The parent does not edit
+source or apply simplify/fmt patches; it applies only the subagent's summary (overrides "edit
+yourself" / "don't delegate a few-step change"; on hosts without Task, use that host's subagent).
 
-Before the first Task, restate the objective with every deliverable and the evidence that will prove it, then call CreateGoal exactly once. The objective covers steps 5 through 12, not step 5 alone. Do not write a goal file by hand and do not retry creation. Put no time limit, token budget, or turn budget in the objective. The objective lists absolute paths to the approved plan, the grill record, the knowledge files in force, and the progress file. Keep that full objective intact across turns. Do not shrink it because the turn is ending, and do not mark it complete when implementation alone is done. Write `~/Documents/dw-agent-store/run-notes/<project-slug>/implement-<scope>.md` with one checkbox for each of these, and update it as each finishes: 5 implement, 6 ship the draft and start keeping it ready, 7 simplify the diff, 8 deslop, 9 review, 10 verify, 11 simplify before ship, 12 the PR is still draft, its checks are green, Bugbot has reviewed, every easy nit is fixed, and every complex Bugbot nit has a short reply and the thread is resolved. If Bugbot has not reviewed yet, step 12 is open. If the work is multi-step, keep a TodoWrite list current too. Updating that list is not a substitute for the work. A replacement agent reads the progress file and those paths, inspects the working tree and the PR before trusting them, and continues the next open step. It does not re-plan. Call UpdateGoal complete only after a completion audit proves step 12. Do not call UpdateGoal because the turn is ending, and do not flip the PR out of draft to finish the goal.
+**CreateGoal, progress file, and goal lifecycle:** canonical wording is SKILL.md spine steps **5** and
+**6** — follow that; do not duplicate it here.
 
-The subagent builds to the approved plan — minimal diff, no churn. Scope discipline: touch only the files the task names, confirm before expanding scope, and preserve TODO/context comments. Auto-fix behavior-preserving lint/test failures. *Done when:* the diff matches the approved plan and the implement checkbox (step 5) is checked. The goal stays active until step 12.
+The subagent builds to the approved plan — minimal diff, no churn. *Done when:* the diff matches the approved plan and the implement checkbox (step 5) is checked.
 
-## 6. Simplify the diff
+## 6. Ship it as a draft, and start keeping it ready
+
+**CreateGoal completion and `dw-pr-ready` launch:** SKILL.md spine step **6** — follow that; do not duplicate it here.
+
+Run `dw-git-ops` to cap, push, and open a **draft** PR. *Done when:* the draft PR URL is posted, **UpdateGoal complete** has run, and **`dw-pr-ready`** is watching with `--run watch-for-new --branch-update never`.
+
+## 7. Simplify the diff
 
 Run `/simplify` on the diff before deslop via Task. *Done when:* the simplify pass is applied (or it reports nothing to cut).
 
-## 7. Deslop
+## 8. Deslop
 
 Run `dw-deslop` on the branch diff. *Done when:* `dw-deslop`'s strip summary is posted and the
 diff still behaves.
 
-## 8. Review
+## 9. Review
 
 Run `/code-review` (or `fp-cdp-review` in that scope) by the **review method**
 (`references/review.md`): design-first and unit-by-unit, run **blind to what was approved**, and
@@ -82,7 +91,7 @@ the call needed) rather than opening round six. *Done when:* a fresh review pass
 its findings are triaged, and the blocking ones fixed — **or** the ceiling was hit and the dev has
 made the call.
 
-## 9. Verify *(offered)*
+## 10. Verify *(offered)*
 
 Offer to run the app / the `verify` skill when the change is runnable and worth it; skip otherwise
 and say so.
@@ -94,20 +103,16 @@ tolerates) rather than re-deriving or asking; run the repo's lint/typecheck/test
 confirmed against a real run), **and** the preflight's green result envelope (the JSON from
 `run.js`) is pasted, with `fmt` applied.
 
-## 10. Simplify before ship
+## 11. Simplify before ship
 
 A final `/simplify` pass via Task. *Done when:* the pass is applied (or reports nothing to cut).
 
-## 11. Ship
+## 12. 🚪 Ready
 
-If the change is large, propose a layer-split (keep PRs ~300 LOC, split beyond ~500) before
-opening anything. Commit (professional message), push the `{ticket}-{context}` branch, open a
-**draft** PR with a concise body. *Done when:* the draft PR's URL is posted.
-
-## 12. 🚪 Post-PR
-
-Present the draft PR for the dev to read. The PR stays draft; the dev decides when it flips to
-ready. *Done when:* the dev decides.
+Propose a layer-split if large (keep PRs ~300 LOC, split beyond ~500). Preflight green, `fmt`
+applied, and the step 12 finish line met (checks green; bot nits per SKILL.md "Bot nits"). The PR
+stays draft; the dev decides when it flips to ready (gate 4). The watcher is already running.
+*Done when:* the step 12 checkbox is satisfied and the dev decides at the Post-PR gate.
 
 ## 13. Post-merge verify *(offered)*
 
