@@ -49,8 +49,8 @@ clean **design-review** pass run over that sketch by the review method, blind to
 (`references/review.md`). **Lock the success metric** - the metric or query that will show the
 change worked in prod, its expected direction/threshold, and the observation window - so
 post-merge verification reads a metric fixed here at plan time. Suggest a knowledge capture of any durable
-decision. Write the approved plan, the placement contract, **and the success metric** to the
-worktree context dir. *Done when:* the dev approves and the plan, placement contract, and metric
+decision. The plan also carries a **cleanup list** — what this change removes from the files it edits (SKILL.md "Cleanup while touching"); an empty list is valid. Write the approved plan, the placement contract, the cleanup list, **and the success metric** to the
+worktree context dir. *Done when:* the dev approves, every file the change edits has been asked the cleanup question, and the plan, placement contract, cleanup list, and metric
 are all written to the worktree context dir.
 
 ## 5. Implement
@@ -110,7 +110,7 @@ A final `/simplify` pass via Task. *Done when:* the pass is applied (or reports 
 ## 12. 🚪 Ready
 
 Propose a layer-split if large (keep PRs ~300 LOC, split beyond ~500). Preflight green, `fmt`
-applied, and the step 12 finish line met (checks green; bot nits per SKILL.md "Bot nits"). The PR
+applied, and the step 12 finish line met (checks green; bot nits per SKILL.md "Bot nits"; a "still needed?" comment per SKILL.md "Still needed?"). The PR
 stays draft; the dev decides when it flips to ready (gate 4). The watcher is already running.
 *Done when:* the step 12 checkbox is satisfied and the dev decides at the Post-PR gate.
 

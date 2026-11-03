@@ -25,6 +25,13 @@ Applied at two points in the flow, same method both times, run as a strict senio
 - **DRY.** A repeated call shape gets extracted to one named helper.
 - **Delete the speculative.** Guards, knobs, extra state, and defensive code earn their place only
   with a concrete trigger; the rest comes out. "This seems extra" is a finding.
+- **No leftovers in edited files.** For each file the change edits, ask what is only still here
+  because of this change, or checks a case the product never wanted. Where to start, not where to
+  stop: leftovers, duplication, unused code this change created, and complexity that guards a case
+  the product never asked for. Cover the happy flow. "Still referenced" is not a reason to keep it.
+  Keep what the product still needs. At the Plan gate this is the cleanup list (SKILL.md "Cleanup
+  while touching"). When a human reviewer asks whether it is still needed, do the removal and reply
+  in an unsubmitted draft that names what was removed (SKILL.md "Still needed?").
 - **Directive findings.** Each finding is one concrete instruction with the target named
   ("rename X → Y", "inject Z", "make W private and test through V").
 
