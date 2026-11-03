@@ -38,8 +38,9 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
    real question is in flight. Do not invent a question. The Plan gate is the confirm.
 3. 🚪 **Plan** - approve before any code. Approvable only when the plan carries a **traced
    cause** (bug tasks) and a **placement contract** (both below), plus a clean **design-review**
-   pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. Lock
-   the **success metric** (how we'll know it worked in prod) here too.
+   pass (`references/review.md`) - each cheap to fix on paper and ruinous to fix in code. It also
+   carries a **cleanup list** (below). Lock the **success metric** (how we'll know it worked in prod)
+   here too.
 4. 🚪 **Post-PR** — the draft PR is up and `dw-pr-ready` is already watching it; the dev decides
    when it flips to ready.
 
@@ -59,8 +60,9 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    scope beyond what the change needs.
 4. 🚪 **Plan** - resolved-design summary → approve; it must carry the **traced cause** (bug
    tasks) and a **placement contract** (both below), plus a clean **design-review** pass
-   (`references/review.md`). Lock the **success metric** (metric/query + expected direction) and
-   write it, the placement contract, and the plan to the worktree context. Suggest a capture.
+   (`references/review.md`), and a **cleanup list** (below). Lock the **success metric**
+   (metric/query + expected direction) and write it, the placement contract, the cleanup list, and
+   the plan to the worktree context. Suggest a capture.
 5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The
    parent does not edit source or apply simplify/fmt patches; it applies only the subagent's
    summary (overrides "edit yourself" and "don't delegate a few-step change"; on hosts without
@@ -135,11 +137,27 @@ state, who writes it, who reads it, and its lifecycle.** Editing this paragraph 
 an implemented design is costly. What is gated vs. deferred: dw-knowledge
 `david-grill-defers-architecture-to-specialist`.
 
+## Cleanup while touching
+
+The plan lists what this change removes from the files it edits. For each of those files ask: what is only still here because of this change, or checks a case the product never wanted? Where to start, not where to stop: leftovers, duplication, unused code this change created, and complexity that guards a case the product never asked for. Cover the happy flow. Leave files this change does not edit alone. An empty list is valid when those files have nothing to remove. Keep behavior the product asked for. *Done when:* every file this change edits has been asked that question, and the list names each removal or says that file is clean.
+
+| Excuse | Reality |
+|---|---|
+| "The task didn't ask to delete it" | Editing the file is the moment to remove what this change made leftover. Put that removal on the plan before any code. |
+
 ## Bot nits
 
 - Easy nit, any bot: fix it in a commit. No reply. No resolve. Easy means a one-commit fix that does not change the design.
 - Complex nit, and the bot is Bugbot: reply with a short reason and resolve the thread. Complex means the nit is wrong, or the fix would change the design.
 - Complex nit, any other bot: leave it unanswered and unresolved.
+
+## Still needed?
+
+When a human reviewer asks whether something in the edited files is still needed, apply "Cleanup while touching" and remove it. Do not answer "yes" because something still mentions it. Keep what the product still needs. Reply in an unsubmitted draft that names what was removed. Do this without waiting for the author to override you. Leave the bot-nit rules as they are.
+
+| Excuse | Reality |
+|---|---|
+| "Yes — something still reads it" | A mention is not a reason to keep it. The read is often there only because the new code was added beside the old. Remove the leftover. |
 
 ## Operating principles
 
