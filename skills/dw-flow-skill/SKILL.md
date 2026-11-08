@@ -63,10 +63,9 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    (`references/review.md`), and a **cleanup list** (below). Lock the **success metric**
    (metric/query + expected direction) and write it, the placement contract, the cleanup list, and
    the plan to the worktree context. Suggest a capture.
-5. **Implement** — one Task per batch, `subagent_type: generalPurpose`, `model: composer-2.5`. The
-   parent does not edit source or apply simplify/fmt patches; it applies only the subagent's
-   summary (overrides "edit yourself" and "don't delegate a few-step change"; on hosts without
-   Task, use that host's subagent). Before the first Task, call **CreateGoal** exactly once: one
+5. **Implement** — the parent edits source in this session, including simplify and format patches.
+   Do not start a Task for those edits. Review and other non-edit work may still use a subagent.
+   Before the first edit, call **CreateGoal** exactly once: one
    deliverable, a **draft pull request**; evidence is the **PR URL**. No time, token, or turn
    budget. Do not write a goal file by hand; do not retry creation. Do not mark the goal complete
    because the turn is ending or because implementation alone is done. The objective lists absolute
@@ -84,18 +83,18 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
    keeping `--branch-update never` and no goal until the PR's checks are green. CI and review bots
    work the pushed code while steps 7–11 run; fold watcher output into those passes. The watcher
    holds through `waiting-draft`, so a draft PR is watchable from the moment it exists.
-7. **Simplify the diff** — `/simplify` the diff via Task. Then hand to Deslop.
+7. **Simplify the diff** — the parent runs `/simplify` on the diff in this session. Then hand to Deslop.
 8. **Deslop** — `dw-deslop` the diff.
 9. **Review** - `/code-review` (or `fp-cdp-review` in that scope), run by the **review method**
    (`references/review.md`): blind to what was approved, iterating until a fresh pass is clean -
    for at most five rounds, then escalate to the dev with a brief.
 10. **Verify** *(offered)* — `verify` the app for behavior; and before shipping run the repo's
-    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and `fmt` the diff via
-    Task. The proof of
+    **preflight checks** via `dw-runbook` (lint/typecheck/test on the diff) and the parent formats
+    the diff in this session. The proof of
     a green preflight is the result envelope from `run.js`, not a bare claim. Recall `dw-knowledge`
     for the repo's verify recipe (which runbook, how it runs, what it tolerates) rather than
     re-deriving or asking.
-11. **Simplify before ship** — a final `/simplify` pass via Task so the PR is the smallest correct
+11. **Simplify before ship** — the parent runs a final `/simplify` pass in this session so the PR is the smallest correct
     change.
 12. 🚪 **Ready** — propose a layer-split if large; preflight green, `fmt` applied, and the step 12
     finish line met. The PR stays draft; the dev decides when it flips to ready (gate 4). The watcher
