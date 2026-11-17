@@ -27,7 +27,7 @@ additively; pass `--no-hooks` to skip. See [INSTALL.md](INSTALL.md) for details.
 
 ## Rule
 
-With the plugin enabled, `rules/prefer-dw-flow.mdc` is always on. Agents prefer `dw-flow`. A request that has not used a skill starts that flow. A direction change during a `dw-*` skill re-walks the flow internally, checks the new reading with the user, grills only when a decision is still open, and otherwise gets approval on the next steps.
+With the plugin enabled, `rules/prefer-dw-flow.mdc` is always on. A request that has not used a skill starts `dw-flow`. A direction change re-walks the flow internally, checks that reading with the user, grills an open decision, and otherwise waits for approval of the next steps. The rule lists every skill in this plugin, including the three only the user can invoke, and tells the agent to suggest those by slash command.
 
 ## Skills
 

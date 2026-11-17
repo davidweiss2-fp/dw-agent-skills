@@ -1,12 +1,54 @@
 ---
-description: Prefer dw-flow, start it when no skill has run, and re-enter it when the user changes direction
+description: >-
+  Start dw-flow when no skill has run, re-enter it when the user changes
+  direction, and suggest every dw-* skill — including ones only the user can
+  invoke — when it matches the ask.
 alwaysApply: true
 ---
 
 # Prefer dw-flow
 
-Prefer `dw-flow` for work that builds or ships something. A `dw-*` skill the user names still runs.
+## Start
 
-When this turn has not used a skill, treat the request as the start of `dw-flow`.
+Run `dw-flow` for work that builds or ships something. When this turn has used no skill, the request is the start of `dw-flow`.
 
-When the user changes the direction of a `dw-*` skill already in progress, walk the `dw-flow` steps again internally and check that the new direction was understood. Verify that reading with the user. If a decision is still open, grill it with `dw-grilling`. If it is not, get approval on the next steps before continuing.
+A `dw-*` skill the user names still runs. *Done when:* the turn is inside `dw-flow`, or inside the skill the user named.
+
+| Excuse | Reality |
+|---|---|
+| "This is a small edit, so the flow can wait" | A request with no skill is the start of `dw-flow`. The flow's own gates decide what to skip. |
+| "I'll call the user-invoked skill myself" | `disable-model-invocation: true` makes that call a silent no-op. Name the slash command and let the user run it. |
+
+## Direction change
+
+When the user changes the direction of a `dw-*` skill already in progress:
+
+1. Walk the `dw-flow` steps internally and write down the new ask and the desired output. *Done when:* that reading is one short paragraph.
+2. Verify the paragraph with the user. *Done when:* the user has confirmed it or corrected it.
+3. Grill with `dw-grilling` when a decision is still open. *Done when:* every open decision is resolved, or there was none.
+4. Get approval on the next steps when no decision is open. *Done when:* the user has approved the next steps.
+
+## Skills in this plugin
+
+This table is the closed set of skills that ship in this plugin. A skill present in the session and absent from the table still counts: survey it the same way.
+
+The agent may run a skill in the **agent** column. A skill in the **you** column is user-invoked. Suggest it by its slash command when it matches the ask, and do not call it.
+
+| Skill | Who runs it | Suggest when the user is |
+|---|---|---|
+| `dw-flow` | agent | building or shipping, or no skill has run |
+| `dw-pr-ready` | agent | keeping one PR merge-ready |
+| `dw-review-prs` | agent | working the PRs waiting on them |
+| `dw-knowledge` | agent | asking how a workflow is run here, or asking to remember one |
+| `dw-handoff` | agent | asking for a handoff |
+| `dw-grilling` | agent | leaving a plan decision open |
+| `dw-git-ops` | agent | committing, pushing, branching, or opening a PR |
+| `dw-deslop` | agent | asking to strip AI slop from the diff |
+| `dw-runbook` | agent | asking to cache or rerun a shell workflow |
+| `dw-env` | agent | cloning, bootstrapping, or checking the machine |
+| `dw-post-merge-verification` | agent | asking whether a merged PR changed prod |
+| `dw-continue` | you — `/dw-continue` | resuming a handoff already written |
+| `dw-skill-authoring` | you — `/dw-skill-authoring` | writing, reviewing, or debugging a skill |
+| `dw-ticket-manager` | you — `/dw-ticket-manager` | running an accepted set of settled tickets to draft PRs |
+
+*Done when:* every row that matches the ask was either run (agent) or named to the user with its slash command (you), and no user-invoked skill was called.

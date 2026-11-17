@@ -109,17 +109,11 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 
 ## Skill discovery (every step)
 
-Survey the skills available in the current scope and pick only the ones that are a genuinely good
-call for the step — judgment, not mere relevance. Use them and **narrate what you use** ("running
-`dw-deslop` on the diff"); no confirmation. Flag a **notable skip** in one line ("skipping
-`verify` - nothing runnable here"); keep it to those. Discover skills live so the set stays
-current as the skill set changes.
-
-The survey picks among **model-invoked** skills only. A skill carrying
-`disable-model-invocation: true` — `dw-skill-authoring` among them — can be run by nothing but a
-human typing its name, so invoking one is a call that quietly does nothing. When the survey lands on
-one, name it to the dev as a recommendation ("`/dw-skill-authoring` is the right tool for this — it's
-user-invoked, so run it yourself") and carry on with the step.
+The closed set of this plugin's skills, which of them only the user can invoke, and when to
+suggest each one, lives in `rules/prefer-dw-flow.mdc`. Survey skills outside that table the same
+way. Run an agent-invoked skill that is a genuinely good call for the step and narrate it
+("running `dw-deslop` on the diff"). Suggest a user-invoked match by its slash command and do not
+call it. Flag a notable skip in one line.
 
 ## Root cause (bug tasks)
 

@@ -7,7 +7,7 @@ All notable changes to dw-agent-skills. This project follows semantic versioning
 ### Changed
 
 - No skill change. This merge is the signal for checking the local marketplace checkout sync.
-- **Prefer dw-flow.** With the plugin enabled, agents start `dw-flow` when no skill has run. A direction change during a `dw-*` skill re-walks the flow internally, checks that reading with the user, grills only an open decision, and otherwise waits for approval of the next steps.
+- **Prefer dw-flow.** With the plugin enabled, agents start `dw-flow` when no skill has run. A direction change re-walks the flow internally, checks that reading with the user, grills an open decision, and otherwise waits for approval of the next steps. The rule names every plugin skill, including the user-invoked ones, and suggests those by slash command instead of calling them.
 
 ## 0.5.1
 
