@@ -1,0 +1,7 @@
+{
+  "plugins": {
+    "davidweiss2-fp-dw-agent-skills/dw-agent-skills": {
+      "enabled": true
+    }
+  }
+}
