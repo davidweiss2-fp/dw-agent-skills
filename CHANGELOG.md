@@ -2,6 +2,12 @@
 
 All notable changes to dw-agent-skills. This project follows semantic versioning.
 
+## Unreleased
+
+### Changed
+
+- No skill change. This merge is the signal for checking the local marketplace checkout sync.
+
 ## 0.5.1
 
 ### Changed
