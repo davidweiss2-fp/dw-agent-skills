@@ -34,7 +34,7 @@ With the plugin enabled, `rules/prefer-dw-flow.mdc` is always on. A request that
 | Skill | Trigger | What |
 |-------|---------|------|
 | `dw-flow-skill` | `/dw-flow [task]` / "run the flow" / "take RD-1234 to a PR" | Adaptive conductor — drives a substantial task from understanding to a merge-ready PR (ground, grill, plan, implement, deslop, review, ship), delegating to the other `dw-*` skills and surveying in-scope skills; pauses only at 4 gates (intent / grill / plan / post-PR) |
-| `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; updates branch when safe; exits with next action |
+| `dw-pr-ready-skill` | Full PR URL + "keep ready" / babysit | Watches comments, CI, review/draft state, merge queue; does not update the branch unless asked; polls every 30s; exits with next action |
 | `dw-review-prs-skill` | "review the PRs I was asked to review" / "what PRs are waiting on me" / `/dw-review-prs` | Works the queue of PRs where review is requested of you and leaves every finding as an **unsubmitted** `[dev-ai]` review — reads your existing drafts, your published comments, and every other reviewer/bot comment first, skips a PR whose head SHA is already handled, and never submits without an explicit event |
 | `dw-knowledge-skill` | "how do we run X here" / "remember this" / `/dw-recall` / `/dw-remember` | Live cross-project agent memory — recall before non-trivial work, capture verified+generalizable knowledge, self-update and prune; stores the method never secrets, confirms before writing |
 | `dw-skill-authoring-skill` | "help me write a skill" / "review this skill" / "why won't my skill trigger" | Principles, a checklist, and a failure-mode table for authoring reliable, well-triggered Agent Skills (naming, description, progressive disclosure, scripts-vs-prose). Invoked by name |
@@ -54,7 +54,7 @@ Attach or invoke the skill with a full PR link:
 https://github.com/org/repo/pull/123
 ```
 
-The skill runs `node scripts/dw-pr-ready-watch.js "<url>"` and loops until the PR needs attention or is ready.
+The skill runs `node scripts/dw-pr-ready-watch.js "<url>" --run watch-for-new` and polls every 30 seconds until the PR needs attention or is ready. It does not update the branch from base.
 
 ## Usage — dw-knowledge-skill
 
