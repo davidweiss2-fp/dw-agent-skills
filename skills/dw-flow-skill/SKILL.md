@@ -8,8 +8,8 @@ description: >-
   work: "take RD-1234 to a PR", "implement this and open a PR", "run the flow
   on this", "ship this end to end", or `/dw-flow [task]`. Engages only on
   multi-phase build/ship tasks — not quick questions, edits, or lookups; on
-  self-engage it asks first. When a specific dw-* skill is invoked directly,
-  that skill wins - the conductor yields to it.
+  self-engage it asks first. A directly invoked dw-* skill still runs. A later
+  change of direction re-enters this flow internally, then checks with the user.
 ---
 
 # dw-flow — adaptive workflow conductor
@@ -24,8 +24,9 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 - **Explicit** `/dw-flow [task]` or "run the flow on this" → opted in; start at gate 1.
 - **Model-invoked** → engage only on clearly-substantial plan→ship tasks. The first thing
   gate 1 does is ask "engage the conductor for this? y/n" before any other work.
-- **Overlap** → when a `dw-*` skill is invoked directly (`/dw-grill`, `/dw-deslop`, …), that
-  skill wins; the conductor yields to it.
+- **Overlap** → a directly invoked `dw-*` skill runs. If the user then changes direction,
+  walk this flow again internally, verify that reading with the user, grill only when a
+  decision is still open, and otherwise get approval on the next steps before continuing.
 
 ## The four gates — the only stops
 
@@ -108,17 +109,11 @@ Open every phase by surveying the in-scope skills for *that* phase (see Skill di
 
 ## Skill discovery (every step)
 
-Survey the skills available in the current scope and pick only the ones that are a genuinely good
-call for the step — judgment, not mere relevance. Use them and **narrate what you use** ("running
-`dw-deslop` on the diff"); no confirmation. Flag a **notable skip** in one line ("skipping
-`verify` - nothing runnable here"); keep it to those. Discover skills live so the set stays
-current as the skill set changes.
-
-The survey picks among **model-invoked** skills only. A skill carrying
-`disable-model-invocation: true` — `dw-skill-authoring` among them — can be run by nothing but a
-human typing its name, so invoking one is a call that quietly does nothing. When the survey lands on
-one, name it to the dev as a recommendation ("`/dw-skill-authoring` is the right tool for this — it's
-user-invoked, so run it yourself") and carry on with the step.
+The closed set of this plugin's skills, which of them only the user can invoke, and when to
+suggest each one, lives in `rules/prefer-dw-flow.mdc`. Survey skills outside that table the same
+way. Run an agent-invoked skill that is a genuinely good call for the step and narrate it
+("running `dw-deslop` on the diff"). Suggest a user-invoked match by its slash command and do not
+call it. Flag a notable skip in one line.
 
 ## Root cause (bug tasks)
 
