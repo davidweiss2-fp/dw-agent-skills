@@ -55,12 +55,12 @@ are all written to the worktree context dir.
 
 ## 5. Implement
 
-Who edits, including simplify and format, is SKILL.md spine step **5**. Follow that; do not restate it here.
+Build to the approved plan — minimal diff, no churn.
 
 **CreateGoal, progress file, and goal lifecycle:** canonical wording is SKILL.md spine steps **5** and
 **6** — follow that; do not duplicate it here.
 
-The parent builds to the approved plan — minimal diff, no churn. *Done when:* the diff matches the approved plan and the implement checkbox (step 5) is checked.
+*Done when:* the diff matches the approved plan and the implement checkbox (step 5) is checked.
 
 ## 6. Ship it as a draft, and start keeping it ready
 
@@ -70,7 +70,7 @@ Run `dw-git-ops` to cap, push, and open a **draft** PR. *Done when:* the draft P
 
 ## 7. Simplify the diff
 
-The parent runs `/simplify` on the diff before deslop, in this session. *Done when:* the simplify pass is applied (or it reports nothing to cut).
+Run `/simplify` on the diff before deslop. *Done when:* the simplify pass is applied (or it reports nothing to cut).
 
 ## 8. Deslop
 
@@ -97,13 +97,13 @@ and say so.
 Before shipping, run the mandatory preflight regardless of whether the offered `verify` run
 happens: recall `dw-knowledge` for the repo's verify recipe (which runbook, how it runs, what it
 tolerates) rather than re-deriving or asking; run the repo's lint/typecheck/test on the diff via
-`dw-runbook`; then the parent formats the diff in this session. *Done when:* the dev declines the offered `verify` run (or behavior is
+`dw-runbook`; then `fmt` the diff. *Done when:* the dev declines the offered `verify` run (or behavior is
 confirmed against a real run), **and** the preflight's green result envelope (the JSON from
 `run.js`) is pasted, with `fmt` applied.
 
 ## 11. Simplify before ship
 
-The parent runs a final `/simplify` pass in this session. *Done when:* the pass is applied (or reports nothing to cut).
+A final `/simplify` pass. *Done when:* the pass is applied (or reports nothing to cut).
 
 ## 12. 🚪 Ready
 
