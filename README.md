@@ -25,6 +25,10 @@ Installed as a Claude Code plugin, the suite's hooks (knowledge auto-recall, run
 handoff nudge) wire automatically. A non-plugin install merges them into `settings.json`
 additively; pass `--no-hooks` to skip. See [INSTALL.md](INSTALL.md) for details.
 
+## Rule
+
+With the plugin enabled, `rules/prefer-dw-flow.mdc` is always on. Agents prefer `dw-flow`. A request that has not used a skill starts that flow. A direction change during a `dw-*` skill re-walks the flow internally, checks the new reading with the user, grills only when a decision is still open, and otherwise gets approval on the next steps.
+
 ## Skills
 
 | Skill | Trigger | What |

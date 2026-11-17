@@ -1,0 +1,12 @@
+---
+description: Prefer dw-flow, start it when no skill has run, and re-enter it when the user changes direction
+alwaysApply: true
+---
+
+# Prefer dw-flow
+
+Prefer `dw-flow` for work that builds or ships something. A `dw-*` skill the user names still runs.
+
+When this turn has not used a skill, treat the request as the start of `dw-flow`.
+
+When the user changes the direction of a `dw-*` skill already in progress, walk the `dw-flow` steps again internally and check that the new direction was understood. Verify that reading with the user. If a decision is still open, grill it with `dw-grilling`. If it is not, get approval on the next steps before continuing.

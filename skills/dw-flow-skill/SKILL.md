@@ -8,8 +8,8 @@ description: >-
   work: "take RD-1234 to a PR", "implement this and open a PR", "run the flow
   on this", "ship this end to end", or `/dw-flow [task]`. Engages only on
   multi-phase build/ship tasks — not quick questions, edits, or lookups; on
-  self-engage it asks first. When a specific dw-* skill is invoked directly,
-  that skill wins - the conductor yields to it.
+  self-engage it asks first. A directly invoked dw-* skill still runs. A later
+  change of direction re-enters this flow internally, then checks with the user.
 ---
 
 # dw-flow — adaptive workflow conductor
@@ -24,8 +24,9 @@ its own, picks the right skills, and you can redirect, reorder, or skip any phas
 - **Explicit** `/dw-flow [task]` or "run the flow on this" → opted in; start at gate 1.
 - **Model-invoked** → engage only on clearly-substantial plan→ship tasks. The first thing
   gate 1 does is ask "engage the conductor for this? y/n" before any other work.
-- **Overlap** → when a `dw-*` skill is invoked directly (`/dw-grill`, `/dw-deslop`, …), that
-  skill wins; the conductor yields to it.
+- **Overlap** → a directly invoked `dw-*` skill runs. If the user then changes direction,
+  walk this flow again internally, verify that reading with the user, grill only when a
+  decision is still open, and otherwise get approval on the next steps before continuing.
 
 ## The four gates — the only stops
 
