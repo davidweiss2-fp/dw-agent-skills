@@ -6,15 +6,25 @@ const {join} = require('node:path');
 const utils = require('./utils');
 const lib = require('./pr-ready-lib');
 
-const DEFAULT_POLL_MS = 120_000;
+const DEFAULT_POLL_MS = 30_000;
+const DEFAULT_BRANCH_UPDATE = 'never';
 
 const RUN_VALUES = ['get-all', 'watch-for-new'];
 const BRANCH_UPDATE_VALUES = ['when-behind', 'on-conflicts', 'never'];
 
 function usageError(message) {
 	console.error(`Usage error: ${message}`);
-	console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> --branch-update <when-behind|on-conflicts|never> [--poll-ms N]');
+	console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> [--branch-update <when-behind|on-conflicts|never>] [--poll-ms N]');
 	process.exit(1);
+}
+
+function optionalEnumArg(args, key, envKey, allowedValues, defaultValue) {
+	const raw = utils.getStringArg(args, key, envKey, defaultValue);
+	if (!raw) return defaultValue;
+	if (!allowedValues.includes(raw)) {
+		usageError(`--${key}=${raw} is invalid. Valid values: ${allowedValues.join(', ')}`);
+	}
+	return raw;
 }
 
 function requireEnumArg(args, key, envKey, allowedValues) {
@@ -35,7 +45,7 @@ function parseCliOptions() {
 	const positional = args._ ?? [];
 	const prUrl = positional[0] || utils.getStringArg(args, 'pr', 'DW_PR_READY_URL', '');
 	const run = requireEnumArg(args, 'run', 'DW_PR_READY_RUN', RUN_VALUES);
-	const branchUpdate = requireEnumArg(args, 'branch-update', 'DW_PR_READY_BRANCH_UPDATE', BRANCH_UPDATE_VALUES);
+	const branchUpdate = optionalEnumArg(args, 'branch-update', 'DW_PR_READY_BRANCH_UPDATE', BRANCH_UPDATE_VALUES, DEFAULT_BRANCH_UPDATE);
 	return {
 		prUrl,
 		once: run === 'get-all',
@@ -401,7 +411,7 @@ function printInterrupt(result, localBranch, artifactPath) {
 		console.log('');
 		console.log('ciFailures:');
 		for (const failure of result.failures) {
-			console.log(`- ${failure.name} (${failure.state}) ${failure.link || failure.workflow}`);
+			console.log(`- ${failure.name} (${failure.state})${failure.repeated ? ' repeated' : ''} ${failure.link || failure.workflow}`);
 		}
 	}
 
@@ -607,7 +617,7 @@ function isTransientGhError(message) {
 async function main() {
 	const options = parseCliOptions();
 	if (!options.prUrl) {
-		console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> --branch-update <when-behind|on-conflicts|never> [--poll-ms N]');
+		console.error('Usage: node dw-pr-ready-watch.js <full-pr-url> --run <get-all|watch-for-new> [--branch-update <when-behind|on-conflicts|never>] [--poll-ms N]');
 		process.exit(1);
 	}
 

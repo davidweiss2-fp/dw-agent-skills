@@ -13,8 +13,12 @@ import {
 	resolveDirectiveLogins,
 	isUserDirective,
 	unseenComments,
+	unseenFailures,
 	rememberComments,
+	rememberFailures,
+	bodyPreview,
 } from '../skills/dw-pr-ready-skill/scripts/pr-ready-lib.js';
+import {parseCliOptions} from '../skills/dw-pr-ready-skill/scripts/dw-pr-ready-watch.js';
 
 describe('parsePrUrl', () => {
 	it('parses standard GitHub PR URLs', () => {
@@ -225,5 +229,45 @@ describe('a handled directive is not re-reported every poll', () => {
 		const next = {...directive, id: 'PRRC_2', body: 'and also this'};
 		const unseen = unseenComments(57198, [directive, next], state);
 		assert.deepEqual(unseen.map((c) => c.id), ['PRRC_2']);
+	});
+});
+
+describe('comment text the agent reads', () => {
+	it('keeps the Bugbot description and drops the surrounding markup', () => {
+		const body = '### Bug\n<!-- DESCRIPTION START -->null deref on empty list<!-- DESCRIPTION END -->\n[link](https://example.com)';
+		assert.equal(bodyPreview(body), 'null deref on empty list');
+	});
+});
+
+describe('the same check failing again after a fix', () => {
+	it('marks the second head as repeated and leaves the first unmarked', () => {
+		const state = emptyState();
+		const first = [{key: 'sha1:unit:ci', name: 'unit', state: 'FAILURE'}];
+		assert.equal(unseenFailures(1, first, state)[0].repeated, false);
+		rememberFailures(1, first, state);
+		const again = [{key: 'sha2:unit:ci', name: 'unit', state: 'FAILURE'}];
+		assert.equal(unseenFailures(1, again, state)[0].repeated, true);
+	});
+});
+
+describe('watcher defaults', () => {
+	it('does not update the branch and polls every 30 seconds when neither flag is set', () => {
+		const previousArgv = process.argv;
+		const previousUpdate = process.env.DW_PR_READY_BRANCH_UPDATE;
+		const previousPoll = process.env.DW_PR_READY_POLL_MS;
+		delete process.env.DW_PR_READY_BRANCH_UPDATE;
+		delete process.env.DW_PR_READY_POLL_MS;
+		process.argv = ['node', 'dw-pr-ready-watch.js', 'https://github.com/org/repo/pull/1', '--run', 'watch-for-new'];
+		try {
+			const options = parseCliOptions();
+			assert.equal(options.branchUpdate, 'never');
+			assert.equal(options.pollMs, 30_000);
+		} finally {
+			process.argv = previousArgv;
+			if (previousUpdate === undefined) delete process.env.DW_PR_READY_BRANCH_UPDATE;
+			else process.env.DW_PR_READY_BRANCH_UPDATE = previousUpdate;
+			if (previousPoll === undefined) delete process.env.DW_PR_READY_POLL_MS;
+			else process.env.DW_PR_READY_POLL_MS = previousPoll;
+		}
 	});
 });

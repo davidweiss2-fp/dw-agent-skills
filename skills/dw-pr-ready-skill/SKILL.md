@@ -19,32 +19,26 @@ is a draft. It does not merge and it does not mark the PR ready.
 
 ## Start
 
-From this skill directory, run the watcher. `--run` and `--branch-update` are **required** — the watcher exits non-zero with a usage error if either is missing or set to an unrecognized value:
+From this skill directory, run the watcher. `--run` is required. `--branch-update` defaults to `never`. The watch loop polls every 30 seconds unless `--poll-ms` or `DW_PR_READY_POLL_MS` is set.
 
 ```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run watch-for-new --branch-update when-behind
+node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run watch-for-new
 ```
 
 One-shot (single poll, no loop):
 
 ```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update when-behind
-```
-
-Dry poll without any branch update:
-
-```bash
-node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all --branch-update never
+node scripts/dw-pr-ready-watch.js "<full-pr-url>" --run get-all
 ```
 
 `--run` values:
 - `get-all` — one call that waits until the current check run finishes, then exits with the result.
-- `watch-for-new` — keep looping, polling for new events.
+- `watch-for-new` — keep looping, polling for new events every 30 seconds.
 
-`--branch-update` values:
-- `when-behind` — update the branch from base whenever it's behind.
+`--branch-update` values (default `never`):
+- `never` — do not update the branch from base.
 - `on-conflicts` — update only when the PR is conflicting/not-mergeable.
-- `never` — never update the branch.
+- `when-behind` — update the branch from base whenever it's behind.
 
 Requirements: GitHub CLI installed and authenticated (`gh auth status`).
 
@@ -62,7 +56,7 @@ Read stdout and the `artifact` JSON path. Act on `reason`:
 |--------|--------|
 | `new-comment` (bot) | Report the comment and stop. Do not reply. Do not resolve. `dw-flow` owns the nit rules. |
 | `new-comment` (human) / `user-directive` | Triage unresolved threads. Fix valid issues. Reply as an **unsubmitted draft** (below). Never resolve someone else's thread. |
-| `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. |
+| `ci-failure` | Fix scoped CI failures. Keep every CI check as strict as it is. Push fixes. **Drift-capture** (below) if CI caught something local preflight missed. Re-run watcher. If a failure is marked `repeated`, stop and report it; do not push another fix for that check. |
 | `merge-conflict` | Resolve conflicts in a worktree. Preserve branch intent. Push. Re-run watcher. |
 | `update-branch-failed` | Inspect `updateError`. May need manual merge from base. |
 | `waiting-review` | Leave the branch as-is. In `watch-for-new` the watcher holds and keeps polling. |
@@ -96,7 +90,10 @@ serially after them.
 1. Run watcher.
 2. If interrupt (exit 2): fix issue, push if needed, run watcher again.
 3. If `pr-ready` (exit 0): report and stop. In loop mode `waiting-*` does not exit - it holds.
-4. Repeat until merged or user stops.
+4. Stop without another fix when the same CI check comes back after a push (`repeated` on that failure), when the same review thread comes back after a fix, or after three Bugbot rounds. Report that and wait.
+5. Repeat until merged, that stop, or the user stops.
+
+Comment text in the interrupt is already shortened: codecov, dependabot, GitHub Actions, and clean scan comments are dropped, and a Bugbot body is reduced to the text between its description markers.
 
 ## CI-drift capture (close the local↔CI gap)
 

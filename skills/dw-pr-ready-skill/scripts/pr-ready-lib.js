@@ -23,7 +23,13 @@ function resolveDirectiveLogins(env, fallbacks = []) {
 }
 
 function bodyPreview(body, max = 240) {
-	const compact = String(body || '').replace(/\s+/g, ' ').trim();
+	const raw = String(body || '');
+	const described = /<!-- DESCRIPTION START -->([\s\S]*?)<!-- DESCRIPTION END -->/.exec(raw);
+	const text = (described ? described[1] : raw)
+		.replace(/<!--[\s\S]*?-->/g, ' ')
+		.replace(/<[^>]+>/g, ' ')
+		.replace(/!?\[[^\]]*\]\([^)]*\)/g, ' ');
+	const compact = text.replace(/\s+/g, ' ').trim();
 	return compact.length > max ? `${compact.slice(0, max)}…` : compact;
 }
 
@@ -201,8 +207,12 @@ function unseenComments(prNumber, comments, state) {
 }
 
 function unseenFailures(prNumber, failures, state) {
-	const seen = new Set(state.seenFailureKeys[String(prNumber)] ?? []);
-	return failures.filter((failure) => !seen.has(failure.key));
+	const key = String(prNumber);
+	const seen = new Set(state.seenFailureKeys[key] ?? []);
+	const seenNames = new Set(state.seenFailureNames[key] ?? []);
+	return failures
+		.filter((failure) => !seen.has(failure.key))
+		.map((failure) => ({...failure, repeated: seenNames.has(failure.name)}));
 }
 
 function rememberComments(prNumber, comments, state) {
@@ -217,10 +227,13 @@ function rememberComments(prNumber, comments, state) {
 function rememberFailures(prNumber, failures, state) {
 	const key = String(prNumber);
 	const existing = new Set(state.seenFailureKeys[key] ?? []);
+	const names = new Set(state.seenFailureNames[key] ?? []);
 	for (const failure of failures) {
+		names.add(failure.name);
 		existing.add(failure.key);
 	}
 	state.seenFailureKeys[key] = [...existing];
+	state.seenFailureNames[key] = [...names];
 }
 
 function isNewMergeConflict(summary, state) {
@@ -237,6 +250,7 @@ function emptyState() {
 		version: 1,
 		seenCommentIds: {},
 		seenFailureKeys: {},
+		seenFailureNames: {},
 		lastBaseRefOid: {},
 		notifiedReadyPrNumbers: [],
 		prNumbersWithPriorIssues: [],
